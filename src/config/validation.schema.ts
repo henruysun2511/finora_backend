@@ -36,12 +36,15 @@ export function validateEnv(): void {
     }
   }
 
-  const errors = [...missing.map((e) => `Thiếu biến môi trường: ${e}`), ...invalid];
+  const errors = [
+    ...missing.map((e) => `Thiếu biến môi trường: ${e}`),
+    ...invalid,
+  ];
 
   if (errors.length > 0) {
     throw new Error(
       '[ENV VALIDATION] Khởi động dừng — cấu hình môi trường chưa hợp lệ:\n' +
-      errors.map((e) => `  - ${e}`).join('\n'),
+        errors.map((e) => `  - ${e}`).join('\n'),
     );
   }
 }

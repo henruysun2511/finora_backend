@@ -4,10 +4,7 @@ import { DatabaseModule } from './shared/database/database.module';
 import { ProductsModule } from './modules/products/products.module';
 
 @Module({
-  imports: [
-    DatabaseModule,
-    ProductsModule,
-  ],
+  imports: [DatabaseModule, ProductsModule],
   providers: [
     {
       provide: APP_INTERCEPTOR,

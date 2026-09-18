@@ -30,7 +30,12 @@ export class ApiResponse<T> {
   }
 
   static noContent(message = 'Thao tác thành công'): ApiResponse<null> {
-    return new ApiResponse({ success: true, statusCode: 200, message, data: null });
+    return new ApiResponse({
+      success: true,
+      statusCode: 200,
+      message,
+      data: null,
+    });
   }
 }
 
@@ -39,7 +44,14 @@ export class PaginatedResponse<T> {
   items: T[];
 
   @ApiProperty({
-    example: { page: 1, limit: 10, total: 100, totalPages: 10, hasNext: true, hasPrev: false },
+    example: {
+      page: 1,
+      limit: 10,
+      total: 100,
+      totalPages: 10,
+      hasNext: true,
+      hasPrev: false,
+    },
   })
   pagination: {
     page: number;
@@ -50,7 +62,12 @@ export class PaginatedResponse<T> {
     hasPrev: boolean;
   };
 
-  static of<T>(items: T[], total: number, page: number, limit: number): PaginatedResponse<T> {
+  static of<T>(
+    items: T[],
+    total: number,
+    page: number,
+    limit: number,
+  ): PaginatedResponse<T> {
     const totalPages = Math.ceil(total / limit) || 1;
     const res = new PaginatedResponse<T>();
     res.items = items;

@@ -108,7 +108,12 @@ describe('ProductsController', () => {
 
     it('should return paginated products wrapped in ApiResponse.success', async () => {
       // Arrange
-      const paginatedData = PaginatedResponse.of([mockProductResponse], 1, 1, 10);
+      const paginatedData = PaginatedResponse.of(
+        [mockProductResponse],
+        1,
+        1,
+        10,
+      );
       mockProductsService.findAll.mockResolvedValue(paginatedData);
 
       // Act
@@ -176,7 +181,10 @@ describe('ProductsController', () => {
       const result = await controller.update(productId, updateDto);
 
       // Assert
-      expect(mockProductsService.update).toHaveBeenCalledWith(productId, updateDto);
+      expect(mockProductsService.update).toHaveBeenCalledWith(
+        productId,
+        updateDto,
+      );
       expect(result.success).toBe(true);
       expect(result.statusCode).toBe(200);
       expect(result.message).toBe('Cập nhật sản phẩm thành công');
@@ -189,7 +197,9 @@ describe('ProductsController', () => {
       mockProductsService.update.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(controller.update(productId, updateDto)).rejects.toThrow(error);
+      await expect(controller.update(productId, updateDto)).rejects.toThrow(
+        error,
+      );
     });
   });
 

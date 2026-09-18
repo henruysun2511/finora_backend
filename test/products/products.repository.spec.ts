@@ -73,7 +73,9 @@ describe('ProductRepository', () => {
       const result = await repository.findById('prod-uuid-1');
 
       // Assert
-      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({ where: { id: 'prod-uuid-1' } });
+      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'prod-uuid-1' },
+      });
       expect(result).toEqual(mockProduct);
     });
 
@@ -86,7 +88,9 @@ describe('ProductRepository', () => {
 
       // Assert
       expect(result).toBeNull();
-      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({ where: { id: 'non-existent-id' } });
+      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'non-existent-id' },
+      });
     });
 
     it('should throw error when database fails', async () => {
@@ -95,7 +99,9 @@ describe('ProductRepository', () => {
       mockTypeOrmRepo.findOne.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(repository.findById('prod-uuid-1')).rejects.toThrow('Database connection failed');
+      await expect(repository.findById('prod-uuid-1')).rejects.toThrow(
+        'Database connection failed',
+      );
     });
   });
 
@@ -111,7 +117,9 @@ describe('ProductRepository', () => {
       const result = await repository.findBySku('ST-001');
 
       // Assert
-      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({ where: { sku: 'ST-001' } });
+      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({
+        where: { sku: 'ST-001' },
+      });
       expect(result).toEqual(mockProduct);
     });
 
@@ -124,7 +132,9 @@ describe('ProductRepository', () => {
 
       // Assert
       expect(result).toBeNull();
-      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({ where: { sku: 'NON-EXISTENT' } });
+      expect(mockTypeOrmRepo.findOne).toHaveBeenCalledWith({
+        where: { sku: 'NON-EXISTENT' },
+      });
     });
 
     it('should throw error when database query fails', async () => {
@@ -133,7 +143,9 @@ describe('ProductRepository', () => {
       mockTypeOrmRepo.findOne.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(repository.findBySku('ST-001')).rejects.toThrow('Query error');
+      await expect(repository.findBySku('ST-001')).rejects.toThrow(
+        'Query error',
+      );
     });
   });
 
@@ -187,7 +199,11 @@ describe('ProductRepository', () => {
   describe('softDelete', () => {
     it('should soft delete product successfully', async () => {
       // Arrange
-      mockTypeOrmRepo.softDelete.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      mockTypeOrmRepo.softDelete.mockResolvedValue({
+        affected: 1,
+        raw: [],
+        generatedMaps: [],
+      });
 
       // Act
       const result = await repository.softDelete('prod-uuid-1');
@@ -203,7 +219,9 @@ describe('ProductRepository', () => {
       mockTypeOrmRepo.softDelete.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(repository.softDelete('prod-uuid-1')).rejects.toThrow('Delete constraint failure');
+      await expect(repository.softDelete('prod-uuid-1')).rejects.toThrow(
+        'Delete constraint failure',
+      );
     });
   });
 
@@ -242,7 +260,9 @@ describe('ProductRepository', () => {
       const [products, total] = await repository.findPaginated(query);
 
       // Assert
-      expect(mockTypeOrmRepo.createQueryBuilder).toHaveBeenCalledWith('product');
+      expect(mockTypeOrmRepo.createQueryBuilder).toHaveBeenCalledWith(
+        'product',
+      );
       expect(qbMock.where).toHaveBeenCalledWith('product.deletedAt IS NULL');
       expect(qbMock.andWhere).toHaveBeenCalledWith(
         '(product.name ILIKE :kw OR product.sku ILIKE :kw OR product.description ILIKE :kw)',
@@ -252,10 +272,9 @@ describe('ProductRepository', () => {
         'product.category = :category',
         { category: 'POS' },
       );
-      expect(qbMock.andWhere).toHaveBeenCalledWith(
-        'product.status = :status',
-        { status: ProductStatus.ACTIVE },
-      );
+      expect(qbMock.andWhere).toHaveBeenCalledWith('product.status = :status', {
+        status: ProductStatus.ACTIVE,
+      });
       expect(qbMock.andWhere).toHaveBeenCalledWith(
         'product.price >= :minPrice',
         { minPrice: 100 },
@@ -309,7 +328,9 @@ describe('ProductRepository', () => {
         orderBy: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockRejectedValue(new Error('QueryBuilder DB error')),
+        getManyAndCount: jest
+          .fn()
+          .mockRejectedValue(new Error('QueryBuilder DB error')),
       };
 
       mockTypeOrmRepo.createQueryBuilder.mockReturnValue(qbMock);
@@ -317,7 +338,9 @@ describe('ProductRepository', () => {
       const query: ProductQueryDto = { page: 1, limit: 10, skip: 0 };
 
       // Act & Assert
-      await expect(repository.findPaginated(query)).rejects.toThrow('QueryBuilder DB error');
+      await expect(repository.findPaginated(query)).rejects.toThrow(
+        'QueryBuilder DB error',
+      );
     });
   });
 });

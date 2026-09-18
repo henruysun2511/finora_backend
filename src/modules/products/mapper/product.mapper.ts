@@ -53,4 +53,3 @@ export class ProductMapper {
     return products.map((p) => this.toResponse(p));
   }
 }
-

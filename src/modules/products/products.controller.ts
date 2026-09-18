@@ -26,7 +26,8 @@ export class ProductsController {
   @Post()
   @SwaggerDoc({
     summary: 'Tạo sản phẩm mới',
-    description: 'Thêm mới một sản phẩm vào kho, tự động kiểm tra tính duy nhất của SKU.',
+    description:
+      'Thêm mới một sản phẩm vào kho, tự động kiểm tra tính duy nhất của SKU.',
     bodyType: CreateProductDto,
     responseType: ProductResponse,
     status: 201,
@@ -39,7 +40,8 @@ export class ProductsController {
   @Get()
   @SwaggerDoc({
     summary: 'Danh sách sản phẩm (Phân trang, Lọc & Sắp xếp)',
-    description: 'Hỗ trợ tìm kiếm từ khóa, lọc theo danh mục, trạng thái, khoảng giá, mở bán và sắp xếp nhiều trường.',
+    description:
+      'Hỗ trợ tìm kiếm từ khóa, lọc theo danh mục, trạng thái, khoảng giá, mở bán và sắp xếp nhiều trường.',
     responseType: ProductResponse,
     isArray: true,
   })
@@ -56,7 +58,10 @@ export class ProductsController {
   })
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const data = await this.productsService.findOne(id);
-    return ApiResponse.success(data, 'Lấy thông tin chi tiết sản phẩm thành công');
+    return ApiResponse.success(
+      data,
+      'Lấy thông tin chi tiết sản phẩm thành công',
+    );
   }
 
   @Patch(':id')
@@ -77,7 +82,8 @@ export class ProductsController {
   @Delete(':id')
   @SwaggerDoc({
     summary: 'Xóa mềm sản phẩm',
-    description: 'Đánh dấu thời gian xóa mềm sản phẩm (soft delete), dữ liệu không bị xóa vật lý khỏi database.',
+    description:
+      'Đánh dấu thời gian xóa mềm sản phẩm (soft delete), dữ liệu không bị xóa vật lý khỏi database.',
   })
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.productsService.remove(id);

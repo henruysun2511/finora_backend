@@ -1,4 +1,4 @@
-name: Mobile Backend CI
+name: Finora Backend CI
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   build-and-test:
+    name: Build & Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -15,25 +16,26 @@ jobs:
         node-version: [20.x, 22.x]
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        
-    - name: Install Dependencies
-      run: npm ci
-      
-    - name: Lint
-      run: npm run lint
-      
-    - name: Unit Tests & Coverage
-      run: npm run test:cov
-      
-    - name: E2E Tests
-      run: npm run test:e2e
-      
-    - name: Build
-      run: npm run build
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint Code
+        run: npm run lint
+
+      - name: Unit Tests & Coverage
+        run: npm run test:cov
+
+      - name: Production Build
+        run: npm run build

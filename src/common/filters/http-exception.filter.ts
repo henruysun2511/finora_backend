@@ -31,12 +31,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
           success: false,
           statusCode,
           code: 'HTTP_EXCEPTION',
-          message: typeof exRes === 'string' ? exRes : (exRes as any).message,
+          message:
+            typeof exRes === 'string'
+              ? exRes
+              : String((exRes as Record<string, unknown>).message ?? 'Error'),
           timestamp: new Date().toISOString(),
         };
       }
     } else {
-      this.logger.error(`Unhandled exception: ${exception}`, (exception as any)?.stack);
+      this.logger.error(
+        `Unhandled exception: ${exception}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
       body = {
         success: false,
         statusCode,

@@ -11,7 +11,9 @@ import { DatabaseConfig } from '../../config/database.config';
   imports: [
     TypeOrmModule.forRootAsync({
       useFactory: () => {
-        const isSsl = DatabaseConfig.URL.includes('sslmode=require') || DatabaseConfig.URL.includes('neon.tech');
+        const isSsl =
+          DatabaseConfig.URL.includes('sslmode=require') ||
+          DatabaseConfig.URL.includes('neon.tech');
         return {
           type: 'postgres',
           url: DatabaseConfig.URL,

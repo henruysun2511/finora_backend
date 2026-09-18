@@ -39,16 +39,15 @@ async function bootstrap() {
   );
 
   // ── Global Filters & Interceptors ────────────────────────────────────────
-  app.useGlobalFilters(
-    new HttpExceptionFilter(),
-    new TypeOrmExceptionFilter(),
-  );
+  app.useGlobalFilters(new HttpExceptionFilter(), new TypeOrmExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
 
   // ── Swagger Documentation (/docs) ────────────────────────────────────────
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Finora API Platform')
-    .setDescription('Finora RESTful API Service — NestJS + TypeORM + PostgreSQL')
+    .setDescription(
+      'Finora RESTful API Service — NestJS + TypeORM + PostgreSQL',
+    )
     .setVersion('1.0')
     .addBearerAuth(
       { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },

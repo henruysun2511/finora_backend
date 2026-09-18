@@ -14,7 +14,7 @@ export class ProductsService {
   constructor(
     private readonly productRepo: ProductRepository,
     private readonly productMapper: ProductMapper,
-  ) { }
+  ) {}
 
   // ── CREATE ───────────────────────────────────────────────────────────────
 
@@ -33,7 +33,9 @@ export class ProductsService {
 
   // ── LIST (Phân trang + Lọc + Sắp xếp) ────────────────────────────────────
 
-  async findAll(query: ProductQueryDto): Promise<PaginatedResponse<ProductResponse>> {
+  async findAll(
+    query: ProductQueryDto,
+  ): Promise<PaginatedResponse<ProductResponse>> {
     const [products, total] = await this.productRepo.findPaginated(query);
     return PaginatedResponse.of(
       this.productMapper.toResponseList(products),

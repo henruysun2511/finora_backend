@@ -16,9 +16,7 @@ export function SwaggerDoc(options: SwaggerDocOptions): MethodDecorator {
       summary: options.summary,
       description: options.description,
     }),
-    ...(options.bodyType
-      ? [ApiBody({ type: options.bodyType })]
-      : []),
+    ...(options.bodyType ? [ApiBody({ type: options.bodyType })] : []),
     ...(options.responseType
       ? [
           ApiResponse({

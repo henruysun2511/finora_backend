@@ -25,7 +25,9 @@ export class CreateProductDto {
   @MaxLength(100, { message: 'Mã SKU tối đa 100 ký tự' })
   sku: string;
 
-  @ApiPropertyOptional({ example: 'Bàn phím cơ Bluetooth 3 chế độ kết nối, switch linear' })
+  @ApiPropertyOptional({
+    example: 'Bàn phím cơ Bluetooth 3 chế độ kết nối, switch linear',
+  })
   @IsOptional()
   @IsString()
   description?: string;

@@ -19,8 +19,14 @@ const PG_ERROR_MAP: Record<string, PgErrorMapping> = {
   '23505': { ...ErrorCodes.DUPLICATE_VALUE },
   '23503': { ...ErrorCodes.FOREIGN_KEY_VIOLATION },
   '23502': { ...ErrorCodes.VALIDATION, message: 'Dữ liệu không được bỏ trống' },
-  '23514': { ...ErrorCodes.VALIDATION, message: 'Dữ liệu không hợp lệ theo ràng buộc' },
-  '22P02': { ...ErrorCodes.VALIDATION, message: 'Giá trị dữ liệu không đúng định dạng' },
+  '23514': {
+    ...ErrorCodes.VALIDATION,
+    message: 'Dữ liệu không hợp lệ theo ràng buộc',
+  },
+  '22P02': {
+    ...ErrorCodes.VALIDATION,
+    message: 'Giá trị dữ liệu không đúng định dạng',
+  },
 };
 
 @Catch(QueryFailedError)
@@ -31,11 +37,16 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
-    const driverError = (exception as { driverError?: { code?: string; detail?: string } }).driverError;
+    const driverError = (
+      exception as { driverError?: { code?: string; detail?: string } }
+    ).driverError;
     const pgCode = driverError?.code;
 
     if (!pgCode || !PG_ERROR_MAP[pgCode]) {
-      this.logger.error(`Unmapped DB error: ${exception.message}`, exception.stack);
+      this.logger.error(
+        `Unmapped DB error: ${exception.message}`,
+        exception.stack,
+      );
       response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -56,7 +67,9 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode: mapping.statusCode,
       code: mapping.code,
-      message: fieldMatch ? `${mapping.message} (${fieldMatch[1]})` : mapping.message,
+      message: fieldMatch
+        ? `${mapping.message} (${fieldMatch[1]})`
+        : mapping.message,
       details: fieldMatch ? { field: fieldMatch[1] } : undefined,
       timestamp: new Date().toISOString(),
     });

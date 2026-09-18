@@ -113,9 +113,15 @@ describe('ProductsService', () => {
 
       // Assert
       expect(result).toEqual(mockProductResponse);
-      expect(mockProductRepository.findBySku).toHaveBeenCalledWith(createDto.sku);
-      expect(mockProductRepository.create).toHaveBeenCalledWith(mapper.toEntity(createDto));
-      expect(mockProductRepository.save).toHaveBeenCalledWith(mockProductEntity);
+      expect(mockProductRepository.findBySku).toHaveBeenCalledWith(
+        createDto.sku,
+      );
+      expect(mockProductRepository.create).toHaveBeenCalledWith(
+        mapper.toEntity(createDto),
+      );
+      expect(mockProductRepository.save).toHaveBeenCalledWith(
+        mockProductEntity,
+      );
     });
 
     it('should throw ProductSkuAlreadyExistsException when SKU already exists', async () => {
@@ -126,7 +132,9 @@ describe('ProductsService', () => {
       await expect(service.create(createDto)).rejects.toThrow(
         ProductSkuAlreadyExistsException,
       );
-      expect(mockProductRepository.findBySku).toHaveBeenCalledWith(createDto.sku);
+      expect(mockProductRepository.findBySku).toHaveBeenCalledWith(
+        createDto.sku,
+      );
       expect(mockProductRepository.create).not.toHaveBeenCalled();
       expect(mockProductRepository.save).not.toHaveBeenCalled();
     });
@@ -139,7 +147,9 @@ describe('ProductsService', () => {
       mockProductRepository.save.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.create(createDto)).rejects.toThrow('Database error on save');
+      await expect(service.create(createDto)).rejects.toThrow(
+        'Database error on save',
+      );
     });
   });
 
@@ -179,7 +189,9 @@ describe('ProductsService', () => {
       mockProductRepository.findPaginated.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.findAll(query)).rejects.toThrow('Query execution failed');
+      await expect(service.findAll(query)).rejects.toThrow(
+        'Query execution failed',
+      );
     });
   });
 
@@ -219,7 +231,9 @@ describe('ProductsService', () => {
       mockProductRepository.findById.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.findOne(productId)).rejects.toThrow('Database connection failed');
+      await expect(service.findOne(productId)).rejects.toThrow(
+        'Database connection failed',
+      );
     });
   });
 
@@ -232,8 +246,15 @@ describe('ProductsService', () => {
     it('should update product successfully when changing fields without changing SKU', async () => {
       // Arrange
       const currentProduct = { ...mockProductEntity };
-      const updateDto: UpdateProductDto = { name: 'Updated Product Name', price: 120 };
-      const updatedProduct = { ...mockProductEntity, name: 'Updated Product Name', price: 120 };
+      const updateDto: UpdateProductDto = {
+        name: 'Updated Product Name',
+        price: 120,
+      };
+      const updatedProduct = {
+        ...mockProductEntity,
+        name: 'Updated Product Name',
+        price: 120,
+      };
 
       mockProductRepository.findById.mockResolvedValue(currentProduct);
       mockProductRepository.save.mockResolvedValue(updatedProduct);
@@ -273,7 +294,9 @@ describe('ProductsService', () => {
       const updateDto: UpdateProductDto = { name: 'Updated Product' };
 
       // Act & Assert
-      await expect(service.update(productId, updateDto)).rejects.toThrow(AppError);
+      await expect(service.update(productId, updateDto)).rejects.toThrow(
+        AppError,
+      );
       expect(mockProductRepository.findById).toHaveBeenCalledWith(productId);
       expect(mockProductRepository.save).not.toHaveBeenCalled();
     });
@@ -281,7 +304,11 @@ describe('ProductsService', () => {
     it('should throw ProductSkuAlreadyExistsException when new SKU is already taken', async () => {
       // Arrange
       const currentProduct = { ...mockProductEntity, sku: 'SKU-001' };
-      const conflictingProduct = { ...mockProductEntity, id: 'other-uuid', sku: 'SKU-EXISTING' };
+      const conflictingProduct = {
+        ...mockProductEntity,
+        id: 'other-uuid',
+        sku: 'SKU-EXISTING',
+      };
       const updateDto: UpdateProductDto = { sku: 'SKU-EXISTING' };
 
       mockProductRepository.findById.mockResolvedValue(currentProduct);
@@ -291,7 +318,9 @@ describe('ProductsService', () => {
       await expect(service.update(productId, updateDto)).rejects.toThrow(
         ProductSkuAlreadyExistsException,
       );
-      expect(mockProductRepository.findBySku).toHaveBeenCalledWith('SKU-EXISTING');
+      expect(mockProductRepository.findBySku).toHaveBeenCalledWith(
+        'SKU-EXISTING',
+      );
       expect(mockProductRepository.save).not.toHaveBeenCalled();
     });
 
@@ -305,7 +334,9 @@ describe('ProductsService', () => {
       mockProductRepository.save.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.update(productId, updateDto)).rejects.toThrow('Database transaction error');
+      await expect(service.update(productId, updateDto)).rejects.toThrow(
+        'Database transaction error',
+      );
     });
   });
 
@@ -318,7 +349,11 @@ describe('ProductsService', () => {
     it('should soft delete product successfully when product exists', async () => {
       // Arrange
       mockProductRepository.findById.mockResolvedValue(mockProductEntity);
-      mockProductRepository.softDelete.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+      mockProductRepository.softDelete.mockResolvedValue({
+        affected: 1,
+        raw: [],
+        generatedMaps: [],
+      });
 
       // Act
       await service.remove(productId);
@@ -345,7 +380,9 @@ describe('ProductsService', () => {
       mockProductRepository.softDelete.mockRejectedValue(error);
 
       // Act & Assert
-      await expect(service.remove(productId)).rejects.toThrow('Soft delete query failed');
+      await expect(service.remove(productId)).rejects.toThrow(
+        'Soft delete query failed',
+      );
     });
   });
 });
