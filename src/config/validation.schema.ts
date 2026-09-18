@@ -11,6 +11,8 @@ const SCHEMA: Schema = {
   APP_URL: { type: 'string' },
   FRONTEND_URL: { type: 'string' },
   DATABASE_URL: { required: true, type: 'string' },
+  JWT_SECRET: { type: 'string' },
+  JWT_REFRESH_SECRET: { type: 'string' },
 };
 
 export function validateEnv(): void {
