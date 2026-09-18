@@ -142,7 +142,32 @@ npm run start:dev
 
 ---
 
-## 5. Kiểm thử (Unit Tests)
+## 5. Quản lý Database & Migration (TypeORM)
+
+Dự án áp dụng quy trình quản lý schema bằng Migration thủ công (đã tắt `synchronize` để đảm bảo an toàn dữ liệu):
+
+```bash
+# Tự động so sánh Entity với Database và tạo file migration mới
+npm run migration:generate TenMigration
+
+# Tạo file migration trống để viết raw SQL tùy biến
+npm run migration:create TenMigration
+
+# Chạy (áp dụng) các migration chưa thực thi vào Database bằng tay
+npm run migration:run
+
+# Hoàn tác (rollback) bản migration gần nhất
+npm run migration:revert
+
+# Kiểm tra trạng thái các bản migration ([X] đã chạy, [ ] chưa chạy)
+npm run migration:show
+```
+
+Chi tiết quy trình xem tại: 📘 [Hướng dẫn Quản lý Database Migration](docs/database-migration-guide.md)
+
+---
+
+## 6. Kiểm thử (Unit Tests)
 
 Dự án sử dụng Jest và NestJS Testing Module để thực hiện unit test:
 
@@ -159,8 +184,12 @@ npm run test:cov
 
 ---
 
-## 6. Tài liệu Hướng dẫn Phát triển
+## 7. Tài liệu Hướng dẫn Phát triển
 
+* 🏛️ [Kiến Trúc Hệ Thống](docs/architecture.md): Tổng quan kiến trúc phân lớp Clean Architecture, sơ đồ luồng request và cấu trúc thư mục.
+* 📋 [Quy Chuẩn Viết Code & Phản Hồi API](docs/coding-conventions.md): Quy ước đặt tên, chuẩn phản hồi JSON `ApiResponse`, format lỗi và quy tắc Clean Architecture.
+* 🔄 [Quy Trình Phát Triển & Git Workflow](docs/development-workflow.md): Thiết lập môi trường, vòng đời phát triển, lệnh build/start và quy chuẩn commit.
+* 🗄️ [Hướng Dẫn Quản Lý Database & Migration](docs/database-migration-guide.md): Hướng dẫn chi tiết tạo, kiểm tra, rollback và chạy migration TypeORM thủ công.
 * 📘 [Hướng dẫn Xây dựng Module Hoàn chỉnh](docs/module-development-guide.md): Quy trình 8 bước chuẩn Clean Architecture, DTO, TypeORM Entity, QueryBuilder, Mapper, Swagger Doc.
 * 🧪 [Hướng dẫn Viết Unit Test Toàn diện](docs/testing-guide.md): Hướng dẫn cô lập và mock test 3 tầng (Controller, Service, Repository), mẹo debug và đo lường độ bao phủ coverage.
 

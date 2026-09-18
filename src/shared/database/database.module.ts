@@ -18,7 +18,7 @@ import { DatabaseConfig } from '../../config/database.config';
           ssl: isSsl ? { rejectUnauthorized: false } : false,
           entities: [__dirname + '/../../**/*.entity{.ts,.js}'],
           migrations: [__dirname + '/../../database/migrations/*{.ts,.js}'],
-          synchronize: AppConfig.NODE_ENV !== 'production',
+          synchronize: false, // Tắt synchronize tự động để quản lý toàn bộ cấu trúc DB bằng migration thủ công
           logging: AppConfig.IS_DEV,
         };
       },
