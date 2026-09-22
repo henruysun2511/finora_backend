@@ -22,11 +22,22 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
-    if (!user || !user.roles) {
+    if (!user) {
       throw new ForbiddenException(
         'Bạn không có quyền truy cập vào tài nguyên này',
       );
     }
+
+    if (user.isSysAdmin === true) {
+      return true;
+    }
+
+    if (!user.roles) {
+      throw new ForbiddenException(
+        'Bạn không có quyền truy cập vào tài nguyên này',
+      );
+    }
+
 
     const userRoleCodes: string[] = Array.isArray(user.roles)
       ? user.roles.map((r: { code?: string } | string) =>

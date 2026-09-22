@@ -5,6 +5,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { GroupsModule } from './modules/groups/groups.module';
 
 @Module({
   imports: [
@@ -13,7 +14,9 @@ import { AuthModule } from './modules/auth/auth.module';
     UsersModule,
     AuthorizationModule,
     AuthModule,
+    GroupsModule,
   ],
+
   providers: [
     {
       provide: APP_INTERCEPTOR,

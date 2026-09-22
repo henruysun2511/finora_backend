@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { RoleRepository } from './repository/role.repository';
 import { PermissionRepository } from './repository/permission.repository';
 import { RolePermissionRepository } from './repository/role-permission.repository';
@@ -10,12 +10,15 @@ import { CreatePermissionDto } from './dto/request/create-permission.dto';
 import { UpdatePermissionDto } from './dto/request/update-permission.dto';
 import { RoleResponseDto } from './dto/response/role.dto';
 import { PermissionResponseDto } from './dto/response/permission.dto';
+import { GROUP_ROLES } from '../../common/constants/role.constant';
+import { ADMIN_EXCLUSIVE_PERMISSIONS } from '../../common/constants/permission.constant';
 import {
   RoleNotFoundException,
   RoleCodeAlreadyExistsException,
   PermissionNotFoundException,
   PermissionCodeAlreadyExistsException,
 } from './exceptions/authorization.exception';
+
 
 @Injectable()
 export class AuthorizationService {
@@ -84,10 +87,26 @@ export class AuthorizationService {
       throw new RoleNotFoundException(roleId);
     }
 
+    const groupRoleCodes = Object.values(GROUP_ROLES) as string[];
+    if (groupRoleCodes.includes(role.code.toUpperCase())) {
+      const permissions = await this.permissionRepo.findByIds(
+        dto.permissionIds,
+      );
+      const hasAdminExclusive = permissions.some((p) =>
+        ADMIN_EXCLUSIVE_PERMISSIONS.includes(p.code),
+      );
+      if (hasAdminExclusive) {
+        throw new BadRequestException(
+          'Không thể gán quyền quản trị hệ thống cho vai trò của nhóm',
+        );
+      }
+    }
+
     await this.rolePermissionRepo.replacePermissions(roleId, dto.permissionIds);
     const refreshed = await this.roleRepo.findById(roleId);
     return this.mapper.toRoleResponseDto(refreshed!);
   }
+
 
   // ── Permissions ───────────────────────────────────────────────────────────
   async createPermission(

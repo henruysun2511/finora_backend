@@ -23,7 +23,9 @@ describe('AuthorizationController', () => {
     name: 'Admin',
     description: 'Admin role',
     isActive: true,
+    isSysAdmin: true,
     permissions: [],
+
     createdAt: mockDate,
     updatedAt: mockDate,
   };

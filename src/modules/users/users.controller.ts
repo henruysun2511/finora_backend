@@ -10,8 +10,9 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/request/create-user.dto';
 import { UpdateUserDto } from './dto/request/update-user.dto';
@@ -20,10 +21,19 @@ import { AssignRoleDto } from './dto/request/assign-role.dto';
 import { UserResponseDto } from './dto/response/user.dto';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../authorization/guards/roles.guard';
+import { Roles } from '../authorization/decorators/roles.decorator';
+import { SYSTEM_ROLES } from '../../common/constants/role.constant';
 
 @ApiTags('Users')
+@ApiBearerAuth('access-token')
 @Controller({ path: 'users', version: '1' })
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(SYSTEM_ROLES.ADMIN)
 export class UsersController {
+
+
   constructor(private readonly usersService: UsersService) {}
 
   @Post()

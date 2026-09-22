@@ -22,9 +22,18 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
-    if (!user || !user.permissions) {
+    if (!user) {
       throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
+
+    if (user.isSysAdmin === true) {
+      return true;
+    }
+
+    if (!user.permissions) {
+      throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
+    }
+
 
     const userPermissionCodes: string[] = Array.isArray(user.permissions)
       ? user.permissions.map((p: { code?: string } | string) =>

@@ -1,5 +1,5 @@
 import { applyDecorators, Type } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
 interface SwaggerDocOptions {
   summary: string;
@@ -8,6 +8,7 @@ interface SwaggerDocOptions {
   responseType?: Type<unknown>;
   status?: number;
   isArray?: boolean;
+  bearerAuth?: boolean;
 }
 
 export function SwaggerDoc(options: SwaggerDocOptions): MethodDecorator {
@@ -16,6 +17,7 @@ export function SwaggerDoc(options: SwaggerDocOptions): MethodDecorator {
       summary: options.summary,
       description: options.description,
     }),
+    ...(options.bearerAuth ? [ApiBearerAuth('access-token')] : []),
     ...(options.bodyType ? [ApiBody({ type: options.bodyType })] : []),
     ...(options.responseType
       ? [
@@ -28,3 +30,4 @@ export function SwaggerDoc(options: SwaggerDocOptions): MethodDecorator {
       : []),
   );
 }
+

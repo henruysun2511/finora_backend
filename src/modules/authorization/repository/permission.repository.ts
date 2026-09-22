@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Permission } from '../entities/permission.entity';
 
 @Injectable()
@@ -17,6 +17,12 @@ export class PermissionRepository {
   findById(id: string): Promise<Permission | null> {
     return this.repo.findOne({ where: { id } });
   }
+
+  findByIds(ids: string[]): Promise<Permission[]> {
+    if (!ids || ids.length === 0) return Promise.resolve([]);
+    return this.repo.find({ where: { id: In(ids) } });
+  }
+
 
   findByCode(code: string): Promise<Permission | null> {
     return this.repo.findOne({

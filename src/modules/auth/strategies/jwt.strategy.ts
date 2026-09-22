@@ -46,12 +46,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             .filter((code): code is string => Boolean(code)) ?? [],
       ) ?? [];
 
+    const isSysAdmin: boolean =
+      user.userRoles?.some((ur) => ur.role?.isSysAdmin) ?? false;
+
     const userDto = this.userMapper.toResponseDto(user);
 
     return {
       ...userDto,
       roles,
       permissions: Array.from(new Set(permissions)),
+      isSysAdmin,
     };
   }
 }
+

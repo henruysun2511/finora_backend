@@ -38,7 +38,9 @@ export class AuthorizationMapper {
       name: role.name,
       description: role.description,
       isActive: role.isActive,
+      isSysAdmin: role.isSysAdmin ?? false,
       permissions,
+
       createdAt: role.createdAt,
       updatedAt: role.updatedAt,
     };

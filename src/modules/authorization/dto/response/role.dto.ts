@@ -17,7 +17,11 @@ export class RoleResponseDto {
   @ApiProperty({ example: true })
   isActive: boolean;
 
+  @ApiProperty({ example: false })
+  isSysAdmin: boolean;
+
   @ApiPropertyOptional({ type: [PermissionResponseDto] })
+
   permissions?: PermissionResponseDto[];
 
   @ApiProperty()
