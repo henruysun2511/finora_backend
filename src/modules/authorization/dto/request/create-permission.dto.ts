@@ -3,7 +3,7 @@ import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
 
 export class CreatePermissionDto {
   @ApiProperty({
-    example: 'PRODUCTS_CREATE',
+    example: 'GROUPS_CREATE',
     description: 'Mã định danh quyền hạn (nhập từ FE, viết hoa, không dấu)',
   })
   @IsString({ message: 'Mã quyền hạn phải là chuỗi' })
@@ -11,7 +11,7 @@ export class CreatePermissionDto {
   code: string;
 
   @ApiProperty({
-    example: 'Tạo sản phẩm mới',
+    example: 'Tạo nhóm mới',
     description: 'Tên hiển thị của quyền hạn',
   })
   @IsString({ message: 'Tên quyền hạn phải là chuỗi' })
@@ -19,7 +19,7 @@ export class CreatePermissionDto {
   name: string;
 
   @ApiPropertyOptional({
-    example: 'products',
+    example: 'groups',
     description: 'Tên tài nguyên / module quản lý',
   })
   @IsOptional()
