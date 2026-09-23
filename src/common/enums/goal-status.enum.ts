@@ -1,0 +1,6 @@
+export enum GoalStatus {
+  ACTIVE = 'ACTIVE',
+  COMPLETED = 'COMPLETED',
+  WITHDRAWN = 'WITHDRAWN',
+  CANCELLED = 'CANCELLED',
+}

@@ -1,4 +1,4 @@
-import { Entity, Column, Index, OneToMany } from 'typeorm';
+import { Entity, Column, Index, OneToMany, OneToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { AuthProvider } from '../../../common/enums/auth-provider.enum';
 import { UserStatus } from '../../../common/enums/user-status.enum';
@@ -54,5 +54,41 @@ export class User extends BaseEntity {
 
   @OneToMany('GroupMember', 'user')
   groupMemberships: GroupMember[];
+
+  @OneToOne('UserSetting', 'user')
+  setting?: any;
+
+  @OneToMany('AiPersona', 'user')
+  aiPersonas: any[];
+
+  @OneToMany('WalletMember', 'user')
+  walletMemberships: any[];
+
+  @OneToMany('Transaction', 'creator')
+  createdTransactions: any[];
+
+  @OneToMany('ChatMessage', 'user')
+  chatMessages: any[];
+
+  @OneToMany('Notification', 'user')
+  notifications: any[];
+
+  @OneToMany('Friendship', 'requester')
+  friendshipsRequested: any[];
+
+  @OneToMany('Friendship', 'addressee')
+  friendshipsReceived: any[];
+
+  @OneToMany('DirectMessage', 'sender')
+  sentDirectMessages: any[];
+
+  @OneToMany('DirectMessage', 'receiver')
+  receivedDirectMessages: any[];
+
+  @OneToMany('PostReaction', 'user')
+  postReactions: any[];
+
+  @OneToMany('MessageReaction', 'user')
+  messageReactions: any[];
 }
 
