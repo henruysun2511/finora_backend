@@ -10,7 +10,7 @@ import { CreatePermissionDto } from './dto/request/create-permission.dto';
 import { UpdatePermissionDto } from './dto/request/update-permission.dto';
 import { RoleResponseDto } from './dto/response/role.dto';
 import { PermissionResponseDto } from './dto/response/permission.dto';
-import { GROUP_ROLES } from '../../common/constants/role.constant';
+import { WALLET_ROLES } from '../../common/constants/role.constant';
 import { ADMIN_EXCLUSIVE_PERMISSIONS } from '../../common/constants/permission.constant';
 import {
   RoleNotFoundException,
@@ -87,8 +87,8 @@ export class AuthorizationService {
       throw new RoleNotFoundException(roleId);
     }
 
-    const groupRoleCodes = Object.values(GROUP_ROLES) as string[];
-    if (groupRoleCodes.includes(role.code.toUpperCase())) {
+    const walletRoleCodes = Object.values(WALLET_ROLES) as string[];
+    if (walletRoleCodes.includes(role.code.toUpperCase())) {
       const permissions = await this.permissionRepo.findByIds(
         dto.permissionIds,
       );
@@ -97,7 +97,7 @@ export class AuthorizationService {
       );
       if (hasAdminExclusive) {
         throw new BadRequestException(
-          'Không thể gán quyền quản trị hệ thống cho vai trò của nhóm',
+          'Không thể gán quyền quản trị hệ thống cho vai trò của ví',
         );
       }
     }

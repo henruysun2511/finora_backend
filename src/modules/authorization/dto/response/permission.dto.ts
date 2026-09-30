@@ -4,13 +4,13 @@ export class PermissionResponseDto {
   @ApiProperty({ example: 'c8b9e67c-46df-5efd-cb2d-b5079ef83716' })
   id: string;
 
-  @ApiProperty({ example: 'GROUPS_CREATE' })
+  @ApiProperty({ example: 'WALLETS_CREATE' })
   code: string;
 
-  @ApiProperty({ example: 'Tạo nhóm mới' })
+  @ApiProperty({ example: 'Tạo ví mới' })
   name: string;
 
-  @ApiPropertyOptional({ example: 'groups' })
+  @ApiPropertyOptional({ example: 'wallets' })
   resource?: string;
 
   @ApiPropertyOptional({ example: 'create' })

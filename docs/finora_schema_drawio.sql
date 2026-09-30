@@ -61,7 +61,7 @@ CREATE TABLE wallet_members (
     id UUID PRIMARY KEY,
     wallet_id UUID REFERENCES wallets(id),
     user_id UUID REFERENCES users(id),
-    role VARCHAR(50) DEFAULT 'VIEWER'
+    role_id UUID REFERENCES roles(id)
 );
 
 CREATE TABLE accounts (

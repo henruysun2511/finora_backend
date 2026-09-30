@@ -3,8 +3,8 @@ import { BaseEntity } from '../../../common/entities/base.entity';
 import { AuthProvider } from '../../../common/enums/auth-provider.enum';
 import { UserStatus } from '../../../common/enums/user-status.enum';
 import { UserRole } from './user-role.entity';
-import type { Group } from '../../groups/entities/group.entity';
-import type { GroupMember } from '../../groups/entities/group-member.entity';
+import type { Wallet } from '../../wallets/entities/wallet.entity';
+import type { WalletMember } from '../../wallets/entities/wallet-member.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -49,20 +49,17 @@ export class User extends BaseEntity {
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles: UserRole[];
 
-  @OneToMany('Group', 'owner')
-  ownedGroups: Group[];
+  @OneToMany('Wallet', 'owner')
+  ownedWallets: Wallet[];
 
-  @OneToMany('GroupMember', 'user')
-  groupMemberships: GroupMember[];
+  @OneToMany('WalletMember', 'user')
+  walletMemberships: WalletMember[];
 
   @OneToOne('UserSetting', 'user')
   setting?: any;
 
   @OneToMany('AiPersona', 'user')
   aiPersonas: any[];
-
-  @OneToMany('WalletMember', 'user')
-  walletMemberships: any[];
 
   @OneToMany('Transaction', 'creator')
   createdTransactions: any[];

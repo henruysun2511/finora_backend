@@ -5,10 +5,10 @@ export const SYSTEM_ROLES = {
 
 export type SystemRole = (typeof SYSTEM_ROLES)[keyof typeof SYSTEM_ROLES];
 
-export const GROUP_ROLES = {
+export const WALLET_ROLES = {
   OWNER: 'OWNER',
-  ADMIN_GROUP: 'ADMIN_GROUP',
-  MEMBER: 'MEMBER',
+  EDITOR: 'EDITOR',
+  VIEWER: 'VIEWER',
 } as const;
 
-export type GroupRole = (typeof GROUP_ROLES)[keyof typeof GROUP_ROLES];
+export type WalletRole = (typeof WALLET_ROLES)[keyof typeof WALLET_ROLES];

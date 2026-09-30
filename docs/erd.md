@@ -127,7 +127,7 @@ erDiagram
         uuid id PK
         uuid wallet_id FK
         uuid user_id FK
-        enum role "OWNER | EDITOR | VIEWER"
+        uuid role_id FK
     }
 
     Account {

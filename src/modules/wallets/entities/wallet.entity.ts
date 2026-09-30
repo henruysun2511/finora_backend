@@ -23,7 +23,7 @@ export class Wallet extends BaseEntity {
   @Index()
   ownerId: string;
 
-  @ManyToOne(() => User, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => User, (user) => user.ownedWallets, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'owner_id' })
   owner: User;
 

@@ -7,9 +7,9 @@ import {
   Unique,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { WalletRole } from '../../../common/enums/wallet-role.enum';
 import { User } from '../../users/entities/user.entity';
 import { Wallet } from './wallet.entity';
+import type { Role } from '../../authorization/entities/role.entity';
 
 @Entity('wallet_members')
 @Unique(['walletId', 'userId'])
@@ -30,12 +30,13 @@ export class WalletMember extends BaseEntity {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({
-    type: 'enum',
-    enum: WalletRole,
-    default: WalletRole.VIEWER,
-  })
-  role: WalletRole;
+  @Column({ name: 'role_id', type: 'uuid' })
+  @Index()
+  roleId: string;
+
+  @ManyToOne('Role', 'walletMembers', { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'role_id' })
+  role: Role;
 
   @Column({
     name: 'joined_at',
