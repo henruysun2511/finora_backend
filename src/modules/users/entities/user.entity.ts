@@ -1,4 +1,4 @@
-import { Entity, Column, Index, OneToMany } from 'typeorm';
+import { Entity, Column, Index, OneToMany, OneToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { AuthProvider } from '../../../common/enums/auth-provider.enum';
 import { UserStatus } from '../../../common/enums/user-status.enum';
@@ -51,8 +51,8 @@ export class User extends BaseEntity {
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles: UserRole[];
 
-  @OneToMany('Group', 'owner')
-  ownedGroups: Group[];
+  @OneToMany('Wallet', 'owner')
+  ownedWallets: Wallet[];
 
   @OneToMany('GroupMember', 'user')
   groupMemberships: GroupMember[];

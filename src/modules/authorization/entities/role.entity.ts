@@ -2,7 +2,7 @@ import { Entity, Column, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { RolePermission } from './role-permission.entity';
 import type { UserRole } from '../../users/entities/user-role.entity';
-import type { GroupMember } from '../../groups/entities/group-member.entity';
+import type { WalletMember } from '../../wallets/entities/wallet-member.entity';
 
 @Entity('roles')
 export class Role extends BaseEntity {
@@ -32,7 +32,7 @@ export class Role extends BaseEntity {
   @OneToMany(() => RolePermission, (rolePermission) => rolePermission.role)
   rolePermissions: RolePermission[];
 
-  @OneToMany('GroupMember', 'role')
-  groupMembers: GroupMember[];
+  @OneToMany('WalletMember', 'role')
+  walletMembers: WalletMember[];
 }
 

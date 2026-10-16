@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { AuthorizationService } from 'modules/authorization/authorization.service';
 import { RoleRepository } from 'modules/authorization/repository/role.repository';
 import { PermissionRepository } from 'modules/authorization/repository/permission.repository';
@@ -16,6 +17,8 @@ import { CreateRoleDto } from 'modules/authorization/dto/request/create-role.dto
 import { UpdateRoleDto } from 'modules/authorization/dto/request/update-role.dto';
 import { CreatePermissionDto } from 'modules/authorization/dto/request/create-permission.dto';
 import { UpdatePermissionDto } from 'modules/authorization/dto/request/update-permission.dto';
+import { WALLET_ROLES } from 'common/constants/role.constant';
+import { ADMIN_EXCLUSIVE_PERMISSIONS } from 'common/constants/permission.constant';
 
 describe('AuthorizationService', () => {
   let service: AuthorizationService;
@@ -67,6 +70,7 @@ describe('AuthorizationService', () => {
     permissionRepo = {
       findByCode: jest.fn(),
       findById: jest.fn(),
+      findByIds: jest.fn(),
       findAll: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -236,6 +240,31 @@ describe('AuthorizationService', () => {
           permissionIds: [mockPermId],
         }),
       ).rejects.toThrow(RoleNotFoundException);
+    });
+
+    it('should throw BadRequestException when assigning admin exclusive permissions to wallet role', async () => {
+      const walletRole: Role = {
+        ...mockRoleEntity,
+        code: WALLET_ROLES.EDITOR,
+      } as Role;
+      roleRepo.findById!.mockResolvedValue(walletRole);
+      permissionRepo.findByIds!.mockResolvedValue([
+        {
+          id: 'admin-perm-id',
+          code: ADMIN_EXCLUSIVE_PERMISSIONS[0],
+          name: 'Admin Perm',
+          resource: 'users',
+          action: 'create',
+          createdAt: mockDate,
+          updatedAt: mockDate,
+        } as any,
+      ]);
+
+      await expect(
+        service.assignPermissionsToRole(mockRoleId, {
+          permissionIds: ['admin-perm-id'],
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

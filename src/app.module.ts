@@ -11,7 +11,6 @@ import { WalletsModule } from './modules/wallets/wallets.module';
 @Module({
   imports: [
     DatabaseModule,
-    ProductsModule,
     UsersModule,
     AuthorizationModule,
     AuthModule,

@@ -1,0 +1,5 @@
+export enum TransactionStatus {
+  PENDING_CONFIRMATION = 'PENDING_CONFIRMATION',
+  CONFIRMED = 'CONFIRMED',
+  REJECTED = 'REJECTED',
+}
