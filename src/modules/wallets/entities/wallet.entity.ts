@@ -33,4 +33,7 @@ export class Wallet extends BaseEntity {
 
   @OneToMany('WalletMember', 'wallet')
   members: WalletMember[];
+
+  @OneToMany('Account', 'wallet')
+  accounts: any[];
 }

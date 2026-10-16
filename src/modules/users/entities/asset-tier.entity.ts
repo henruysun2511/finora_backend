@@ -1,10 +1,11 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
+import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
 
 @Entity('asset_tiers')
 export class AssetTier extends BaseEntity {
   @Column({ name: 'tier_name', unique: true, length: 100 })
-  @Index()
+  @Index('idx_asset_tiers_tier_name')
   tierName: string;
 
   @Column({
@@ -13,6 +14,7 @@ export class AssetTier extends BaseEntity {
     precision: 15,
     scale: 2,
     default: 0,
+    transformer: new DecimalTransformer(),
   })
   minNetWorth: number;
 
@@ -22,14 +24,15 @@ export class AssetTier extends BaseEntity {
     precision: 15,
     scale: 2,
     nullable: true,
+    transformer: new DecimalTransformer(),
   })
   maxNetWorth?: number;
 
   @Column({ name: 'mascot_asset_url', length: 500, nullable: true })
   mascotAssetUrl?: string;
 
-  @Column({ name: 'display_name', length: 100 })
-  displayName: string;
+  @Column({ name: 'display_name', length: 100, nullable: true })
+  displayName?: string;
 
   @Column({ name: 'display_order', type: 'int', default: 0 })
   displayOrder: number;

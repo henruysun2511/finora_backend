@@ -6,16 +6,16 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { NotificationType } from '../../../common/enums/notification-type.enum';
+import { NotificationType } from '../enums/notification-type.enum';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('notifications')
 export class Notification extends BaseEntity {
   @Column({ name: 'user_id', type: 'uuid' })
-  @Index()
+  @Index('idx_notifications_user_id')
   userId: string;
 
-  @ManyToOne(() => User, (user) => user.notifications, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 
@@ -25,7 +25,7 @@ export class Notification extends BaseEntity {
   })
   type: NotificationType;
 
-  @Column({ length: 200 })
+  @Column({ length: 255 })
   title: string;
 
   @Column({ type: 'text' })
@@ -38,19 +38,6 @@ export class Notification extends BaseEntity {
   relatedEntityType?: string;
 
   @Column({ name: 'related_entity_id', type: 'uuid', nullable: true })
-  @Index()
+  @Index('idx_notifications_related_entity_id')
   relatedEntityId?: string;
-
-  @Column({ type: 'jsonb', nullable: true })
-  metadata?: Record<string, any>;
-
-  @Column({ name: 'action_url', length: 500, nullable: true })
-  actionUrl?: string;
-
-  @Column({
-    name: 'read_at',
-    type: 'timestamp with time zone',
-    nullable: true,
-  })
-  readAt?: Date;
 }

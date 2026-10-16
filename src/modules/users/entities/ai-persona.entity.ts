@@ -1,26 +1,23 @@
-import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, Index, OneToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from './user.entity';
+import { PersonalityType } from '../enums/personality-type.enum';
 
 @Entity('ai_personas')
 export class AiPersona extends BaseEntity {
-  @Column({ name: 'user_id', type: 'uuid' })
-  @Index()
+  @Column({ name: 'user_id', type: 'uuid', unique: true })
+  @Index('idx_ai_personas_user_id')
   userId: string;
 
-  @ManyToOne(() => User, (user) => user.aiPersonas, { onDelete: 'CASCADE' })
+  @OneToOne(() => User, (user) => user.persona, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ length: 100 })
-  name: string;
-
-  @Column({ name: 'tone_description', type: 'text', nullable: true })
-  toneDescription?: string;
-
-  @Column({ name: 'system_prompt_snippet', type: 'text', nullable: true })
-  systemPromptSnippet?: string;
-
-  @Column({ name: 'is_active', default: false })
-  isActive: boolean;
+  @Column({
+    name: 'personality_type',
+    type: 'enum',
+    enum: PersonalityType,
+    default: PersonalityType.NEUTRAL,
+  })
+  personalityType: PersonalityType;
 }

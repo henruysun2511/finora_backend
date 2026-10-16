@@ -32,9 +32,7 @@ import { SYSTEM_ROLES } from '../../common/constants/role.constant';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(SYSTEM_ROLES.ADMIN)
 export class UsersController {
-
-
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Post()
   @SwaggerDoc({

@@ -3,22 +3,26 @@ import { BaseEntity } from '../../../common/entities/base.entity';
 import { AuthProvider } from '../../../common/enums/auth-provider.enum';
 import { UserStatus } from '../../../common/enums/user-status.enum';
 import { UserRole } from './user-role.entity';
-import type { Group } from '../../groups/entities/group.entity';
-import type { GroupMember } from '../../groups/entities/group-member.entity';
 import type { Wallet } from '../../wallets/entities/wallet.entity';
 import type { WalletMember } from '../../wallets/entities/wallet-member.entity';
+import type { UserSetting } from './user-setting.entity';
+import type { AiPersona } from './ai-persona.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
+  @Column({ unique: true, length: 100 })
+  @Index('idx_users_username')
+  username: string;
+
   @Column({ unique: true, length: 150 })
-  @Index()
+  @Index('idx_users_email')
   email: string;
 
   @Column({ length: 255, nullable: true, select: false })
   password?: string;
 
   @Column({ name: 'google_id', unique: true, nullable: true, length: 100 })
-  @Index()
+  @Index('idx_users_google_id')
   googleId?: string;
 
   @Column({
@@ -48,14 +52,14 @@ export class User extends BaseEntity {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  @OneToOne('UserSetting', 'user', { cascade: true })
+  setting?: UserSetting;
+
+  @OneToOne('AiPersona', 'user', { cascade: true })
+  persona?: AiPersona;
+
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles: UserRole[];
-
-  @OneToMany('Wallet', 'owner')
-  ownedWallets: Wallet[];
-
-  @OneToMany('GroupMember', 'user')
-  groupMemberships: GroupMember[];
 
   @OneToMany('Wallet', 'owner')
   wallets: Wallet[];
@@ -63,4 +67,3 @@ export class User extends BaseEntity {
   @OneToMany('WalletMember', 'user')
   walletMemberships: WalletMember[];
 }
-

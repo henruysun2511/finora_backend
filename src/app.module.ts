@@ -5,7 +5,6 @@ import { ProductsModule } from './modules/sample/products.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { GroupsModule } from './modules/groups/groups.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
 
 @Module({
@@ -14,7 +13,6 @@ import { WalletsModule } from './modules/wallets/wallets.module';
     UsersModule,
     AuthorizationModule,
     AuthModule,
-    GroupsModule,
     WalletsModule,
   ],
 
