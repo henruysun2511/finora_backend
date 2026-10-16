@@ -4,7 +4,13 @@ export const PRODUCTS_CONSTANTS = {
     DEFAULT_LIMIT: 10,
     MAX_LIMIT: 100,
   },
-  ALLOWED_SORT_FIELDS: ['createdAt', 'updatedAt', 'name', 'price', 'stock'],
+  ALLOWED_SORT_FIELDS: [
+    'createdAt',
+    'updatedAt',
+    'name',
+    'price',
+    'stock',
+  ],
 } as const;
 
 export enum ProductStatus {

@@ -45,6 +45,7 @@ Client
 ```text
 finora_be/
 ├── docs/                           # Tài liệu hướng dẫn phát triển
+│   ├── git-and-module-development-guide.md # Hướng dẫn Git workflow, đặt tên & code module hoàn chỉnh
 │   ├── module-development-guide.md # Hướng dẫn viết module hoàn chỉnh chuẩn Clean Architecture
 │   └── testing-guide.md            # Hướng dẫn viết Unit Test (Controller, Service, Repository)
 ├── src/

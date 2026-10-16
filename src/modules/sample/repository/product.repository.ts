@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, UpdateResult } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Product } from '../entities/product.entity';
 import { ProductQueryDto } from '../dto/request/product-query.dto';
 import { PRODUCTS_CONSTANTS } from '../products.constant';
@@ -29,8 +29,7 @@ export class ProductRepository {
   }
 
   async findPaginated(query: ProductQueryDto): Promise<[Product[], number]> {
-    const qb = this.repo
-      .createQueryBuilder('product')
+    const qb = this.repo.createQueryBuilder('product')
       .where('product.deletedAt IS NULL');
 
     // 1. Tìm kiếm từ khóa (name, sku, description)
@@ -43,9 +42,7 @@ export class ProductRepository {
 
     // 2. Lọc theo danh mục
     if (query.category && query.category.trim() !== '') {
-      qb.andWhere('product.category = :category', {
-        category: query.category.trim(),
-      });
+      qb.andWhere('product.category = :category', { category: query.category.trim() });
     }
 
     // 3. Lọc theo trạng thái
@@ -63,18 +60,14 @@ export class ProductRepository {
 
     // 5. Lọc theo trạng thái mở bán
     if (query.isAvailable !== undefined) {
-      qb.andWhere('product.isAvailable = :isAvailable', {
-        isAvailable: query.isAvailable,
-      });
+      qb.andWhere('product.isAvailable = :isAvailable', { isAvailable: query.isAvailable });
     }
 
     // 6. Xử lý sắp xếp (bảo vệ trường sort hợp lệ)
-    const allowedSortFields: readonly string[] =
-      PRODUCTS_CONSTANTS.ALLOWED_SORT_FIELDS;
-    const sortField =
-      query.sortBy && allowedSortFields.includes(query.sortBy)
-        ? query.sortBy
-        : 'createdAt';
+    const allowedSortFields: readonly string[] = PRODUCTS_CONSTANTS.ALLOWED_SORT_FIELDS;
+    const sortField = query.sortBy && allowedSortFields.includes(query.sortBy)
+      ? query.sortBy
+      : 'createdAt';
 
     return qb
       .orderBy(`product.${sortField}`, query.sortOrder ?? 'DESC')
@@ -83,7 +76,7 @@ export class ProductRepository {
       .getManyAndCount();
   }
 
-  softDelete(id: string): Promise<UpdateResult> {
+  softDelete(id: string): Promise<any> {
     return this.repo.softDelete(id);
   }
 }

@@ -5,6 +5,8 @@ import { UserStatus } from '../../../common/enums/user-status.enum';
 import { UserRole } from './user-role.entity';
 import type { Group } from '../../groups/entities/group.entity';
 import type { GroupMember } from '../../groups/entities/group-member.entity';
+import type { Wallet } from '../../wallets/entities/wallet.entity';
+import type { WalletMember } from '../../wallets/entities/wallet-member.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -54,5 +56,11 @@ export class User extends BaseEntity {
 
   @OneToMany('GroupMember', 'user')
   groupMemberships: GroupMember[];
+
+  @OneToMany('Wallet', 'owner')
+  wallets: Wallet[];
+
+  @OneToMany('WalletMember', 'user')
+  walletMemberships: WalletMember[];
 }
 
