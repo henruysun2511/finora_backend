@@ -116,7 +116,17 @@ export class WalletsService {
     return member;
   }
 
-  // Xem chi tiết ví.
+  /**
+   * Xem chi tiết ví theo ID.
+   * [CROSS-MODULE]: Các module khác (như AccountsService, TransactionsService...) gọi hàm này
+   * để xác thực quyền truy cập ví của người dùng trước khi thao tác dữ liệu (tạo tài khoản, giao dịch...).
+   *
+   * @param walletId - UUID của ví
+   * @param userId - UUID của người dùng hiện tại
+   * @returns WalletResponseDto
+   * @throws WalletNotFoundException nếu ví không tồn tại
+   * @throws WalletAccessDeniedException nếu user không có quyền truy cập
+   */
   async getWalletById(
     walletId: string,
     userId: string,
@@ -203,7 +213,17 @@ export class WalletsService {
     await this.walletRepo.softDeleteById(walletId);
   }
 
-  // Lấy danh sách tài khoản trong ví.
+  /**
+   * [CROSS-MODULE] Lấy danh sách tài khoản trong ví.
+   * Dùng cho controller và các module ngoại vi (TransactionsService, BudgetsService...)
+   * cần tra cứu danh sách tài khoản hợp lệ thuộc một ví sau khi đã xác thực quyền thành viên.
+   *
+   * @param walletId - UUID của ví
+   * @param userId - UUID của người dùng hiện tại
+   * @returns Danh sách WalletAccountResponseDto
+   * @throws WalletNotFoundException nếu ví không tồn tại
+   * @throws WalletAccessDeniedException nếu người dùng không thuộc ví
+   */
   async getWalletAccounts(
     walletId: string,
     userId: string,
@@ -223,7 +243,17 @@ export class WalletsService {
     return this.walletMapper.toAccountResponseList(accounts, balanceMap);
   }
 
-  // Lấy tổng tài sản của ví.
+  /**
+   * [CROSS-MODULE] Lấy tổng tài sản và thông tin số dư của ví.
+   * Dùng cho controller và các module ngoại vi (DashboardService, ReportsService...)
+   * cần tra cứu tổng số dư tài sản theo ví sau khi đã xác thực quyền thành viên.
+   *
+   * @param walletId - UUID của ví
+   * @param userId - UUID của người dùng hiện tại
+   * @returns WalletBalanceResponseDto
+   * @throws WalletNotFoundException nếu ví không tồn tại
+   * @throws WalletAccessDeniedException nếu người dùng không thuộc ví
+   */
   async getWalletBalance(
     walletId: string,
     userId: string,

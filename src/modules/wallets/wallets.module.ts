@@ -18,6 +18,6 @@ import { WalletMapper } from './mapper/wallet.mapper';
     WalletMemberRepository,
     WalletMapper,
   ],
-  exports: [WalletsService, WalletRepository, WalletMemberRepository],
+  exports: [WalletsService],
 })
 export class WalletsModule {}

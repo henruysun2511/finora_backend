@@ -11,6 +11,10 @@ export class WalletRepository {
   constructor(
     @InjectRepository(Wallet)
     private readonly repo: Repository<Wallet>,
+    // ⚠️ LƯU Ý KIẾN TRÚC:
+    // Tạm thời inject Repository<Account> do module accounts chưa hoàn thiện Service/Repository.
+    // Khi module accounts được xây dựng, cần chuyển logic truy vấn tài khoản về AccountsService
+    // và WalletsService sẽ gọi AccountsService, KHÔNG được inject Repository<Account> tại đây.
     @InjectRepository(Account)
     private readonly accountRepo: Repository<Account>,
   ) {}

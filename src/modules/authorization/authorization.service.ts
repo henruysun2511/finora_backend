@@ -44,12 +44,32 @@ export class AuthorizationService {
     return this.mapper.toRoleResponseDtoList(roles);
   }
 
+  /**
+   * [CROSS-MODULE] Tìm thông tin vai trò theo ID (kèm permissions).
+   * Dùng cho controller và các service ngoại vi (UsersService...) tra cứu hoặc kiểm tra vai trò hợp lệ.
+   *
+   * @param id - UUID của vai trò
+   * @returns RoleResponseDto
+   * @throws RoleNotFoundException nếu vai trò không tồn tại
+   */
   async findRoleById(id: string): Promise<RoleResponseDto> {
     const role = await this.roleRepo.findById(id);
     if (!role) {
       throw new RoleNotFoundException(id);
     }
     return this.mapper.toRoleResponseDto(role);
+  }
+
+  /**
+   * [CROSS-MODULE] Tìm role theo mã code (không throw exception nếu không tìm thấy).
+   * Dùng cho các service ngoại vi (AuthService...) tra cứu vai trò mặc định mà không cần inject RoleRepository.
+   *
+   * @param code - Mã định danh vai trò (ví dụ: 'USER', 'ADMIN')
+   * @returns RoleResponseDto nếu tồn tại, ngược lại null
+   */
+  async findRoleByCode(code: string): Promise<RoleResponseDto | null> {
+    const role = await this.roleRepo.findByCode(code);
+    return role ? this.mapper.toRoleResponseDto(role) : null;
   }
 
   async updateRole(id: string, dto: UpdateRoleDto): Promise<RoleResponseDto> {

@@ -4,10 +4,8 @@ import * as bcrypt from 'bcrypt';
 import { JwtConfig } from '../../config/jwt.config';
 import { TokenType } from '../../common/enums/token-type.enum';
 import { AuthProvider } from '../../common/enums/auth-provider.enum';
-import { UserRepository } from '../users/repository/user.repository';
-import { UserRoleRepository } from '../users/repository/user-role.repository';
-import { UserMapper } from '../users/mapper/user.mapper';
-import { RoleRepository } from '../authorization/repository/role.repository';
+import { UsersService } from '../users/users.service';
+import { AuthorizationService } from '../authorization/authorization.service';
 import { TokenRepository } from './repository/token.repository';
 import { RegisterDto } from './dto/request/register.dto';
 import { LoginDto } from './dto/request/login.dto';
@@ -26,23 +24,21 @@ import { User } from '../users/entities/user.entity';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userRepository: UserRepository,
-    private readonly userRoleRepository: UserRoleRepository,
-    private readonly roleRepository: RoleRepository,
+    private readonly usersService: UsersService,
+    private readonly authorizationService: AuthorizationService,
     private readonly tokenRepository: TokenRepository,
-    private readonly userMapper: UserMapper,
     private readonly jwtService: JwtService,
   ) {}
 
   // ── 1. Đăng ký tài khoản mới ──────────────────────────────────────────────
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
-    const existing = await this.userRepository.findByEmail(dto.email);
+    const existing = await this.usersService.findByEmail(dto.email);
     if (existing) {
       throw new EmailAlreadyExistsException(dto.email);
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const user = await this.userRepository.create({
+    const user = await this.usersService.createAuthUser({
       email: dto.email,
       password: hashedPassword,
       fullName: dto.fullName,
@@ -52,17 +48,17 @@ export class AuthService {
     });
 
     // Tự động gán vai trò USER mặc định nếu có
-    const defaultRole = await this.roleRepository.findByCode('USER');
+    const defaultRole = await this.authorizationService.findRoleByCode('USER');
     if (defaultRole) {
-      await this.userRoleRepository.assignRole(user.id, defaultRole.id);
+      await this.usersService.assignRole(user.id, defaultRole.id);
     }
 
-    const fullUser = await this.userRepository.findById(user.id);
+    const fullUser = await this.usersService.findById(user.id);
     const tokens = await this.generateTokens(fullUser!);
 
     return {
       ...tokens,
-      user: this.userMapper.toResponseDto(fullUser!),
+      user: this.usersService.toResponseDto(fullUser!),
     };
   }
 
@@ -72,7 +68,7 @@ export class AuthService {
     userAgent?: string,
     ipAddress?: string,
   ): Promise<AuthResponseDto> {
-    const user = await this.userRepository.findByEmail(dto.email, true);
+    const user = await this.usersService.findByEmail(dto.email, true);
     if (!user || !user.password) {
       throw new InvalidCredentialsException();
     }
@@ -90,7 +86,7 @@ export class AuthService {
 
     return {
       ...tokens,
-      user: this.userMapper.toResponseDto(user),
+      user: this.usersService.toResponseDto(user),
     };
   }
 
@@ -101,13 +97,13 @@ export class AuthService {
     ipAddress?: string,
   ): Promise<AuthResponseDto> {
     let user = profile.googleId
-      ? await this.userRepository.findByGoogleId(profile.googleId)
+      ? await this.usersService.findByGoogleId(profile.googleId)
       : null;
 
     if (!user && profile.email) {
-      user = await this.userRepository.findByEmail(profile.email);
+      user = await this.usersService.findByEmail(profile.email);
       if (user && !user.googleId) {
-        await this.userRepository.update(user.id, {
+        await this.usersService.updateAuthUser(user.id, {
           googleId: profile.googleId,
           avatar: user.avatar ?? profile.avatar,
         });
@@ -115,7 +111,7 @@ export class AuthService {
     }
 
     if (!user) {
-      user = await this.userRepository.create({
+      user = await this.usersService.createAuthUser({
         email: profile.email,
         fullName: profile.fullName,
         avatar: profile.avatar,
@@ -124,13 +120,14 @@ export class AuthService {
         isActive: true,
       });
 
-      const defaultRole = await this.roleRepository.findByCode('USER');
+      const defaultRole =
+        await this.authorizationService.findRoleByCode('USER');
       if (defaultRole) {
-        await this.userRoleRepository.assignRole(user.id, defaultRole.id);
+        await this.usersService.assignRole(user.id, defaultRole.id);
       }
     }
 
-    const fullUser = await this.userRepository.findById(user.id);
+    const fullUser = await this.usersService.findById(user.id);
     if (!fullUser || !fullUser.isActive) {
       throw new AccountInactiveException();
     }
@@ -139,7 +136,7 @@ export class AuthService {
 
     return {
       ...tokens,
-      user: this.userMapper.toResponseDto(fullUser),
+      user: this.usersService.toResponseDto(fullUser),
     };
   }
 
@@ -176,7 +173,7 @@ export class AuthService {
     // Thu hồi token cũ để quay vòng (Token Rotation)
     await this.tokenRepository.revokeToken(userId, refreshTokenStr);
 
-    const user = await this.userRepository.findById(userId);
+    const user = await this.usersService.findById(userId);
     if (!user || !user.isActive) {
       throw new AccountInactiveException();
     }
@@ -198,12 +195,12 @@ export class AuthService {
 
   // ── 6. Đổi mật khẩu ───────────────────────────────────────────────────────
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
-    const user = await this.userRepository.findById(userId);
+    const user = await this.usersService.findById(userId);
     if (!user) {
       throw new InvalidCredentialsException();
     }
 
-    const userWithPassword = await this.userRepository.findByEmail(
+    const userWithPassword = await this.usersService.findByEmail(
       user.email,
       true,
     );
@@ -220,7 +217,7 @@ export class AuthService {
     }
 
     const newHashed = await bcrypt.hash(dto.newPassword, 10);
-    await this.userRepository.update(userId, { password: newHashed });
+    await this.usersService.updateAuthUser(userId, { password: newHashed });
 
     // Hủy toàn bộ token cũ để buộc đăng nhập lại
     await this.tokenRepository.revokeAllUserTokens(userId);
