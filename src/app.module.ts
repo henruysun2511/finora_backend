@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
 
 @Module({
   imports: [
