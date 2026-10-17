@@ -29,6 +29,11 @@ Controller → Service (business logic) → Repository (TypeORM) → DB
   repository layer riêng của module (`XxxRepository`).
 - Entity **không bao giờ** được trả thẳng ra khỏi controller — luôn qua
   **Mapper** để chuyển sang Response DTO.
+- **Quy tắc ranh giới module (Cross-Module Boundary - BẮT BUỘC):**
+  - Service của một module **chỉ được phép gọi Service của module khác**.
+  - **TUYỆT ĐỐI CẤM:** Không được phép gọi hay inject `XxxRepository` của module khác.
+  - Mọi thao tác truy vấn, kiểm tra dữ liệu hoặc xác thực liên quan đến module khác phải thông qua public methods của Service module đó.
+  - Module chỉ được `exports: [XxxService]`, **không bao giờ** export `XxxRepository` ra ngoài.
 
 ---
 
@@ -59,8 +64,10 @@ src/
 **Nguyên tắc:**
 - Feature module tự khai báo đủ dependencies của nó (`TypeOrmModule.forFeature`).
 - Không nối module bằng import chồng chéo; khi cần service của module khác
-  (VD: BooksService gọi AuthorsService/CategoriesService để validate FK) thì
-  import **Module** đó vào `imports` — dựa vào `exports` của module đích.
+  (VD: `AuthService` gọi `UsersService`, `AuthorizationService`) thì
+  import **Module** đích vào `imports` — dựa vào `exports` của module đích.
+- **Chỉ inject Service, không inject Repository ngoại vi:** Service của module A
+  chỉ được inject Service của module B. Tuyệt đối không inject Repository của module B.
 - Đăng ký module mới vào `app.module.ts`.
 
 ---
@@ -162,14 +169,16 @@ import { CreateUserDto } from './dto/request/create-user.dto';
 @Module({
   imports: [TypeOrmModule.forFeature([User])], // entity của chính nó
   controllers: [UsersController],
-  providers: [UsersService, UserRepository, UserMapper], // khai báo đủ
-  exports: [UsersService, UserRepository, UserMapper],  // cho module khác dùng
+  providers: [UsersService, UserRepository, UserMapper], // khai báo đủ nội bộ
+  exports: [UsersService], // CHỈ export Service cho module khác dùng — KHÔNG export Repository
 })
 export class UsersModule {}
 ```
 
-- Module có quan hệ cần service người khác → thêm module đó vào `imports`
-  (VD: `BooksModule` import `AuthorsModule`, `CategoriesModule`).
+- Module có quan hệ cần tương tác module khác → thêm module đó vào `imports`
+  (VD: `AuthModule` import `UsersModule`, `AuthorizationModule`).
+- **Quy tắc bảo vệ dữ liệu:** Chỉ export `XxxService` trong mảng `exports`.
+  **Tuyệt đối không export Repository** ra ngoài module để đảm bảo tính đóng gói (encapsulation).
 - Feature module **không** khai báo `TypeOrmModule.forRoot` — root config đã
   nằm ở `shared/database`.
 
@@ -234,6 +243,27 @@ async remove(id: string): Promise<void> {
   không phải DTO nhận từ client.
 - Update dùng `Object.assign(entity, dto)` rồi `save`.
 - Logic dùng lại (VD: validateFK) gom vào method `private` dưới nhóm `HELPERS`.
+
+### 6.3.1 Giao tiếp liên Module (Cross-Module Service Methods)
+
+Khi Service cần cung cấp hàm cho module khác gọi:
+1. **Chỉ gọi qua Service:** Module gọi phải inject `XxxService` của module đích (thông qua việc import Module đích). **Không được phép inject hay truy vấn trực tiếp Repository của module đích**.
+2. **Quy ước chú thích JSDoc `[CROSS-MODULE]`:** Mọi hàm trong Service được thiết kế để phục vụ module khác gọi **phải có comment JSDoc rõ ràng**, nêu rõ mục đích và module/service nào sử dụng:
+   ```ts
+   // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
+
+   /**
+    * [CROSS-MODULE] Tìm entity User theo ID kèm đầy đủ quan hệ roles & permissions.
+    * Dùng cho JwtStrategy validate token hoặc AuthService kiểm tra user hiện tại.
+    *
+    * @param id - UUID của người dùng
+    * @returns User entity hoặc null nếu không tồn tại
+    */
+   async findById(id: string): Promise<User | null> {
+     return this.userRepository.findById(id);
+   }
+   ```
+3. **Chuẩn hóa dữ liệu trả về:** Nếu module khác cần DTO hoặc entity, Service cung cấp method tương ứng (hoặc method chuyển đổi như `toResponseDto`) để module ngoài không cần inject `Mapper` của module này.
 
 ### 6.4 Repository (`repository/<entity>.repository.ts`)
 
@@ -509,7 +539,12 @@ category: Category;
 ## 12. Anti-patterns (tránh làm)
 
 - ❌ Service dùng `@InjectRepository` / gọi TypeORM trực tiếp — phải qua
-  Repository layer.
+  Repository layer nội bộ của module.
+- ❌ **Inject / gọi Repository của module khác**: Service của module này tuyệt đối KHÔNG
+  được inject `XxxRepository` của module khác. Mọi giao tiếp giữa các module bắt buộc
+  phải thông qua `Service` tương ứng (`ModuleA` inject `ServiceB`, `ServiceB` gọi `RepositoryB`).
+- ❌ **Export Repository ra khỏi Module**: Feature module chỉ `exports: [XxxService]`,
+  tuyệt đối KHÔNG export `XxxRepository` ra ngoài.
 - ❌ Controller return entity trực tiếp — phải qua Mapper.
 - ❌ Throw `HttpException` thủ công / exception chung chung — dùng `AppError`
   hoặc exception class riêng.
