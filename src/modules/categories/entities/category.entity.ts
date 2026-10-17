@@ -58,3 +58,7 @@ export class Category extends BaseEntity {
   @OneToMany('Budget', 'category')
   budgets: any[];
 }
+
+// Re-export alias để tương thích toàn bộ DTO, Mapper, Repository
+export { Category as CategoryEntity };
+export { TransactionType as CategoryType };

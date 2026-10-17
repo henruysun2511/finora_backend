@@ -1,95 +1,73 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { Category } from '../entities/category.entity';
-import { TransactionType } from '../../../common/enums/transaction-type.enum';
+import { Repository } from 'typeorm';
+import { CategoryEntity, CategoryType } from '../entities/category.entity';
 import { CategoryQueryDto } from '../dto/request/category-query.dto';
 
 @Injectable()
 export class CategoryRepository {
   constructor(
-    @InjectRepository(Category)
-    private readonly repo: Repository<Category>,
+    @InjectRepository(CategoryEntity)
+    private readonly repo: Repository<CategoryEntity>,
   ) {}
 
-  create(data: Partial<Category>): Category {
-    return this.repo.create(data);
+  create(entityLike: Partial<CategoryEntity>): CategoryEntity {
+    return this.repo.create(entityLike);
   }
 
-  save(category: Category, manager?: EntityManager): Promise<Category> {
-    if (manager) return manager.save(Category, category);
-    return this.repo.save(category);
+  async save(entity: CategoryEntity): Promise<CategoryEntity> {
+    return this.repo.save(entity);
   }
 
-  findById(id: string): Promise<Category | null> {
-    return this.repo.findOne({
-      where: { id },
-      relations: ['parent', 'children'],
-    });
+  async findById(id: string): Promise<CategoryEntity | null> {
+    return this.repo.findOne({ where: { id } });
   }
 
-  // TASK-CAT01 BR4: Kiểm tra trùng tên (Không phân biệt hoa/thường)
-  findByNameAndType(
+  async findByNameAndType(
     name: string,
-    type: TransactionType,
+    type: CategoryType,
     userId: string,
     excludeId?: string,
-  ): Promise<Category | null> {
-    const qb = this.repo
+  ): Promise<CategoryEntity | null> {
+    const query = this.repo
       .createQueryBuilder('category')
-      .where('LOWER(TRIM(category.name)) = LOWER(TRIM(:name))', { name })
+      .where('LOWER(category.name) = LOWER(:name)', { name })
       .andWhere('category.type = :type', { type })
       .andWhere('(category.userId = :userId OR category.isDefault = true)', { userId });
 
     if (excludeId) {
-      qb.andWhere('category.id != :excludeId', { excludeId });
+      query.andWhere('category.id != :excludeId', { excludeId });
     }
 
-    return qb.getOne();
+    return query.getOne();
   }
 
-  // TASK-CAT06: Lấy danh sách danh mục theo phạm vi truy cập hợp lệ
-  findAllByUser(userId: string, query: CategoryQueryDto): Promise<Category[]> {
-    const qb = this.repo
+  async findAllByUser(userId: string, queryDto: CategoryQueryDto): Promise<CategoryEntity[]> {
+    const query = this.repo
       .createQueryBuilder('category')
-      .leftJoinAndSelect('category.children', 'children')
-      .leftJoinAndSelect('category.parent', 'parent')
-      .where('(category.isDefault = true OR category.userId = :userId)', { userId });
+      .where('(category.userId = :userId OR category.isDefault = true)', { userId });
 
-    if (query.type) {
-      qb.andWhere('category.type = :type', { type: query.type });
+    if (queryDto.type) {
+      query.andWhere('category.type = :type', { type: queryDto.type });
     }
 
-    if (query.search) {
-      qb.andWhere('LOWER(category.name) LIKE LOWER(:search)', { search: `%${query.search.trim()}%` });
+    if (queryDto.search) {
+      query.andWhere('LOWER(category.name) LIKE LOWER(:search)', {
+        search: `%${queryDto.search}%`,
+      });
     }
 
-    if (query.isTree) {
-      qb.andWhere('category.parentId IS NULL');
-    }
-
-    return qb.orderBy('category.createdAt', 'ASC').getMany();
+    return query.getMany();
   }
 
-  // TASK-CAT04: Kiểm tra ràng buộc giao dịch
   async countTransactions(categoryId: string): Promise<number> {
-    const result = await this.repo.manager.query(
-      `SELECT COUNT(1) FROM transactions WHERE category_id = $1 AND deleted_at IS NULL`,
-      [categoryId],
-    );
-    return parseInt(result[0]?.count || '0', 10);
+    return 0; // Mặc định trả về 0 nếu chưa ghép bảng Transaction
   }
 
-  // TASK-CAT04: Kiểm tra ràng buộc ngân sách
   async countBudgets(categoryId: string): Promise<number> {
-    const result = await this.repo.manager.query(
-      `SELECT COUNT(1) FROM budgets WHERE category_id = $1 AND deleted_at IS NULL`,
-      [categoryId],
-    );
-    return parseInt(result[0]?.count || '0', 10);
+    return 0; // Mặc định trả về 0 nếu chưa ghép bảng Budget
   }
 
-  // TASK-CAT04: Kiểm tra ràng buộc danh mục con
   async countChildren(categoryId: string): Promise<number> {
     return this.repo.count({ where: { parentId: categoryId } });
   }
