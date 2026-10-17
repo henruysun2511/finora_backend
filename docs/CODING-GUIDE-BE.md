@@ -1,9 +1,8 @@
-# CODING GUIDE — Book Management NestJS
+# CODING GUIDE — Finora Backend NestJS
 
-Hướng dẫn cách viết code và bày trí code theo đúng quy ước của dự án.
-Module **`users`** là **mẫu tham chiếu chuẩn** — mọi module (`authors`,
-`categories`, `books`, `borrows`) phải bắt chước đúng cấu trúc và pattern
-của nó. Code mới phải khớp các quy ước bên dưới.
+Hướng dẫn cách viết code và bày trí code theo đúng quy ước của dự án Finora.
+Module **`users`** và **`authorization`** là **mẫu tham chiếu chuẩn** — mọi module
+phải bắt chước đúng cấu trúc và pattern của nó. Code mới phải khớp các quy ước bên dưới.
 
 ---
 
@@ -48,7 +47,7 @@ src/
 │   ├── database.config.ts   # DatabaseConfig — DATABASE_URL
 │   └── validation.schema.ts # validateEnv() — chặn khởi động nếu thiếu env
 ├── database/data-source.ts  # DataSource riêng cho TypeORM CLI (migration)
-├── shared/database/         # DatabaseModule — TypeOrmModule.forRootAsync (Neon + SSL) một nơi
+├── infrastructures/         # InfrastructuresModule (@Global): database, redis, cloudinary, mailer, logger, jwt
 ├── common/                  # Dùng chung toàn dự án (không sửa lung tung)
 │   ├── entities/base.entity.ts
 │   ├── enums/sort-order.enum.ts
@@ -184,26 +183,131 @@ export class UsersModule {}
 
 ### 6.2 Controller (`<module>.controller.ts`)
 
-Chỉ làm 3 việc: khai báo route, `@SwaggerDoc`, gọi service + bọc response.
+Chỉ làm các việc: khai báo routing, gắn decorator phân quyền `@Permissions(...)`, `@SwaggerDoc`, gọi service và bọc response.
+
+#### 6.2.1 Quy tắc BẮT BUỘC về Phân quyền (Permissions & Authorization)
+
+Toàn bộ hệ thống Finora áp dụng **Dynamic RBAC (Role-Based Access Control dựa trên Permission động)**. Guards toàn cục (`JwtAuthGuard` & `PermissionsGuard`) đã được đăng ký sẵn qua `APP_GUARD` trong `app.module.ts`.
+
+1. **BẮT BUỘC khai báo `@Permissions(...)` trước mọi API nghiệp vụ/quản trị**:
+   - Sử dụng decorator `@Permissions(SYSTEM_PERMISSIONS.<RESOURCE>_<ACTION>)`.
+   - Tất cả mã quyền hạn phải được lấy từ hằng số tập trung `SYSTEM_PERMISSIONS` trong `src/common/constants/permission.constant.ts`. **TUYỆT ĐỐI KHÔNG** dùng magic string (chuỗi gõ tay tự do).
+2. **API công khai (Public API)**:
+   - Nếu API mở cho khách vãng lai, không cần đăng nhập (VD: `/auth/login`, `/auth/register`, callback OAuth...), **BẮT BUỘC** gắn decorator `@Public()`.
+3. **TUYỆT ĐỐI CẤM HARDCODE ROLE**:
+   - **CẤM** sử dụng `@Roles('ADMIN')`, `@Roles('USER')` hoặc kiểm tra chuỗi vai trò cố định trong Controller.
+   - Vai trò trong Finora được người dùng/admin tự do tạo mới và phân bổ quyền trên giao diện người dùng (UI). Do đó, backend **chỉ xác thực theo Permission code**. Bất kỳ Role nào có chứa Permission tương ứng đều sẽ tự động được cấp quyền truy cập.
+   - Người dùng có cờ quản trị hệ thống (`isSysAdmin === true`) sẽ được `PermissionsGuard` tự động bypass qua mọi kiểm tra quyền.
+
+#### 6.2.2 Thứ tự chuẩn của Decorator trên API Method
+
+Để code đồng nhất, dễ đọc và bảo trì, các decorator trên mỗi method trong Controller **BẮT BUỘC** tuân theo thứ tự sau:
 
 ```ts
-@ApiTags('Users')          // tên hiển thị trên Swagger
-@Controller('users')       // route không có prefix api/v1 (đã global)
+// 1. HTTP Method Decorator (@Get, @Post, @Patch, @Delete...)
+// 2. Phân quyền: @Permissions(...) hoặc @Public()
+// 3. HttpCode (chỉ khi khác mặc định, VD: @HttpCode(HttpStatus.NO_CONTENT) cho DELETE)
+// 4. @SwaggerDoc({ ... })
+```
+
+#### Ví dụ mẫu Controller chuẩn:
+
+```ts
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  HttpCode,
+  HttpStatus,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/request/create-user.dto';
+import { UpdateUserDto } from './dto/request/update-user.dto';
+import { UserQueryDto } from './dto/request/user-query.dto';
+import { UserResponseDto } from './dto/response/user.dto';
+import { SwaggerDoc } from '../../common/swagger/swagger-doc';
+import { ApiResponse } from '../../common/response/api-response';
+import { Permissions } from '../authorization/decorators/permissions.decorator';
+import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
+
+@ApiTags('Users')
+@ApiBearerAuth('access-token')
+@Controller({ path: 'users', version: '1' })
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @SwaggerDoc({ summary: 'Tạo người dùng mới', bodyType: CreateUserDto, responseType: UserResponse, status: 201 })
+  @Permissions(SYSTEM_PERMISSIONS.USERS_CREATE)
+  @SwaggerDoc({
+    summary: 'Tạo người dùng mới',
+    bodyType: CreateUserDto,
+    responseType: UserResponseDto,
+    status: 201,
+  })
   async create(@Body() dto: CreateUserDto) {
-    return ApiResponse.created(await this.usersService.create(dto), 'Tạo người dùng thành công');
+    const user = await this.usersService.create(dto);
+    return ApiResponse.created(user, 'Tạo người dùng thành công');
+  }
+
+  @Get()
+  @Permissions(SYSTEM_PERMISSIONS.USERS_READ)
+  @SwaggerDoc({
+    summary: 'Danh sách người dùng',
+    responseType: UserResponseDto,
+    isArray: true,
+  })
+  async findAll(@Query() query: UserQueryDto) {
+    return this.usersService.findAll(query);
+  }
+
+  @Get(':id')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_READ)
+  @SwaggerDoc({
+    summary: 'Chi tiết người dùng',
+    responseType: UserResponseDto,
+  })
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    const user = await this.usersService.findOne(id);
+    return ApiResponse.success(user, 'Lấy thông tin người dùng thành công');
+  }
+
+  @Patch(':id')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_UPDATE)
+  @SwaggerDoc({
+    summary: 'Cập nhật người dùng',
+    bodyType: UpdateUserDto,
+    responseType: UserResponseDto,
+  })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    const user = await this.usersService.update(id, dto);
+    return ApiResponse.success(user, 'Cập nhật người dùng thành công');
+  }
+
+  @Delete(':id')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_DELETE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @SwaggerDoc({
+    summary: 'Xóa người dùng',
+    status: 204,
+  })
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    await this.usersService.remove(id);
   }
 }
 ```
 
-- Route theo thứ tự: `POST /` → `GET /` → `GET /:id` → `PATCH /:id` →
-  `DELETE /:id`. Riêng `DELETE` kèm `@HttpCode(HttpStatus.NO_CONTENT)` để trả
-  204 đúng chuẩn (mẫu `BooksController`).
-- `Controller` **không** chứa logic (không check unique, không `Object.assign`).
+- Route theo thứ tự: `POST /` → `GET /` → `GET /:id` → `PATCH /:id` → `DELETE /:id`.
+- `Controller` **không** chứa logic nghiệp vụ (không check unique, không `Object.assign`).
 - `@SwaggerDoc` bắt buộc cho **mọi** route (kể cả DELETE).
 
 ### 6.3 Service (`<module>.service.ts`)
@@ -525,8 +629,7 @@ category: Category;
    exception riêng; không thấy → `notFound('...')`.
 6. Mapper `toResponse`/`toResponseList` (ẩn field nhạy cảm, map nested
    relation theo spec).
-7. Controller: đủ route, đúng thứ tự, `@SwaggerDoc` mọi nơi, response qua
-   `ApiResponse.*` (hoặc data thuần + `@HttpCode`).
+7. Controller: đủ route, đúng thứ tự, **bắt buộc có `@Permissions(SYSTEM_PERMISSIONS...)`** (hoặc `@Public()` nếu API mở công khai), `@SwaggerDoc` mọi nơi, response qua `ApiResponse.*` (hoặc data thuần + `@HttpCode`).
 8. `@Module` khai báo đủ `forFeature/controllers/providers/exports`; import
    module phụ thuộc nếu cần; đăng ký vào `app.module.ts`.
 9. Kiểm tra: `npm run start:dev` → Swagger `/docs` đầy đủ → test Postman
@@ -538,6 +641,10 @@ category: Category;
 
 ## 12. Anti-patterns (tránh làm)
 
+- ❌ **Hardcode role trong controller bằng `@Roles(...)`**: Phân quyền Finora là phân quyền động qua UI, bắt buộc dùng `@Permissions(SYSTEM_PERMISSIONS.<CODE>)`.
+- ❌ **Thiếu decorator phân quyền `@Permissions(...)`** trên các API nghiệp vụ/quản trị.
+- ❌ **Gõ chuỗi permission tùy tiện (magic string)**: Luôn import và sử dụng hằng số `SYSTEM_PERMISSIONS` từ `src/common/constants/permission.constant.ts`.
+- ❌ **Quên gắn `@Public()`** trên các API không yêu cầu xác thực (đăng nhập, đăng ký, OAuth callback...).
 - ❌ Service dùng `@InjectRepository` / gọi TypeORM trực tiếp — phải qua
   Repository layer nội bộ của module.
 - ❌ **Inject / gọi Repository của module khác**: Service của module này tuyệt đối KHÔNG

@@ -164,8 +164,6 @@ npm run migration:revert
 npm run migration:show
 ```
 
-Chi tiết quy trình xem tại: 📘 [Hướng dẫn Quản lý Database Migration](docs/database-migration-guide.md)
-
 ---
 
 ## 6. Kiểm thử (Unit Tests)

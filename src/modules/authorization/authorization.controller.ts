@@ -9,7 +9,6 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthorizationService } from './authorization.service';
@@ -22,21 +21,18 @@ import { RoleResponseDto } from './dto/response/role.dto';
 import { PermissionResponseDto } from './dto/response/permission.dto';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { Roles } from './decorators/roles.decorator';
-import { SYSTEM_ROLES } from '../../common/constants/role.constant';
+import { Permissions } from './decorators/permissions.decorator';
+import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 
 @ApiTags('Authorization')
 @ApiBearerAuth('access-token')
 @Controller({ path: 'authorization', version: '1' })
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN)
 export class AuthorizationController {
   constructor(private readonly authzService: AuthorizationService) {}
 
   // ── Roles Endpoints ───────────────────────────────────────────────────────
   @Post('roles')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_CREATE)
   @SwaggerDoc({
     summary: 'Tạo vai trò mới',
     description: 'Thêm mới vai trò vào hệ thống (mã vai trò nhập từ FE)',
@@ -50,6 +46,7 @@ export class AuthorizationController {
   }
 
   @Get('roles')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_READ)
   @SwaggerDoc({
     summary: 'Danh sách vai trò',
     description: 'Lấy toàn bộ danh sách vai trò kèm danh sách quyền hạn đã gán',
@@ -62,6 +59,7 @@ export class AuthorizationController {
   }
 
   @Get('roles/:id')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_READ)
   @SwaggerDoc({
     summary: 'Chi tiết vai trò',
     description: 'Lấy thông tin vai trò theo UUID',
@@ -73,6 +71,7 @@ export class AuthorizationController {
   }
 
   @Patch('roles/:id')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_UPDATE)
   @SwaggerDoc({
     summary: 'Cập nhật vai trò',
     description: 'Cập nhật tên hiển thị, mô tả hoặc trạng thái vai trò',
@@ -88,6 +87,7 @@ export class AuthorizationController {
   }
 
   @Delete('roles/:id')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa mềm vai trò',
@@ -99,6 +99,7 @@ export class AuthorizationController {
   }
 
   @Post('roles/:id/permissions')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_ASSIGN_PERMISSION)
   @SwaggerDoc({
     summary: 'Gán quyền hạn cho vai trò',
     description: 'Cập nhật danh sách quyền hạn cho một vai trò',
@@ -115,6 +116,7 @@ export class AuthorizationController {
 
   // ── Permissions Endpoints ─────────────────────────────────────────────────
   @Post('permissions')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_CREATE)
   @SwaggerDoc({
     summary: 'Tạo quyền hạn mới',
     description: 'Thêm mới quyền hạn vào hệ thống (mã quyền nhập từ FE)',
@@ -128,6 +130,7 @@ export class AuthorizationController {
   }
 
   @Get('permissions')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_READ)
   @SwaggerDoc({
     summary: 'Danh sách quyền hạn',
     description: 'Lấy toàn bộ danh sách quyền hạn trong hệ thống',
@@ -143,6 +146,7 @@ export class AuthorizationController {
   }
 
   @Get('permissions/:id')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_READ)
   @SwaggerDoc({
     summary: 'Chi tiết quyền hạn',
     description: 'Lấy thông tin quyền hạn theo UUID',
@@ -157,6 +161,7 @@ export class AuthorizationController {
   }
 
   @Patch('permissions/:id')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_UPDATE)
   @SwaggerDoc({
     summary: 'Cập nhật quyền hạn',
     description: 'Cập nhật tên, resource, action hoặc mô tả quyền hạn',
@@ -172,6 +177,7 @@ export class AuthorizationController {
   }
 
   @Delete('permissions/:id')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa quyền hạn',

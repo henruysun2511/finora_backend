@@ -22,12 +22,18 @@ If don't know about:
 
 Read the following files:
 
+- docs/CODING-GUIDE-BE.md (Coding Guide chuẩn, quy tắc controller & permission)
 - docs/architecture.md
 - docs/coding-conventions.md
 - docs/database.md
 - docs/database-migration-guide.md
 - docs/testing-guide.md
 - docs/development-workflow.md
+
+> **LƯU Ý QUAN TRỌNG (DYNAMIC RBAC):**
+> - Mọi API route trong Controller bắt buộc phải có `@Permissions(SYSTEM_PERMISSIONS.<RESOURCE>_<ACTION>)` (hoặc `@Public()` nếu API mở).
+> - **TUYỆT ĐỐI KHÔNG** hardcode `@Roles('ADMIN')` vì hệ thống phân quyền động do người dùng cấu hình trên UI.
+
 
 ## 1. Think Before Coding
 

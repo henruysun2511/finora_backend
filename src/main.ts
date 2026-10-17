@@ -10,6 +10,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
+import { CustomLogger } from './infrastructures/logger/logger.service';
+
 async function bootstrap() {
   // ── Validate Biến Môi Trường ─────────────────────────────────────────────
   validateEnv();
@@ -18,14 +20,17 @@ async function bootstrap() {
     rawBody: true,
   });
 
+  // ── Logger (Winston) ─────────────────────────────────────────────────────
+  app.useLogger(app.get(CustomLogger));
+
   // ── Prefix & Versioning (/api/v1/...) ────────────────────────────────────
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   // ── CORS ─────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: AppConfig.FRONTEND_URL,
-    credentials: true,
+    origin: AppConfig.CORS_ORIGINS,
+    credentials: AppConfig.CORS_CREDENTIALS,
   });
 
   // ── Global Validation Pipes ──────────────────────────────────────────────

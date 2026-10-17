@@ -10,7 +10,6 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -21,20 +20,17 @@ import { AssignRoleDto } from './dto/request/assign-role.dto';
 import { UserResponseDto } from './dto/response/user.dto';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../authorization/guards/roles.guard';
-import { Roles } from '../authorization/decorators/roles.decorator';
-import { SYSTEM_ROLES } from '../../common/constants/role.constant';
+import { Permissions } from '../authorization/decorators/permissions.decorator';
+import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
 @Controller({ path: 'users', version: '1' })
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @Permissions(SYSTEM_PERMISSIONS.USERS_CREATE)
   @SwaggerDoc({
     summary: 'Tạo tài khoản người dùng mới',
     description: 'Tạo người dùng mới trong hệ thống bằng email và mật khẩu',
@@ -51,6 +47,7 @@ export class UsersController {
   }
 
   @Get()
+  @Permissions(SYSTEM_PERMISSIONS.USERS_READ)
   @SwaggerDoc({
     summary: 'Danh sách người dùng',
     description: 'Lấy danh sách người dùng có phân trang, tìm kiếm và lọc',
@@ -62,6 +59,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_READ)
   @SwaggerDoc({
     summary: 'Chi tiết người dùng',
     description: 'Lấy thông tin người dùng theo UUID kèm danh sách vai trò',
@@ -77,6 +75,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_UPDATE)
   @SwaggerDoc({
     summary: 'Cập nhật thông tin người dùng',
     description:
@@ -96,6 +95,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa mềm người dùng',
@@ -107,6 +107,7 @@ export class UsersController {
   }
 
   @Post(':id/roles')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_ASSIGN_ROLE)
   @SwaggerDoc({
     summary: 'Gán vai trò cho người dùng',
     description: 'Cập nhật danh sách vai trò (roles) cho tài khoản người dùng',
