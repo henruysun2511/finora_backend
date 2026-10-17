@@ -7,6 +7,7 @@ import { WalletMapper } from './mapper/wallet.mapper';
 
 import { CreateWalletDto } from './dto/request/create-wallet.dto';
 import { UpdateWalletDto } from './dto/request/update-wallet.dto';
+import { WalletQueryDto } from './dto/request/wallet-query.dto';
 import { WalletResponseDto } from './dto/response/wallet-response.dto';
 
 import {
@@ -67,11 +68,12 @@ export class WalletsService {
   // Lấy danh sách ví có phân trang.
   async getWallets(
     userId: string,
-    page = 1,
-    limit = 10,
+    query: WalletQueryDto,
   ): Promise<PaginatedResponse<WalletResponseDto>> {
-    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+    const page = query?.page ?? 1;
+    const limit = query?.limit ?? 10;
 
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
     const safeLimit =
       Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 10;
 
@@ -81,7 +83,15 @@ export class WalletsService {
       safeLimit,
     );
 
-    const items = this.walletMapper.toResponseList(wallets);
+    const roleMap = new Map<string, WalletMemberRole>();
+    for (const wallet of wallets) {
+      const currentMember = wallet.members?.find((m) => m.userId === userId);
+      if (currentMember) {
+        roleMap.set(wallet.id, currentMember.role);
+      }
+    }
+
+    const items = this.walletMapper.toResponseList(wallets, roleMap);
 
     return PaginatedResponse.of(items, total, safePage, safeLimit);
   }

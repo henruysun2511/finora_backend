@@ -8,24 +8,19 @@ import {
   Body,
   UseGuards,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { UpdateWalletDto } from './dto/request/update-wallet.dto';
 import { ApiTags } from '@nestjs/swagger';
 
 import { WalletsService } from './wallets.service';
-
 import { CreateWalletDto } from './dto/request/create-wallet.dto';
+import { UpdateWalletDto } from './dto/request/update-wallet.dto';
+import { WalletQueryDto } from './dto/request/wallet-query.dto';
 import { WalletResponseDto } from './dto/response/wallet-response.dto';
-
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
-
-import {
-  ApiResponse,
-  PaginatedResponse,
-} from '../../common/response/api-response';
+import { ApiResponse } from '../../common/response/api-response';
 
 @ApiTags('Wallets')
 @Controller('wallets')
@@ -65,19 +60,15 @@ export class WalletsController {
     summary: 'Lấy danh sách ví',
     description:
       'Lấy danh sách ví mà người dùng hiện tại có quyền truy cập, hỗ trợ phân trang.',
-    responseType: PaginatedResponse,
+    responseType: WalletResponseDto,
+    isArray: true,
     bearerAuth: true,
   })
   async findAll(
     @CurrentUser('id') userId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: WalletQueryDto,
   ) {
-    const data = await this.walletsService.getWallets(
-      userId,
-      Number(page ?? 1),
-      Number(limit ?? 10),
-    );
+    const data = await this.walletsService.getWallets(userId, query);
 
     return ApiResponse.success(data, 'Lấy danh sách ví thành công');
   }
@@ -91,7 +82,7 @@ export class WalletsController {
   })
   async findOne(
     @CurrentUser('id') userId: string,
-    @Param('id') walletId: string,
+    @Param('id', ParseUUIDPipe) walletId: string,
   ) {
     const data = await this.walletsService.getWalletById(walletId, userId);
 
@@ -108,7 +99,7 @@ export class WalletsController {
   })
   async update(
     @CurrentUser('id') userId: string,
-    @Param('id') walletId: string,
+    @Param('id', ParseUUIDPipe) walletId: string,
     @Body() dto: UpdateWalletDto,
   ) {
     const data = await this.walletsService.updateWallet(walletId, userId, dto);
@@ -124,10 +115,10 @@ export class WalletsController {
   })
   async remove(
     @CurrentUser('id') userId: string,
-    @Param('id') walletId: string,
+    @Param('id', ParseUUIDPipe) walletId: string,
   ) {
     await this.walletsService.deleteWallet(walletId, userId);
 
-    return ApiResponse.noContent();
+    return ApiResponse.noContent('Xóa ví thành công');
   }
 }

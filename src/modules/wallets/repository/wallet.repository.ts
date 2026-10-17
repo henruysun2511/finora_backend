@@ -43,7 +43,7 @@ export class WalletRepository {
   async findWalletsByUserId(userId: string): Promise<Wallet[]> {
     return this.repo
       .createQueryBuilder('wallet')
-      .innerJoin(
+      .innerJoinAndSelect(
         'wallet.members',
         'member',
         `member.userId = :userId
@@ -67,7 +67,7 @@ export class WalletRepository {
   ): Promise<[Wallet[], number]> {
     return this.repo
       .createQueryBuilder('wallet')
-      .innerJoin(
+      .innerJoinAndSelect(
         'wallet.members',
         'member',
         `member.userId = :userId
