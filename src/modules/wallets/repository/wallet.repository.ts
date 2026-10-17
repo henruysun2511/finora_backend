@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
@@ -17,10 +16,7 @@ export class WalletRepository {
     return this.repo.create(data);
   }
 
-  async save(
-    wallet: Wallet,
-    manager?: EntityManager,
-  ): Promise<Wallet> {
+  async save(wallet: Wallet, manager?: EntityManager): Promise<Wallet> {
     if (manager) {
       return manager.save(Wallet, wallet);
     }
@@ -44,9 +40,7 @@ export class WalletRepository {
     });
   }
 
-  async findWalletsByUserId(
-    userId: string,
-  ): Promise<Wallet[]> {
+  async findWalletsByUserId(userId: string): Promise<Wallet[]> {
     return this.repo
       .createQueryBuilder('wallet')
       .innerJoin(
@@ -92,9 +86,7 @@ export class WalletRepository {
       .getManyAndCount();
   }
 
-
-async softDeleteById(id: string): Promise<void> {
-  await this.repo.softDelete(id);
-}
-
+  async softDeleteById(id: string): Promise<void> {
+    await this.repo.softDelete(id);
+  }
 }

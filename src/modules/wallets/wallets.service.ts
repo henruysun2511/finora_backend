@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
@@ -61,10 +60,7 @@ export class WalletsService {
 
       await this.walletMemberRepo.save(member, manager);
 
-      return this.walletMapper.toResponse(
-        savedWallet,
-        WalletMemberRole.OWNER,
-      );
+      return this.walletMapper.toResponse(savedWallet, WalletMemberRole.OWNER);
     });
   }
 
@@ -74,41 +70,28 @@ export class WalletsService {
     page = 1,
     limit = 10,
   ): Promise<PaginatedResponse<WalletResponseDto>> {
-    const safePage =
-      Number.isInteger(page) && page > 0 ? page : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
     const safeLimit =
-      Number.isInteger(limit) && limit > 0
-        ? Math.min(limit, 100)
-        : 10;
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 10;
 
-    const [wallets, total] =
-      await this.walletRepo.findWalletsByUserIdPaginated(
-        userId,
-        safePage,
-        safeLimit,
-      );
-
-    const items = this.walletMapper.toResponseList(wallets);
-
-    return PaginatedResponse.of(
-      items,
-      total,
+    const [wallets, total] = await this.walletRepo.findWalletsByUserIdPaginated(
+      userId,
       safePage,
       safeLimit,
     );
+
+    const items = this.walletMapper.toResponseList(wallets);
+
+    return PaginatedResponse.of(items, total, safePage, safeLimit);
   }
 
   // Kiểm tra người dùng có phải thành viên đã được chấp nhận không.
-  private async getAcceptedMember(
-    walletId: string,
-    userId: string,
-  ) {
-    const member =
-      await this.walletMemberRepo.findByWalletAndUser(
-        walletId,
-        userId,
-      );
+  private async getAcceptedMember(walletId: string, userId: string) {
+    const member = await this.walletMemberRepo.findByWalletAndUser(
+      walletId,
+      userId,
+    );
 
     if (
       !member ||
@@ -132,10 +115,7 @@ export class WalletsService {
       throw new WalletNotFoundException(walletId);
     }
 
-    const member = await this.getAcceptedMember(
-      walletId,
-      userId,
-    );
+    const member = await this.getAcceptedMember(walletId, userId);
 
     return this.walletMapper.toResponse(wallet, member.role);
   }
@@ -152,21 +132,17 @@ export class WalletsService {
       throw new WalletNotFoundException(walletId);
     }
 
-    const member = await this.getAcceptedMember(
-      walletId,
-      userId,
-    );
+    const member = await this.getAcceptedMember(walletId, userId);
 
     if (member.role !== WalletMemberRole.OWNER) {
       throw new WalletAccessDeniedException(walletId);
     }
 
     if (dto.name && dto.name !== wallet.name) {
-      const existing =
-        await this.walletRepo.findByNameAndOwnerId(
-          dto.name,
-          wallet.ownerId,
-        );
+      const existing = await this.walletRepo.findByNameAndOwnerId(
+        dto.name,
+        wallet.ownerId,
+      );
 
       if (existing && existing.id !== walletId) {
         throw new WalletNameAlreadyExistsException(dto.name);
@@ -195,27 +171,18 @@ export class WalletsService {
 
     const savedWallet = await this.walletRepo.save(wallet);
 
-    return this.walletMapper.toResponse(
-      savedWallet,
-      member.role,
-    );
+    return this.walletMapper.toResponse(savedWallet, member.role);
   }
 
   // Xóa mềm ví: chỉ OWNER được phép.
-  async deleteWallet(
-    walletId: string,
-    userId: string,
-  ): Promise<void> {
+  async deleteWallet(walletId: string, userId: string): Promise<void> {
     const wallet = await this.walletRepo.findById(walletId);
 
     if (!wallet) {
       throw new WalletNotFoundException(walletId);
     }
 
-    const member = await this.getAcceptedMember(
-      walletId,
-      userId,
-    );
+    const member = await this.getAcceptedMember(walletId, userId);
 
     if (member.role !== WalletMemberRole.OWNER) {
       throw new WalletAccessDeniedException(walletId);

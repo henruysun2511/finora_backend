@@ -1,6 +1,5 @@
-
 import {
-   Controller,
+  Controller,
   Post,
   Get,
   Patch,
@@ -32,9 +31,7 @@ import {
 @Controller('wallets')
 @UseGuards(JwtAuthGuard)
 export class WalletsController {
-  constructor(
-    private readonly walletsService: WalletsService,
-  ) {}
+  constructor(private readonly walletsService: WalletsService) {}
 
   /**
    * POST /api/v1/wallets
@@ -54,15 +51,9 @@ export class WalletsController {
     @CurrentUser('id') userId: string,
     @Body() dto: CreateWalletDto,
   ) {
-    const data = await this.walletsService.createWallet(
-      userId,
-      dto,
-    );
+    const data = await this.walletsService.createWallet(userId, dto);
 
-    return ApiResponse.created(
-      data,
-      'Tạo ví mới thành công',
-    );
+    return ApiResponse.created(data, 'Tạo ví mới thành công');
   }
 
   /**
@@ -88,75 +79,55 @@ export class WalletsController {
       Number(limit ?? 10),
     );
 
-    return ApiResponse.success(
-      data,
-      'Lấy danh sách ví thành công',
-    );
+    return ApiResponse.success(data, 'Lấy danh sách ví thành công');
   }
 
-@Get(':id')
-@SwaggerDoc({
-  summary: 'Xem chi tiết ví',
-  description: 'Lấy thông tin ví mà người dùng hiện tại có quyền truy cập.',
-  responseType: WalletResponseDto,
-  bearerAuth: true,
-})
-async findOne(
-  @CurrentUser('id') userId: string,
-  @Param('id') walletId: string,
-) {
-  const data = await this.walletsService.getWalletById(
-    walletId,
-    userId,
-  );
+  @Get(':id')
+  @SwaggerDoc({
+    summary: 'Xem chi tiết ví',
+    description: 'Lấy thông tin ví mà người dùng hiện tại có quyền truy cập.',
+    responseType: WalletResponseDto,
+    bearerAuth: true,
+  })
+  async findOne(
+    @CurrentUser('id') userId: string,
+    @Param('id') walletId: string,
+  ) {
+    const data = await this.walletsService.getWalletById(walletId, userId);
 
-  return ApiResponse.success(
-    data,
-    'Lấy thông tin ví thành công',
-  );
-}
+    return ApiResponse.success(data, 'Lấy thông tin ví thành công');
+  }
 
-@Patch(':id')
-@SwaggerDoc({
-  summary: 'Cập nhật ví',
-  description: 'Chỉ chủ sở hữu ví mới được cập nhật thông tin.',
-  bodyType: UpdateWalletDto,
-  responseType: WalletResponseDto,
-  bearerAuth: true,
-})
-async update(
-  @CurrentUser('id') userId: string,
-  @Param('id') walletId: string,
-  @Body() dto: UpdateWalletDto,
-) {
-  const data = await this.walletsService.updateWallet(
-    walletId,
-    userId,
-    dto,
-  );
+  @Patch(':id')
+  @SwaggerDoc({
+    summary: 'Cập nhật ví',
+    description: 'Chỉ chủ sở hữu ví mới được cập nhật thông tin.',
+    bodyType: UpdateWalletDto,
+    responseType: WalletResponseDto,
+    bearerAuth: true,
+  })
+  async update(
+    @CurrentUser('id') userId: string,
+    @Param('id') walletId: string,
+    @Body() dto: UpdateWalletDto,
+  ) {
+    const data = await this.walletsService.updateWallet(walletId, userId, dto);
 
-  return ApiResponse.success(
-    data,
-    'Cập nhật ví thành công',
-  );
-}
+    return ApiResponse.success(data, 'Cập nhật ví thành công');
+  }
 
-@Delete(':id')
-@SwaggerDoc({
-  summary: 'Xóa ví',
-  description: 'Chỉ chủ sở hữu ví mới được xóa ví.',
-  bearerAuth: true,
-})
-async remove(
-  @CurrentUser('id') userId: string,
-  @Param('id') walletId: string,
-) {
-  await this.walletsService.deleteWallet(
-    walletId,
-    userId,
-  );
+  @Delete(':id')
+  @SwaggerDoc({
+    summary: 'Xóa ví',
+    description: 'Chỉ chủ sở hữu ví mới được xóa ví.',
+    bearerAuth: true,
+  })
+  async remove(
+    @CurrentUser('id') userId: string,
+    @Param('id') walletId: string,
+  ) {
+    await this.walletsService.deleteWallet(walletId, userId);
 
-  return ApiResponse.noContent();
-}
-
+    return ApiResponse.noContent();
+  }
 }
