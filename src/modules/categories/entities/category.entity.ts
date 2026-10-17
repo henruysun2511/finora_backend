@@ -7,7 +7,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { TransactionType } from '../../../common/enums/transaction-type.enum';
+import { CategoryType } from '../../../common/enums/category-type.enum';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('categories')
@@ -17,9 +17,10 @@ export class Category extends BaseEntity {
 
   @Column({
     type: 'enum',
-    enum: TransactionType,
+    enum: CategoryType,
+    default: CategoryType.EXPENSE,
   })
-  type: TransactionType;
+  type: CategoryType;
 
   @Column({ name: 'parent_id', type: 'uuid', nullable: true })
   @Index('idx_categories_parent_id')
@@ -49,7 +50,10 @@ export class Category extends BaseEntity {
   @Column({ nullable: true, length: 10 })
   color?: string;
 
-  @Column({ name: 'is_default', default: false })
+  @Column({ name: 'display_order', type: 'int', default: 0 })
+  displayOrder: number;
+
+  @Column({ name: 'is_system', default: false })
   isDefault: boolean;
 
   @OneToMany('Transaction', 'category')
@@ -60,5 +64,4 @@ export class Category extends BaseEntity {
 }
 
 // Re-export alias để tương thích toàn bộ DTO, Mapper, Repository
-export { Category as CategoryEntity };
-export { TransactionType as CategoryType };
+export { Category as CategoryEntity, CategoryType };

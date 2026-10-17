@@ -4,6 +4,8 @@ import { CategoryMapper } from './mapper/category.mapper';
 import { CreateCategoryDto } from './dto/request/create-category.dto';
 import { UpdateCategoryDto } from './dto/request/update-category.dto';
 import { CategoryQueryDto } from './dto/request/category-query.dto';
+import { CategoryResponseDto } from './dto/response/category.dto';
+import { CategoryEntity } from './entities/category.entity';
 import {
   CategoryNotFoundException,
   CategoryHasTransactionsException,
@@ -54,6 +56,11 @@ export class CategoriesService {
   // TASK-CAT06: GET /api/v1/categories
   async getCategories(userId: string, query: CategoryQueryDto) {
     const categories = await this.categoryRepo.findAllByUser(userId, query);
+
+    if (query.isTree) {
+      return this.buildCategoryTree(categories);
+    }
+
     return categories.map((cat) => this.categoryMapper.toResponse(cat));
   }
 
@@ -85,6 +92,8 @@ export class CategoriesService {
       throw new CategoryNotFoundException(id);
     }
 
+    const targetType = dto.type || category.type;
+
     // BR5: Chặn đổi loại danh mục nếu đã phát sinh giao dịch hoặc danh mục con
     if (dto.type && dto.type !== category.type) {
       const txCount = await this.categoryRepo.countTransactions(id);
@@ -106,6 +115,12 @@ export class CategoriesService {
       if (!parent) {
         throw new CategoryInvalidParentException('Danh mục cha không tồn tại');
       }
+      if (parent.userId && parent.userId !== userId && !parent.isDefault) {
+        throw new CategoryInvalidParentException('Danh mục cha không thuộc quyền truy cập của bạn');
+      }
+      if (parent.type !== targetType) {
+        throw new CategoryInvalidParentException('Danh mục con phải cùng loại (Thu nhập/Chi tiêu) với danh mục cha');
+      }
 
       // Kiểm tra vòng lặp sâu trong cây
       let currentParent: typeof parent | null = parent;
@@ -117,18 +132,22 @@ export class CategoriesService {
       }
     }
 
-    // BR3: Kiểm tra trùng tên khi cập nhật
-    if (dto.name) {
-      const cleanName = dto.name.trim();
-      const targetType = dto.type || category.type;
+    // BR3: Kiểm tra trùng tên khi cập nhật (cả khi đổi tên hoặc đổi loại)
+    if (dto.name || (dto.type && dto.type !== category.type)) {
+      const cleanName = (dto.name ?? category.name).trim();
       const existing = await this.categoryRepo.findByNameAndType(cleanName, targetType, userId, id);
       if (existing) {
         throw new CategoryNameAlreadyExistsException(cleanName);
       }
-      dto.name = cleanName;
+      if (dto.name) {
+        dto.name = cleanName;
+      }
     }
 
     Object.assign(category, dto);
+    category.userId = userId;
+    category.isDefault = false;
+
     const updated = await this.categoryRepo.save(category);
     return this.categoryMapper.toResponse(updated);
   }
@@ -168,4 +187,29 @@ export class CategoriesService {
 
     await this.categoryRepo.softDelete(id);
   }
-}
+
+  /**
+   * Chuyển danh sách danh mục phẳng thành cây phân cấp cha - con
+   */
+  private buildCategoryTree(categories: CategoryEntity[]): CategoryResponseDto[] {
+    const map = new Map<string, CategoryResponseDto>();
+    const roots: CategoryResponseDto[] = [];
+
+    for (const cat of categories) {
+      const dto = this.categoryMapper.toResponse(cat);
+      dto.children = [];
+      map.set(dto.id, dto);
+    }
+
+    for (const cat of categories) {
+      const item = map.get(cat.id)!;
+      if (cat.parentId && map.has(cat.parentId)) {
+        map.get(cat.parentId)!.children!.push(item);
+      } else {
+        roots.push(item);
+      }
+    }
+
+    return roots;
+  }
+}

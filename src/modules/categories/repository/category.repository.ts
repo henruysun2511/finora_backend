@@ -20,7 +20,10 @@ export class CategoryRepository {
   }
 
   async findById(id: string): Promise<CategoryEntity | null> {
-    return this.repo.findOne({ where: { id } });
+    return this.repo.findOne({
+      where: { id },
+      relations: ['children'],
+    });
   }
 
   async findByNameAndType(
@@ -53,19 +56,37 @@ export class CategoryRepository {
 
     if (queryDto.search) {
       query.andWhere('LOWER(category.name) LIKE LOWER(:search)', {
-        search: `%${queryDto.search}%`,
+        search: `%${queryDto.search.trim()}%`,
       });
     }
+
+    query.orderBy('category.name', 'ASC');
 
     return query.getMany();
   }
 
   async countTransactions(categoryId: string): Promise<number> {
-    return 0; // Mặc định trả về 0 nếu chưa ghép bảng Transaction
+    try {
+      const result = await this.repo.manager.query(
+        `SELECT COUNT(1) AS count FROM transactions WHERE category_id = $1 AND deleted_at IS NULL`,
+        [categoryId],
+      );
+      return parseInt(result[0]?.count || '0', 10);
+    } catch {
+      return 0;
+    }
   }
 
   async countBudgets(categoryId: string): Promise<number> {
-    return 0; // Mặc định trả về 0 nếu chưa ghép bảng Budget
+    try {
+      const result = await this.repo.manager.query(
+        `SELECT COUNT(1) AS count FROM budgets WHERE category_id = $1 AND deleted_at IS NULL`,
+        [categoryId],
+      );
+      return parseInt(result[0]?.count || '0', 10);
+    } catch {
+      return 0;
+    }
   }
 
   async countChildren(categoryId: string): Promise<number> {
@@ -75,4 +96,4 @@ export class CategoryRepository {
   async softDelete(id: string): Promise<void> {
     await this.repo.softDelete(id);
   }
-}
+}
