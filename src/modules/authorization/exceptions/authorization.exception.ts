@@ -1,10 +1,11 @@
 import { HttpStatus } from '@nestjs/common';
 import { AppError } from '../../../common/errors/app.error';
+import { AUTHORIZATION_ERROR_CODE } from '../authorization.constant';
 
 export class RoleNotFoundException extends AppError {
   constructor(identifier: string) {
     super({
-      code: 'ROLE_NOT_FOUND',
+      code: AUTHORIZATION_ERROR_CODE.ROLE_NOT_FOUND,
       message: `Không tìm thấy vai trò với thông tin: ${identifier}`,
       statusCode: HttpStatus.NOT_FOUND,
       details: { identifier },
@@ -15,7 +16,7 @@ export class RoleNotFoundException extends AppError {
 export class RoleCodeAlreadyExistsException extends AppError {
   constructor(code: string) {
     super({
-      code: 'ROLE_CODE_ALREADY_EXISTS',
+      code: AUTHORIZATION_ERROR_CODE.ROLE_CODE_ALREADY_EXISTS,
       message: `Mã vai trò '${code}' đã tồn tại trong hệ thống`,
       statusCode: HttpStatus.CONFLICT,
       details: { code },
@@ -26,7 +27,7 @@ export class RoleCodeAlreadyExistsException extends AppError {
 export class PermissionNotFoundException extends AppError {
   constructor(identifier: string) {
     super({
-      code: 'PERMISSION_NOT_FOUND',
+      code: AUTHORIZATION_ERROR_CODE.PERMISSION_NOT_FOUND,
       message: `Không tìm thấy quyền hạn với thông tin: ${identifier}`,
       statusCode: HttpStatus.NOT_FOUND,
       details: { identifier },
@@ -37,7 +38,7 @@ export class PermissionNotFoundException extends AppError {
 export class PermissionCodeAlreadyExistsException extends AppError {
   constructor(code: string) {
     super({
-      code: 'PERMISSION_CODE_ALREADY_EXISTS',
+      code: AUTHORIZATION_ERROR_CODE.PERMISSION_CODE_ALREADY_EXISTS,
       message: `Mã quyền hạn '${code}' đã tồn tại trong hệ thống`,
       statusCode: HttpStatus.CONFLICT,
       details: { code },

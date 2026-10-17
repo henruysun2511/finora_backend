@@ -24,13 +24,6 @@ import { PermissionsGuard } from './guards/permissions.guard';
     RolesGuard,
     PermissionsGuard,
   ],
-  exports: [
-    AuthorizationService,
-    RoleRepository,
-    PermissionRepository,
-    RolePermissionRepository,
-    RolesGuard,
-    PermissionsGuard,
-  ],
+  exports: [AuthorizationService, RolesGuard, PermissionsGuard],
 })
 export class AuthorizationModule {}

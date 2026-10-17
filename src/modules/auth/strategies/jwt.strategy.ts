@@ -2,8 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { JwtConfig } from '../../../config/jwt.config';
-import { UserRepository } from '../../users/repository/user.repository';
-import { UserMapper } from '../../users/mapper/user.mapper';
+import { UsersService } from '../../users/users.service';
 
 export interface JwtPayload {
   sub: string;
@@ -14,10 +13,7 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(
-    private readonly userRepository: UserRepository,
-    private readonly userMapper: UserMapper,
-  ) {
+  constructor(private readonly usersService: UsersService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -26,7 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload) {
-    const user = await this.userRepository.findById(payload.sub);
+    const user = await this.usersService.findById(payload.sub);
     if (!user || !user.isActive) {
       throw new UnauthorizedException(
         'Tài khoản không tồn tại hoặc đã bị vô hiệu hóa',
@@ -49,7 +45,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const isSysAdmin: boolean =
       user.userRoles?.some((ur) => ur.role?.isSysAdmin) ?? false;
 
-    const userDto = this.userMapper.toResponseDto(user);
+    const userDto = this.usersService.toResponseDto(user);
 
     return {
       ...userDto,
@@ -59,4 +55,3 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     };
   }
 }
-

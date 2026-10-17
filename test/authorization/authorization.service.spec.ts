@@ -257,7 +257,9 @@ describe('AuthorizationService', () => {
           action: 'create',
           createdAt: mockDate,
           updatedAt: mockDate,
-        } as any,
+          deletedBy: null,
+          rolePermissions: [],
+        } as Permission,
       ]);
 
       await expect(
