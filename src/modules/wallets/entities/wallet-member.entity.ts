@@ -39,7 +39,9 @@ export class WalletMember extends BaseEntity {
   @JoinColumn({ name: 'wallet_id' })
   wallet: Wallet;
 
-  @ManyToOne(() => User, (user) => user.walletMemberships, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.walletMemberships, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

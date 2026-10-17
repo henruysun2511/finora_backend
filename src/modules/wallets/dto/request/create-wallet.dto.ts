@@ -46,7 +46,9 @@ export class CreateWalletDto {
   @IsOptional()
   @IsString({ message: 'Mã tiền tệ phải là chuỗi ký tự' })
   @Length(3, 3, { message: 'Mã tiền tệ phải đúng 3 ký tự (ISO 4217)' })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   defaultCurrency?: string = WALLET_DEFAULTS.CURRENCY;
 
   @ApiPropertyOptional({

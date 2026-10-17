@@ -25,7 +25,6 @@ export class Role extends BaseEntity {
   @Column({ name: 'is_sys_admin', default: false })
   isSysAdmin: boolean;
 
-
   @OneToMany('UserRole', 'role')
   userRoles: UserRole[];
 
@@ -35,4 +34,3 @@ export class Role extends BaseEntity {
   @OneToMany('WalletMember', 'role')
   walletMembers: WalletMember[];
 }
-

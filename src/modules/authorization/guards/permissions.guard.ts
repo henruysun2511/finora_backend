@@ -34,7 +34,6 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 
-
     const userPermissionCodes: string[] = Array.isArray(user.permissions)
       ? user.permissions.map((p: { code?: string } | string) =>
           typeof p === 'string'

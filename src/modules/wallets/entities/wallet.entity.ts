@@ -1,7 +1,15 @@
-import { Entity, Column, Index, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  Index,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+} from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
 import type { WalletMember } from './wallet-member.entity';
+import type { Account } from '../../accounts/entities/account.entity';
 
 @Entity('wallets')
 export class Wallet extends BaseEntity {
@@ -35,5 +43,5 @@ export class Wallet extends BaseEntity {
   members: WalletMember[];
 
   @OneToMany('Account', 'wallet')
-  accounts: any[];
+  accounts: Account[];
 }

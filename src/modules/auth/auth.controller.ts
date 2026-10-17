@@ -11,7 +11,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/request/register.dto';
@@ -32,7 +32,7 @@ import { ApiResponse } from '../../common/response/api-response';
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Post('register')
@@ -40,16 +40,13 @@ export class AuthController {
     summary: 'Đăng ký tài khoản mới',
     description:
       'Đăng ký tài khoản bằng email và mật khẩu (tự động gán role USER)',
+    bodyType: RegisterDto,
     responseType: AuthResponseDto,
     status: 201,
   })
   async register(@Body() dto: RegisterDto) {
     const data = await this.authService.register(dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.CREATED,
-      message: 'Đăng ký tài khoản thành công',
-      data,
-    });
+    return ApiResponse.created(data, 'Đăng ký tài khoản thành công');
   }
 
   @Public()
@@ -58,6 +55,7 @@ export class AuthController {
   @SwaggerDoc({
     summary: 'Đăng nhập',
     description: 'Xác thực tài khoản và cấp cặp token JWT + Refresh Token',
+    bodyType: LoginDto,
     responseType: AuthResponseDto,
   })
   async login(
@@ -66,11 +64,7 @@ export class AuthController {
     @Ip() ipAddress?: string,
   ) {
     const data = await this.authService.login(dto, userAgent, ipAddress);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Đăng nhập thành công',
-      data,
-    });
+    return ApiResponse.success(data, 'Đăng nhập thành công');
   }
 
   @Public()
@@ -104,11 +98,7 @@ export class AuthController {
       userAgent,
       ipAddress,
     );
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Đăng nhập Google thành công',
-      data,
-    });
+    return ApiResponse.success(data, 'Đăng nhập Google thành công');
   }
 
   @Public()
@@ -118,6 +108,7 @@ export class AuthController {
     summary: 'Cấp lại Access Token',
     description:
       'Nhận Refresh Token hợp lệ và cấp mới cặp Access Token / Refresh Token',
+    bodyType: RefreshTokenDto,
     responseType: AuthTokensDto,
   })
   async refreshToken(
@@ -130,67 +121,54 @@ export class AuthController {
       userAgent,
       ipAddress,
     );
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Cấp mới token thành công',
-      data,
-    });
+    return ApiResponse.success(data, 'Cấp mới token thành công');
   }
 
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access-token')
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @SwaggerDoc({
     summary: 'Đăng xuất',
     description: 'Thu hồi token hiện tại của người dùng',
+    bearerAuth: true,
   })
   async logout(
     @CurrentUser('id') userId: string,
     @Body() dto?: Partial<RefreshTokenDto>,
   ) {
     await this.authService.logout(userId, dto?.refreshToken);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Đăng xuất thành công',
-      data: null,
-    });
+    return ApiResponse.noContent('Đăng xuất thành công');
   }
 
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access-token')
   @Get('me')
   @SwaggerDoc({
     summary: 'Thông tin cá nhân (Profile)',
     description:
       'Lấy thông tin tài khoản đang đăng nhập kèm danh sách vai trò và quyền hạn',
     responseType: UserResponseDto,
+    bearerAuth: true,
   })
   async getProfile(@CurrentUser() user: UserResponseDto) {
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Lấy thông tin tài khoản thành công',
-      data: user,
-    });
+    return ApiResponse.success(user, 'Lấy thông tin tài khoản thành công');
   }
 
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access-token')
   @Patch('change-password')
   @HttpCode(HttpStatus.OK)
   @SwaggerDoc({
     summary: 'Đổi mật khẩu',
     description: 'Đổi mật khẩu tài khoản và thu hồi các phiên đăng nhập cũ',
+    bodyType: ChangePasswordDto,
+    bearerAuth: true,
   })
   async changePassword(
     @CurrentUser('id') userId: string,
     @Body() dto: ChangePasswordDto,
   ) {
     await this.authService.changePassword(userId, dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Đổi mật khẩu thành công, vui lòng đăng nhập lại',
-      data: null,
-    });
+    return ApiResponse.noContent(
+      'Đổi mật khẩu thành công, vui lòng đăng nhập lại',
+    );
   }
 }
