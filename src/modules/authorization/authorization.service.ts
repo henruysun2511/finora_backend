@@ -19,7 +19,6 @@ import {
   PermissionCodeAlreadyExistsException,
 } from './exceptions/authorization.exception';
 
-
 @Injectable()
 export class AuthorizationService {
   constructor(
@@ -106,7 +105,6 @@ export class AuthorizationService {
     const refreshed = await this.roleRepo.findById(roleId);
     return this.mapper.toRoleResponseDto(refreshed!);
   }
-
 
   // ── Permissions ───────────────────────────────────────────────────────────
   async createPermission(

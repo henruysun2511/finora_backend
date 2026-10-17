@@ -9,6 +9,8 @@ import { CreateWalletDto } from './dto/request/create-wallet.dto';
 import { UpdateWalletDto } from './dto/request/update-wallet.dto';
 import { WalletQueryDto } from './dto/request/wallet-query.dto';
 import { WalletResponseDto } from './dto/response/wallet-response.dto';
+import { WalletAccountResponseDto } from './dto/response/wallet-account-response.dto';
+import { WalletBalanceResponseDto } from './dto/response/wallet-balance-response.dto';
 
 import {
   WalletNotFoundException,
@@ -199,5 +201,45 @@ export class WalletsService {
     }
 
     await this.walletRepo.softDeleteById(walletId);
+  }
+
+  // Lấy danh sách tài khoản trong ví.
+  async getWalletAccounts(
+    walletId: string,
+    userId: string,
+  ): Promise<WalletAccountResponseDto[]> {
+    const wallet = await this.walletRepo.findById(walletId);
+    if (!wallet) {
+      throw new WalletNotFoundException(walletId);
+    }
+
+    await this.getAcceptedMember(walletId, userId);
+
+    const accounts = await this.walletRepo.findAccountsByWalletId(walletId);
+    const accountIds = accounts.map((a) => a.id);
+    const balanceMap =
+      await this.walletRepo.getBalancesByAccountIds(accountIds);
+
+    return this.walletMapper.toAccountResponseList(accounts, balanceMap);
+  }
+
+  // Lấy tổng tài sản của ví.
+  async getWalletBalance(
+    walletId: string,
+    userId: string,
+  ): Promise<WalletBalanceResponseDto> {
+    const wallet = await this.walletRepo.findById(walletId);
+    if (!wallet) {
+      throw new WalletNotFoundException(walletId);
+    }
+
+    await this.getAcceptedMember(walletId, userId);
+
+    const accounts = await this.walletRepo.findAccountsByWalletId(walletId);
+    const accountIds = accounts.map((a) => a.id);
+    const balanceMap =
+      await this.walletRepo.getBalancesByAccountIds(accountIds);
+
+    return this.walletMapper.toBalanceResponse(wallet, accounts, balanceMap);
   }
 }

@@ -23,7 +23,6 @@ export class PermissionRepository {
     return this.repo.find({ where: { id: In(ids) } });
   }
 
-
   findByCode(code: string): Promise<Permission | null> {
     return this.repo.findOne({
       where: { code: code.trim().toUpperCase() },

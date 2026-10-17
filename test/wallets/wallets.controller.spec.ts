@@ -6,6 +6,7 @@ import { UpdateWalletDto } from '../../src/modules/wallets/dto/request/update-wa
 import { WalletQueryDto } from '../../src/modules/wallets/dto/request/wallet-query.dto';
 import { WalletResponseDto } from '../../src/modules/wallets/dto/response/wallet-response.dto';
 import { WalletMemberRole } from '../../src/common/enums/wallet-member-role.enum';
+import { AccountType } from '../../src/modules/accounts/enums/account-type.enum';
 import { PaginatedResponse } from '../../src/common/response/api-response';
 
 describe('WalletsController', () => {
@@ -37,6 +38,8 @@ describe('WalletsController', () => {
       getWalletById: jest.fn(),
       updateWallet: jest.fn(),
       deleteWallet: jest.fn(),
+      getWalletAccounts: jest.fn(),
+      getWalletBalance: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -134,6 +137,59 @@ describe('WalletsController', () => {
       );
       expect(res.success).toBe(true);
       expect(res.data).toBeNull();
+    });
+  });
+
+  describe('getAccounts', () => {
+    it('nên lấy danh sách tài khoản trong ví thành công', async () => {
+      const mockAccounts = [
+        {
+          id: 'acc-1',
+          walletId: mockWalletId,
+          name: 'Vietcombank',
+          type: AccountType.BANK,
+          currency: 'VND',
+          balance: 10000000,
+          isArchived: false,
+          createdAt: mockDate,
+          updatedAt: mockDate,
+        },
+      ];
+
+      service.getWalletAccounts.mockResolvedValue(mockAccounts);
+
+      const res = await controller.getAccounts(mockUserId, mockWalletId);
+
+      expect(service.getWalletAccounts).toHaveBeenCalledWith(
+        mockWalletId,
+        mockUserId,
+      );
+      expect(res.success).toBe(true);
+      expect(res.data).toEqual(mockAccounts);
+    });
+  });
+
+  describe('getBalance', () => {
+    it('nên lấy tổng tài sản của ví thành công', async () => {
+      const mockBalance = {
+        walletId: mockWalletId,
+        walletName: 'Ví chi tiêu gia đình',
+        defaultCurrency: 'VND',
+        totalBalance: 10000000,
+        breakdownByCurrency: { VND: 10000000 },
+        accountsCount: 1,
+      };
+
+      service.getWalletBalance.mockResolvedValue(mockBalance);
+
+      const res = await controller.getBalance(mockUserId, mockWalletId);
+
+      expect(service.getWalletBalance).toHaveBeenCalledWith(
+        mockWalletId,
+        mockUserId,
+      );
+      expect(res.success).toBe(true);
+      expect(res.data).toEqual(mockBalance);
     });
   });
 });

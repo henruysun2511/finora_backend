@@ -38,7 +38,6 @@ export class RolesGuard implements CanActivate {
       );
     }
 
-
     const userRoleCodes: string[] = Array.isArray(user.roles)
       ? user.roles.map((r: { code?: string } | string) =>
           typeof r === 'string'

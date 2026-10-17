@@ -17,6 +17,8 @@ import { CreateWalletDto } from './dto/request/create-wallet.dto';
 import { UpdateWalletDto } from './dto/request/update-wallet.dto';
 import { WalletQueryDto } from './dto/request/wallet-query.dto';
 import { WalletResponseDto } from './dto/response/wallet-response.dto';
+import { WalletAccountResponseDto } from './dto/response/wallet-account-response.dto';
+import { WalletBalanceResponseDto } from './dto/response/wallet-balance-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
@@ -120,5 +122,43 @@ export class WalletsController {
     await this.walletsService.deleteWallet(walletId, userId);
 
     return ApiResponse.noContent('Xóa ví thành công');
+  }
+
+  @Get(':id/accounts')
+  @SwaggerDoc({
+    summary: 'Lấy danh sách tài khoản trong ví',
+    description:
+      'Lấy toàn bộ các tài khoản nguồn tiền thuộc ví mà người dùng có quyền truy cập.',
+    responseType: WalletAccountResponseDto,
+    isArray: true,
+    bearerAuth: true,
+  })
+  async getAccounts(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) walletId: string,
+  ) {
+    const data = await this.walletsService.getWalletAccounts(walletId, userId);
+
+    return ApiResponse.success(
+      data,
+      'Lấy danh sách tài khoản trong ví thành công',
+    );
+  }
+
+  @Get(':id/balance')
+  @SwaggerDoc({
+    summary: 'Lấy tổng tài sản của ví',
+    description:
+      'Tính toán tổng số dư và thống kê số dư theo tiền tệ của các tài khoản trong ví.',
+    responseType: WalletBalanceResponseDto,
+    bearerAuth: true,
+  })
+  async getBalance(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) walletId: string,
+  ) {
+    const data = await this.walletsService.getWalletBalance(walletId, userId);
+
+    return ApiResponse.success(data, 'Lấy tổng tài sản ví thành công');
   }
 }
