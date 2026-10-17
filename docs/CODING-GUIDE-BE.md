@@ -1,0 +1,525 @@
+# CODING GUIDE — Book Management NestJS
+
+Hướng dẫn cách viết code và bày trí code theo đúng quy ước của dự án.
+Module **`users`** là **mẫu tham chiếu chuẩn** — mọi module (`authors`,
+`categories`, `books`, `borrows`) phải bắt chước đúng cấu trúc và pattern
+của nó. Code mới phải khớp các quy ước bên dưới.
+
+---
+
+## 1. Tổng quan Stack
+
+| Thành phần | Vai trò |
+|---|---|
+| NestJS 10 | Framework, DI, module system |
+| TypeORM 0.3 | ORM, entity, QueryBuilder, soft delete |
+| PostgreSQL (Neon) | Database (dùng URL + SSL) |
+| class-validator / class-transformer | Validate + transform DTO |
+| @nestjs/swagger | OpenAPI docs tại `/docs` |
+| TypeScript | Ngôn ngữ |
+
+**Luồng dữ liệu chuẩn (bất biến):**
+```
+Controller → Service (business logic) → Repository (TypeORM) → DB
+                      │
+                      └→ Mapper (Entity → Response DTO) → return
+```
+
+- Service **không bao giờ** gọi TypeORM `Repository` trực tiếp — qua
+  repository layer riêng của module (`XxxRepository`).
+- Entity **không bao giờ** được trả thẳng ra khỏi controller — luôn qua
+  **Mapper** để chuyển sang Response DTO.
+
+---
+
+## 2. Cấu trúc thư mục
+
+```
+src/
+├── main.ts                  # Bootstrap: prefix /api + version v1, CORS, pipe/filter/interceptor, Swagger
+├── app.module.ts            # Root module: DatabaseModule + các feature module
+├── config/
+│   ├── app.config.ts        # AppConfig — đọc env tập trung (PORT, FRONTEND_URL...)
+│   ├── database.config.ts   # DatabaseConfig — DATABASE_URL
+│   └── validation.schema.ts # validateEnv() — chặn khởi động nếu thiếu env
+├── database/data-source.ts  # DataSource riêng cho TypeORM CLI (migration)
+├── shared/database/         # DatabaseModule — TypeOrmModule.forRootAsync (Neon + SSL) một nơi
+├── common/                  # Dùng chung toàn dự án (không sửa lung tung)
+│   ├── entities/base.entity.ts
+│   ├── enums/sort-order.enum.ts
+│   ├── errors/app.error.ts       # AppError, ErrorCodes, notFound()
+│   ├── filters/                  # HttpExceptionFilter, TypeOrmExceptionFilter
+│   ├── interceptors/response.interceptor.ts
+│   ├── response/api-response.ts  # ApiResponse<T> + PaginatedResponse<T>
+│   └── swagger/swagger-doc.ts    # @SwaggerDoc
+└── modules/
+    └── users/               # ✓ MODULE MẪU — bắt chước đúng cấu trúc
+```
+
+**Nguyên tắc:**
+- Feature module tự khai báo đủ dependencies của nó (`TypeOrmModule.forFeature`).
+- Không nối module bằng import chồng chéo; khi cần service của module khác
+  (VD: BooksService gọi AuthorsService/CategoriesService để validate FK) thì
+  import **Module** đó vào `imports` — dựa vào `exports` của module đích.
+- Đăng ký module mới vào `app.module.ts`.
+
+---
+
+## 3. Cấu trúc chuẩn của một feature module
+
+```
+src/modules/<tên_module>/
+├── <tên_module>.module.ts      # @Module + TypeOrmModule.forFeature([Entity])
+├── <tên_module>.controller.ts  # Chỉ khai báo route + SwaggerDoc, gọi service
+├── <tên_module>.service.ts     # Business logic (kiểm tra unique, FK, transaction)
+├── <tên_module>.constant.ts    # <X>_CONSTANTS (pagination) + <X>_ERROR_CODE
+├── entities/<entity>.entity.ts # Entity extends BaseEntity, tên bảng snake_case
+├── repository/<entity>.repository.ts  # QueryBuilder, softDelete...
+├── mapper/<entity>.mapper.ts   # toResponse(entity) / toResponseList([])
+├── exceptions/<tên>.exception.ts      # Exception riêng extends AppError
+└── dto/
+    ├── request/
+    │   ├── create-<entity>.dto.ts     # @ApiProperty + class-validator
+    │   ├── update-<entity>.dto.ts     # PartialType(CreateXxxDto)
+    │   └── <entity>-query.dto.ts      # page/limit/keyword/sortBy/sortOrder + filters
+    └── response/<entity>.dto.ts       # Response DTO (đã qua Mapper)
+```
+
+---
+
+## 4. Quy ước tên file & symbol
+
+| Thứ | Quy ước | Ví dụ |
+|---|---|---|
+| File | kebab-case | `user.repository.ts`, `create-user.dto.ts` |
+| Controller / Service / Module | `<tên>` (số nhiều) + hậu tố | `UsersController`, `UsersService`, `UsersModule` |
+| Repository / Mapper | `<Tên>` + hậu tố | `UserRepository`, `UserMapper` |
+| Entity | PascalCase, số ít | `User`, `Book` |
+| DTO request | `CreateXxxDto`, `UpdateXxxDto`, `XxxQueryDto` | `CreateBookDto` |
+| DTO response | `XxxResponse` | `BookResponse` |
+| Exception | Tên mô tả + `Exception` | `EmailAlreadyExistsException` |
+| Constants | `<X>_CONSTANTS` / `<X>_ERROR_CODE` (UPPER) | `USERS_CONSTANTS`, `USER_ERROR_CODE` |
+| Hằng số error code | SCREAMING_SNAKE | `EMAIL_ALREADY_EXISTS` |
+
+- Tham số `id` trong controller: `@Param('id', ParseUUIDPipe)`.
+- Message/chuỗi UI: **tiếng Việt có dấu**.
+
+---
+
+## 5. Bày trí code trong file
+
+### Thứ tự import
+
+```ts
+// 1. Package ngoài: @nestjs/... , typeorm, class-validator, class-transformer, bcrypt...
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+
+// 2. Module này (./ file cùng thư mục), đúng thứ tự:
+//    service/repository/mapper → common (../../common/...) → dto
+import { UserRepository } from './repository/user.repository';
+import { UserMapper } from './mapper/user.mapper';
+import { notFound } from '../../common/errors/app.error';
+import { CreateUserDto } from './dto/request/create-user.dto';
+```
+
+### Thứ tự trong lớp
+
+- **Controller**: constructor (`private readonly x: XxxService`) → các route
+  theo thứ tự `POST → GET (list) → GET :id → PATCH :id → DELETE :id`.
+- **Service**: constructor (inject repository, mapper, service khác) → các
+  method gom theo nhóm, mỗi nhóm mở đầu bằng comment section:
+  ```ts
+  // ── CREATE ───────────────────────────────────────────────────────────────
+  // ── LIST ─────────────────────────────────────────────────────────────────
+  // ── DETAIL ───────────────────────────────────────────────────────────────
+  // ── UPDATE ───────────────────────────────────────────────────────────────
+  // ── HELPERS ──────────────────────────────────────────────────────────────
+  // ── DELETE ───────────────────────────────────────────────────────────────
+  ```
+- **Repository**: `findById`, `findBy<Field>` (unique check), `create`, `save`,
+  `findPaginated`, `softDelete`.
+
+### Comment
+- Comment ngăn cách: `// ── TÊN ──` (dùng trong service, main.ts, app.module.ts).
+- JSDoc `/** ... */`: cho class quan trọng (BaseEntity, Repository, Mapper,
+  AppError) — giải thích **tại sao**, không giải thích code rõ ràng.
+
+### Format chung
+- Indent 2 spaces, **không dùng semicolon**, **single quote**, dòng dài xuống
+  dòng (~100 ký tự); thụt thẳng hàng khi gán object nhiều field align (xem
+  mapper `id: user.id,` thẳng cột).
+
+---
+
+## 6. Lớp nào viết gì
+
+### 6.1 Module (`<module>.module.ts`)
+
+```ts
+@Module({
+  imports: [TypeOrmModule.forFeature([User])], // entity của chính nó
+  controllers: [UsersController],
+  providers: [UsersService, UserRepository, UserMapper], // khai báo đủ
+  exports: [UsersService, UserRepository, UserMapper],  // cho module khác dùng
+})
+export class UsersModule {}
+```
+
+- Module có quan hệ cần service người khác → thêm module đó vào `imports`
+  (VD: `BooksModule` import `AuthorsModule`, `CategoriesModule`).
+- Feature module **không** khai báo `TypeOrmModule.forRoot` — root config đã
+  nằm ở `shared/database`.
+
+### 6.2 Controller (`<module>.controller.ts`)
+
+Chỉ làm 3 việc: khai báo route, `@SwaggerDoc`, gọi service + bọc response.
+
+```ts
+@ApiTags('Users')          // tên hiển thị trên Swagger
+@Controller('users')       // route không có prefix api/v1 (đã global)
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @SwaggerDoc({ summary: 'Tạo người dùng mới', bodyType: CreateUserDto, responseType: UserResponse, status: 201 })
+  async create(@Body() dto: CreateUserDto) {
+    return ApiResponse.created(await this.usersService.create(dto), 'Tạo người dùng thành công');
+  }
+}
+```
+
+- Route theo thứ tự: `POST /` → `GET /` → `GET /:id` → `PATCH /:id` →
+  `DELETE /:id`. Riêng `DELETE` kèm `@HttpCode(HttpStatus.NO_CONTENT)` để trả
+  204 đúng chuẩn (mẫu `BooksController`).
+- `Controller` **không** chứa logic (không check unique, không `Object.assign`).
+- `@SwaggerDoc` bắt buộc cho **mọi** route (kể cả DELETE).
+
+### 6.3 Service (`<module>.service.ts`)
+
+Nơi duy nhất chứa business logic. Mẫu từng method chuẩn:
+
+```ts
+// CREATE: kiểm tra unique → (kiểm tra FK) → tạo → save → mapper
+async create(dto: CreateUserDto): Promise<UserResponse> {
+  const exists = await this.userRepo.findByEmail(dto.email);
+  if (exists) throw new EmailAlreadyExistsException(dto.email);
+
+  const password = await bcrypt.hash(dto.password, 12);
+  const user = this.userRepo.create({ name: dto.name, email: dto.email, password });
+  const saved = await this.userRepo.save(user);
+
+  return this.userMapper.toResponse(saved);
+}
+
+// LIST: repository.findPaginated → PaginatedResponse.of(...)
+async findAll(query: UserQueryDto): Promise<PaginatedResponse<UserResponse>> {
+  const [users, total] = await this.userRepo.findPaginated(query);
+  return PaginatedResponse.of(this.userMapper.toResponseList(users), total, query.page, query.limit);
+}
+
+// DETAIL / UPDATE / DELETE: findById → nếu null → throw notFound('<tên tiếng Việt>')
+async remove(id: string): Promise<void> {
+  const user = await this.userRepo.findById(id);
+  if (!user) throw notFound('người dùng');
+  await this.userRepo.softDelete(id);
+}
+```
+
+- Không tìm thấy → `throw notFound('<tên tiếng Việt số ít>')` (trả 404).
+- Trùng unique → exception riêng của module (409), không tự bắt DB error.
+- Field bổ sung (bcrypt hash, `borrowedAt`, `status`) set **trong service**,
+  không phải DTO nhận từ client.
+- Update dùng `Object.assign(entity, dto)` rồi `save`.
+- Logic dùng lại (VD: validateFK) gom vào method `private` dưới nhóm `HELPERS`.
+
+### 6.4 Repository (`repository/<entity>.repository.ts`)
+
+```ts
+@Injectable()
+export class UserRepository {
+  constructor(@InjectRepository(User) private readonly repo: Repository<User>) {}
+
+  findById(id: string): Promise<User | null> { return this.repo.findOne({ where: { id } }); }
+  findByEmail(email: string): Promise<User | null> { return this.repo.findOne({ where: { email } }); }
+  save(user: User): Promise<User> { return this.repo.save(user); }
+  create(data: Partial<User>): User { return this.repo.create(data); }
+
+  async findPaginated(query: UserQueryDto): Promise<[User[], number]> {
+    const qb = this.repo.createQueryBuilder('user')
+      .where('user.deletedAt IS NULL');          // QueryBuilder KHÔNG tự lọc soft delete
+
+    if (query.keyword) {
+      qb.andWhere('(user.name ILIKE :kw OR user.email ILIKE :kw)', { kw: `%${query.keyword}%` });
+    }
+
+    return qb
+      .orderBy(`user.${query.sortBy ?? 'createdAt'}`, query.sortOrder ?? 'DESC')
+      .skip(query.skip)
+      .take(query.limit)
+      .getManyAndCount();                        // trả [rows, total]
+  }
+
+  softDelete(id: string) { return this.repo.softDelete(id); }
+}
+```
+
+- **Quan trọng**: `createQueryBuilder` không tự áp soft-delete filter → luôn
+  `where('<alias>.deletedAt IS NULL')`.
+- Bí danh query builder viết thường: `user`, `book`... tham chiếu cột bằng
+  `<alias>.<field>`.
+- Mọi query phức tạp nằm ở đây; service chỉ gọi hàm có nghĩa.
+
+### 6.5 Mapper (`mapper/<entity>.mapper.ts`)
+
+```ts
+@Injectable()
+export class UserMapper {
+  toResponse(user: User): UserResponse {
+    return {
+      id:        user.id,
+      name:      user.name,
+      email:     user.email,
+      createdAt: user.createdAt,
+      // KHÔNG map password — response DTO chỉ chứa field an toàn cho client
+    };
+  }
+  toResponseList(users: User[]): UserResponse[] {
+    return users.map((u) => this.toResponse(u));
+  }
+}
+```
+
+- Có relation (books/borrows) → map nested: `author: { id, name }`, `category`,
+  `user`, `book` theo đúng spec trong `docs/*.md`.
+- Không điền field nào mà entity không có; field nhạy cảm tuyệt đối không map.
+
+### 6.6 Entity (`entities/<entity>.entity.ts`)
+
+```ts
+@Entity('users')                       // tên bảng snake_case, số nhiều
+export class User extends BaseEntity { // luôn kế thừa BaseEntity
+  @Column({ length: 150 })
+  name: string;
+
+  @Column({ unique: true, length: 150 })
+  @Index()
+  email: string;
+
+  @Column({ length: 255 })
+  @Exclude()                           // field nhạy cảm — ẩn khi serialize
+  password: string;
+}
+```
+
+- `BaseEntity` đã có sẵn: `id` (uuid PK), `created_at`, `updated_at`,
+  `deleted_at` → **không** khai báo lại.
+- Cột riêng của bảng theo snake_case qua `@Column({ name: '...' })`.
+- **@Exclude()** cho field nhạy cảm (password). `ClassSerializerInterceptor`
+  trong `app.module.ts` đảm bảo chúng biến mất khỏi response.
+- Relation dùng decorator TypeORM:
+  ```ts
+  @ManyToOne(() => Author)
+  @JoinColumn({ name: 'author_id' })
+  author: Author;
+  ```
+
+### 6.7 Exceptions (`exceptions/<tên>.exception.ts`)
+
+```ts
+export class EmailAlreadyExistsException extends AppError {
+  constructor(email: string) {
+    super({
+      code: USER_ERROR_CODE.EMAIL_ALREADY_EXISTS,  // code lấy từ <module>.constant.ts
+      message: `Email "${email}" đã được sử dụng`,
+      statusCode: HttpStatus.CONFLICT,
+    });
+  }
+}
+```
+
+- Luôn `extends AppError` (không extends HttpException trực tiếp).
+- `code` là duy nhất, khai báo trong `USER_ERROR_CODE` / `BOOK_ERROR_CODE`.
+- Không throw `AppError` generic cho lỗi marketing riêng module — tạo class riêng.
+
+### 6.8 DTO
+
+**Create DTO:** `@ApiProperty` (phục vụ Swagger) + class-validator, message
+tiếng Việt khi cần:
+
+```ts
+export class CreateUserDto {
+  @ApiProperty({ example: 'Nguyễn Văn A' })
+  @IsString() @MinLength(2) @MaxLength(150)
+  name: string;
+
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  email: string;
+}
+```
+
+**Update DTO:** luôn `extends PartialType(CreateXxxDto)` từ `@nestjs/swagger`:
+```ts
+export class UpdateUserDto extends PartialType(CreateUserDto) {}
+```
+
+**Query DTO:** 5 field cố định + filter riêng:
+`page`, `limit` (lấy default/Min/Max từ `<X>_CONSTANTS.PAGINATION`), `keyword`,
+`sortBy` (default `'createdAt'`), `sortOrder` (Enum `SortOrder`, default DESC),
+thêm getter `get skip()`. Field optional có thêm kiểu `authorId?`, `categoryId?`
+cùng `@IsOptional() @IsUUID()`.
+
+**Response DTO:** class thuần với `@ApiProperty()` cho từng field:
+```ts
+export class UserResponse {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty() createdAt: Date;
+}
+```
+
+> `main.ts` cấu hình `ValidationPipe` với `whitelist`, `forbidNonWhitelisted`,
+> `transform`, `enableImplicitConversion` → field lạ bị chặn, query tự convert
+> kiểu. Đừng vô hiệu hóa.
+
+### 6.9 Constants (`<module>.constant.ts`)
+
+```ts
+export const USERS_CONSTANTS = {
+  PAGINATION: { DEFAULT_PAGE: 1, DEFAULT_LIMIT: 10, MAX_LIMIT: 100 },
+} as const;
+
+export const USER_ERROR_CODE = {
+  EMAIL_ALREADY_EXISTS: 'EMAIL_ALREADY_EXISTS',
+} as const;
+```
+
+- Mọi con số (pagination) đưa vào `<X>_CONSTANTS`, không hard-code trong DTO.
+- Error code riêng module đặt SCREAMING_SNAKE, giá trị **duy nhất** trên toàn
+  dự án (VD: `BOOK_ISBN_ALREADY_EXISTS` để không đụng `EMAIL_ALREADY_EXISTS`).
+- Có thể chứa Enum nghiệp vụ riêng (VD: `BorrowStatus` BORROWED/RETURNED).
+
+---
+
+## 7. Response format (bất biến)
+
+Mọi response đi qua 1 trong 2 đường — kết quả giống nhau:
+
+- **Đường 1 (mẫu `users`)**: controller return `ApiResponse.created(...)`,
+  `ApiResponse.success(...)`, `ApiResponse.noContent(...)`.
+- **Đường 2 (mẫu `books`)**: controller return data thuần + `@HttpCode(...)`,
+  `ResponseInterceptor` (đã đăng ký global trong `main.ts`) tự bọc
+  `ApiResponse<T>`.
+
+Hình dạng chung:
+
+```json
+{ "success": true, "statusCode": 200, "message": "OK", "data": { ... }, "timestamp": "..." }
+```
+
+- Danh sách phân trang → `data.items[]` + `data.pagination`
+  `{ page, limit, total, totalPages, hasNext, hasPrev }` (dùng
+  `PaginatedResponse.of(items, total, page, limit)`).
+- HTTP status: `POST` = **201**, `DELETE` = **204**, còn lại = **200**.
+
+---
+
+## 8. Error handling
+
+- **`AppError`** (`common/errors/app.error.ts`) là base của mọi business
+  exception. Body lỗi luôn: `{ success, statusCode, code, message, timestamp }`.
+- **Not found**: `throw notFound('<tên tiếng Việt>')` → 404.
+- **Giới hạn dùng** `notFound` / `ErrorCodes` chung; lỗi đặc thù module →
+  exception class riêng (extends AppError) với `code` riêng.
+- **`HttpExceptionFilter`** (global, `@Catch()`) — bắt mọi exception, log
+  `[Method] url → status channel`, định dạng lỗi, thêm `path`.
+- **`TypeOrmExceptionFilter`** (`@Catch(QueryFailedError)`) — map lỗi Postgres
+  theo mã SQLSTATE: `23505` duplicate → 409, `23503` FK violation → 400...
+  Không để DB error thô lộ ra client.
+- **Không tự thêm filter/pipe global** trong module — global đã setup ở `main.ts`.
+
+---
+
+## 9. Swagger
+
+- Dùng decorator tổng hợp `@SwaggerDoc({ summary, bodyType, responseType,
+  status, isArray, description? })` (định nghĩa ở `common/swagger/swagger-doc.ts`).
+- Mọi route bắt buộc `@SwaggerDoc`. DTO phải có đủ `@ApiProperty` để Swagger
+  render chính xác; field optional dùng `@ApiPropertyOptional`.
+- Query DTO nhớ khai `default` + `minimum`/`maximum` trên `@ApiPropertyOptional`.
+
+---
+
+## 10. Quan hệ TypeORM (books, borrows)
+
+Theo spec `docs/books.md`, `docs/borrows.md`:
+
+```ts
+// entities/book.entity.ts
+@ManyToOne(() => Author)
+@JoinColumn({ name: 'author_id' })
+author: Author;
+
+@ManyToOne(() => Category)
+@JoinColumn({ name: 'category_id' })
+category: Category;
+```
+
+- Cột FK lưu snake_case (`author_id`, `category_id`); DTO expose camelCase
+  (`authorId`, `categoryId`) → mapper chuyển qua lại.
+- Khi cần trả thông tin liên quan (VD: `author: { id, name }`), repository
+  `findById`/`findPaginated` dùng `relations: ['author', 'category']` hoặc
+  `.leftJoinAndSelect('book.author', 'author')`, rồi mapper map nested object.
+- Validate FK được thực hiện bằng cách gọi `findOne` của module liên quan
+  (VD: `BooksService.validateRefs` gọi `authorsService.findOne` + 
+  `categoriesService.findOne`) — không để DB báo FK violation.
+
+---
+
+## 11. Checklist — thêm module mới
+
+1. Tạo đủ thư mục: `entities/ repository/ mapper/ exceptions/ dto/request/
+   dto/response/` + 4 file ở root module (`module`, `controller`, `service`,
+   `constant`).
+2. Entity `extends BaseEntity`, đặt tên bảng + cột snake_case, `@Exclude()`
+   field nhạy cảm, relation ManyToOne + `@JoinColumn`.
+3. Write DTO: **CreateDto** (validate + ApiProperty), **UpdateDto** =
+   `PartialType(CreateDto)`, **QueryDto** (page/limit/keyword/sortBy/sortOrder
+   + filter + `skip` getter), **Response**.
+4. Repository: `findById`, `findBy<FieldUnique>`, `create`, `save`,
+   `findPaginated` (có `.where('alias.deletedAt IS NULL')`), `softDelete`.
+5. Service: 5 method CRUD gom theo section comment; unique check → throw
+   exception riêng; không thấy → `notFound('...')`.
+6. Mapper `toResponse`/`toResponseList` (ẩn field nhạy cảm, map nested
+   relation theo spec).
+7. Controller: đủ route, đúng thứ tự, `@SwaggerDoc` mọi nơi, response qua
+   `ApiResponse.*` (hoặc data thuần + `@HttpCode`).
+8. `@Module` khai báo đủ `forFeature/controllers/providers/exports`; import
+   module phụ thuộc nếu cần; đăng ký vào `app.module.ts`.
+9. Kiểm tra: `npm run start:dev` → Swagger `/docs` đầy đủ → test Postman
+   (tạo 201, list phân trang, chi tiết, update, xóa mềm 204).
+10. Format đúng: 2 spaces, không semicolon, single quote, tiếng Việt có dấu,
+    không để `logger.log` rác.
+
+---
+
+## 12. Anti-patterns (tránh làm)
+
+- ❌ Service dùng `@InjectRepository` / gọi TypeORM trực tiếp — phải qua
+  Repository layer.
+- ❌ Controller return entity trực tiếp — phải qua Mapper.
+- ❌ Throw `HttpException` thủ công / exception chung chung — dùng `AppError`
+  hoặc exception class riêng.
+- ❌ Hard-code `page=1, limit=10, max=100` trong DTO — lấy từ `<X>_CONSTANTS`.
+- ❌ Đặt relation mà quên filter soft delete trong QueryBuilder —
+  `where('alias.deletedAt IS NULL')`.
+- ❌ Map `password` hoặc field nội bộ vào Response DTO.
+- ❌ Không `@SwaggerDoc` / thiếu `@ApiProperty` cho DTO.
+- ❌ Khai báo thêm `TypeOrmModule.forRoot` trong feature module.
+- ❌ Message lỗi để tiếng Anh / không có dấu — toàn bộ project dùng tiếng Việt.
+- ❌ `overrideExisting`, `synchronize: true` ở production (root config đã
+  quản lý; đừng sửa).
+- ❌ Không gọi `TypeOrmModule.forFeature` mà vẫn `@InjectRepository` → lỗi lúc chạy.
