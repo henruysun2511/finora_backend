@@ -4,9 +4,17 @@ import { WalletsService } from '../../src/modules/wallets/wallets.service';
 import { WalletRepository } from '../../src/modules/wallets/repository/wallet.repository';
 import { WalletMemberRepository } from '../../src/modules/wallets/repository/wallet-member.repository';
 import { WalletMapper } from '../../src/modules/wallets/mapper/wallet.mapper';
-import { WalletNameAlreadyExistsException } from '../../src/modules/wallets/exceptions/wallet.exception';
+import {
+  WalletNameAlreadyExistsException,
+  WalletNotFoundException,
+  WalletAccessDeniedException,
+} from '../../src/modules/wallets/exceptions/wallet.exception';
 import { CreateWalletDto } from '../../src/modules/wallets/dto/request/create-wallet.dto';
-import { WalletMemberRole, WalletMemberStatus } from '../../src/common/enums/wallet-member-role.enum';
+import { UpdateWalletDto } from '../../src/modules/wallets/dto/request/update-wallet.dto';
+import {
+  WalletMemberRole,
+  WalletMemberStatus,
+} from '../../src/common/enums/wallet-member-role.enum';
 import { Wallet } from '../../src/modules/wallets/entities/wallet.entity';
 import { WalletMember } from '../../src/modules/wallets/entities/wallet-member.entity';
 
@@ -22,6 +30,9 @@ describe('WalletsService', () => {
   beforeEach(async () => {
     walletRepo = {
       findByNameAndOwnerId: jest.fn(),
+      findById: jest.fn(),
+      findWalletsByUserIdPaginated: jest.fn(),
+      softDeleteById: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
     };
@@ -29,6 +40,7 @@ describe('WalletsService', () => {
     walletMemberRepo = {
       create: jest.fn(),
       save: jest.fn(),
+      findByWalletAndUser: jest.fn(),
     };
 
     dataSource = {
@@ -86,14 +98,16 @@ describe('WalletsService', () => {
       walletMemberRepo.create.mockReturnValue(createdMember);
       walletMemberRepo.save.mockResolvedValue(createdMember);
 
-      // Giả lập transaction callback
       dataSource.transaction.mockImplementation(async (callback) => {
         return callback({});
       });
 
       const result = await service.createWallet(mockUserId, dto);
 
-      expect(walletRepo.findByNameAndOwnerId).toHaveBeenCalledWith(dto.name, mockUserId);
+      expect(walletRepo.findByNameAndOwnerId).toHaveBeenCalledWith(
+        dto.name,
+        mockUserId,
+      );
       expect(walletRepo.create).toHaveBeenCalled();
       expect(walletMemberRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -119,6 +133,177 @@ describe('WalletsService', () => {
       );
 
       expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getWallets', () => {
+    it('nên trả về danh sách ví có phân trang và map currentUserRole chính xác', async () => {
+      const mockWallets = [
+        {
+          id: mockWalletId,
+          name: 'Ví cá nhân',
+          defaultCurrency: 'VND',
+          isShared: false,
+          isActive: true,
+          ownerId: mockUserId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          members: [
+            {
+              walletId: mockWalletId,
+              userId: mockUserId,
+              role: WalletMemberRole.OWNER,
+              status: WalletMemberStatus.ACCEPTED,
+            } as WalletMember,
+          ],
+        } as Wallet,
+      ];
+
+      walletRepo.findWalletsByUserIdPaginated.mockResolvedValue([
+        mockWallets,
+        1,
+      ]);
+
+      const result = await service.getWallets(mockUserId, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(walletRepo.findWalletsByUserIdPaginated).toHaveBeenCalledWith(
+        mockUserId,
+        1,
+        10,
+      );
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].currentUserRole).toBe(WalletMemberRole.OWNER);
+      expect(result.pagination.total).toBe(1);
+    });
+  });
+
+  describe('getWalletById', () => {
+    it('nên trả về chi tiết ví nếu người dùng có quyền truy cập', async () => {
+      const wallet = {
+        id: mockWalletId,
+        name: 'Ví chi tiêu',
+        ownerId: mockUserId,
+        defaultCurrency: 'VND',
+        isShared: false,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Wallet;
+
+      const member = {
+        walletId: mockWalletId,
+        userId: mockUserId,
+        role: WalletMemberRole.OWNER,
+        status: WalletMemberStatus.ACCEPTED,
+      } as WalletMember;
+
+      walletRepo.findById.mockResolvedValue(wallet);
+      walletMemberRepo.findByWalletAndUser.mockResolvedValue(member);
+
+      const result = await service.getWalletById(mockWalletId, mockUserId);
+
+      expect(result.id).toBe(mockWalletId);
+      expect(result.currentUserRole).toBe(WalletMemberRole.OWNER);
+    });
+
+    it('nên ném lỗi WalletNotFoundException nếu không tìm thấy ví', async () => {
+      walletRepo.findById.mockResolvedValue(null);
+
+      await expect(
+        service.getWalletById(mockWalletId, mockUserId),
+      ).rejects.toThrow(WalletNotFoundException);
+    });
+
+    it('nên ném lỗi WalletAccessDeniedException nếu người dùng không thuộc ví', async () => {
+      walletRepo.findById.mockResolvedValue({ id: mockWalletId } as Wallet);
+      walletMemberRepo.findByWalletAndUser.mockResolvedValue(null);
+
+      await expect(
+        service.getWalletById(mockWalletId, mockUserId),
+      ).rejects.toThrow(WalletAccessDeniedException);
+    });
+  });
+
+  describe('updateWallet', () => {
+    const updateDto: UpdateWalletDto = { name: 'Ví cập nhật' };
+
+    it('nên cập nhật ví thành công khi là OWNER', async () => {
+      const wallet = {
+        id: mockWalletId,
+        name: 'Ví cũ',
+        ownerId: mockUserId,
+        defaultCurrency: 'VND',
+        isShared: false,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Wallet;
+
+      const member = {
+        walletId: mockWalletId,
+        userId: mockUserId,
+        role: WalletMemberRole.OWNER,
+        status: WalletMemberStatus.ACCEPTED,
+      } as WalletMember;
+
+      walletRepo.findById.mockResolvedValue(wallet);
+      walletMemberRepo.findByWalletAndUser.mockResolvedValue(member);
+      walletRepo.findByNameAndOwnerId.mockResolvedValue(null);
+      walletRepo.save.mockResolvedValue({ ...wallet, name: updateDto.name! });
+
+      const result = await service.updateWallet(
+        mockWalletId,
+        mockUserId,
+        updateDto,
+      );
+
+      expect(result.name).toBe(updateDto.name);
+      expect(walletRepo.save).toHaveBeenCalled();
+    });
+
+    it('nên ném lỗi WalletAccessDeniedException khi người cập nhật không phải OWNER', async () => {
+      const wallet = {
+        id: mockWalletId,
+        name: 'Ví',
+        ownerId: 'other-user',
+      } as Wallet;
+      const member = {
+        walletId: mockWalletId,
+        userId: mockUserId,
+        role: WalletMemberRole.VIEWER,
+        status: WalletMemberStatus.ACCEPTED,
+      } as WalletMember;
+
+      walletRepo.findById.mockResolvedValue(wallet);
+      walletMemberRepo.findByWalletAndUser.mockResolvedValue(member);
+
+      await expect(
+        service.updateWallet(mockWalletId, mockUserId, updateDto),
+      ).rejects.toThrow(WalletAccessDeniedException);
+    });
+  });
+
+  describe('deleteWallet', () => {
+    it('nên xóa mềm ví thành công khi người gọi là OWNER', async () => {
+      const wallet = { id: mockWalletId, ownerId: mockUserId } as Wallet;
+      const member = {
+        walletId: mockWalletId,
+        userId: mockUserId,
+        role: WalletMemberRole.OWNER,
+        status: WalletMemberStatus.ACCEPTED,
+      } as WalletMember;
+
+      walletRepo.findById.mockResolvedValue(wallet);
+      walletMemberRepo.findByWalletAndUser.mockResolvedValue(member);
+      walletRepo.softDeleteById.mockResolvedValue(undefined);
+
+      await expect(
+        service.deleteWallet(mockWalletId, mockUserId),
+      ).resolves.not.toThrow();
+      expect(walletRepo.softDeleteById).toHaveBeenCalledWith(mockWalletId);
     });
   });
 });

@@ -19,7 +19,10 @@ export class WalletMapper {
     };
   }
 
-  toResponse(wallet: Wallet, currentUserRole?: WalletMemberRole): WalletResponseDto {
+  toResponse(
+    wallet: Wallet,
+    currentUserRole?: WalletMemberRole,
+  ): WalletResponseDto {
     return {
       id: wallet.id,
       name: wallet.name,
