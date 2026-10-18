@@ -5,8 +5,8 @@ import { Account } from './entities/account.entity';
 import { AccountBalanceAdjustment } from './entities/account-balance-adjustment.entity';
 import { AccountsController } from './accounts.controller';
 import { AccountsService } from './accounts.service';
-import { AccountRepository } from './repository/account.repository';
-import { AccountBalanceAdjustmentRepository } from './repository/account-balance-adjustment.repository';
+import { AccountRepository } from './repositories/account.repository';
+import { AccountBalanceAdjustmentRepository } from './repositories/account-balance-adjustment.repository';
 import { AccountMapper } from './mapper/account.mapper';
 import { WalletsModule } from '../wallets/wallets.module';
 

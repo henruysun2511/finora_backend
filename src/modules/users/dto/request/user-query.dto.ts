@@ -9,7 +9,7 @@ import {
   Max,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { UserStatus } from '../../../../common/enums/user-status.enum';
+import { UserStatus } from '../../../../modules/users/enums/user-status.enum';
 import { SortOrder } from '../../../../common/enums/sort-order.enum';
 
 export class UserQueryDto {

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import { AccountRepository } from './repository/account.repository';
-import { AccountBalanceAdjustmentRepository } from './repository/account-balance-adjustment.repository';
+import { AccountRepository } from './repositories/account.repository';
+import { AccountBalanceAdjustmentRepository } from './repositories/account-balance-adjustment.repository';
 import { WalletsService } from '../wallets/wallets.service';
 import { Wallet } from '../wallets/entities/wallet.entity';
 import { AccountMapper } from './mapper/account.mapper';
@@ -25,7 +25,9 @@ import {
   AccountWalletNotFoundException,
   IdempotencyKeyRequiredException,
 } from './exceptions/account.exception';
-import { BalanceDirection } from '../../common/enums/balance-direction.enum';
+import { BalanceDirection } from '../../modules/accounts/enums/balance-direction.enum';
+import { TransactionType } from '../../common/enums/transaction-type.enum';
+import { Account } from './entities/account.entity';
 
 type AccessMode = 'read' | 'write';
 
@@ -389,12 +391,195 @@ export class AccountsService {
 
   /**
    * [CROSS-MODULE] Lấy danh sách ID các tài khoản mà user có quyền truy cập (thông qua các ví của user).
+   * Có thể lọc theo một ví cụ thể.
    *
    * @param userId - UUID người dùng
+   * @param walletId - (Tùy chọn) UUID ví cụ thể
    * @returns Danh sách account ID
    */
-  async getUserAccessibleAccountIds(userId: string): Promise<string[]> {
-    const walletIds = await this.walletsService.getUserWalletIds(userId);
-    return this.accountRepo.findAccountIdsByWalletIds(walletIds);
+  async getUserAccessibleAccountIds(userId: string, walletId?: string): Promise<string[]> {
+    const userWalletIds = await this.walletsService.getUserWalletIds(userId);
+    if (walletId) {
+      if (!userWalletIds.includes(walletId)) {
+        return [];
+      }
+      return this.accountRepo.findAccountIdsByWalletIds([walletId]);
+    }
+    return this.accountRepo.findAccountIdsByWalletIds(userWalletIds);
+  }
+
+  /**
+   * [CROSS-MODULE] Xác thực tính hợp lệ của tài khoản cho giao dịch Thu / Chi.
+   * Kiểm tra tồn tại, không bị lưu trữ, và user có quyền ghi (OWNER hoặc EDITOR) trên ví.
+   *
+   * @param userId - UUID của người dùng thực hiện
+   * @param accountId - UUID tài khoản
+   * @returns Account entity
+   */
+  async validateAccountForTransaction(userId: string, accountId: string): Promise<Account> {
+    const account = await this.accountRepo.findById(accountId);
+    if (!account) throw new AccountNotFoundException(accountId);
+    if (account.isArchived) throw new AccountArchivedException(accountId);
+
+    await this.assertWalletAccess(account.walletId, userId, 'write');
+    return account;
+  }
+
+  /**
+   * [CROSS-MODULE] Thực thi cập nhật số dư cho giao dịch Thu nhập hoặc Chi tiêu trong transaction.
+   * Sử dụng Pessimistic Lock (SELECT FOR UPDATE) để ngăn chặn Race Condition.
+   *
+   * @param params - { accountId, type, amount }
+   * @param manager - EntityManager của transaction hiện tại
+   * @returns { balanceBefore, balanceAfter }
+   */
+  async executeTransactionBalance(
+    params: {
+      accountId: string;
+      type: TransactionType;
+      amount: number;
+    },
+    manager: EntityManager,
+  ): Promise<{ balanceBefore: number; balanceAfter: number }> {
+    const { accountId, type, amount } = params;
+    const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
+    if (!account) throw new AccountNotFoundException(accountId);
+    if (account.isArchived) throw new AccountArchivedException(accountId);
+
+    const balanceBefore = account.balance;
+    let balanceAfter: number;
+
+    if (type === TransactionType.INCOME) {
+      balanceAfter = round2(balanceBefore + amount);
+    } else {
+      // EXPENSE
+      if (balanceBefore < amount) {
+        throw new AccountInsufficientBalanceException(balanceBefore, amount);
+      }
+      balanceAfter = round2(balanceBefore - amount);
+    }
+
+    account.balance = balanceAfter;
+    await this.accountRepo.save(account, manager);
+
+    return { balanceBefore, balanceAfter };
+  }
+
+  /**
+   * [CROSS-MODULE] Hoàn tác số dư tài khoản khi một giao dịch bị xóa.
+   * - Nếu giao dịch cũ là EXPENSE: hoàn tiền lại cho tài khoản (balance + amount).
+   * - Nếu giao dịch cũ là INCOME: trừ tiền khỏi tài khoản (balance - amount).
+   *   (Kiểm tra số dư để không bị âm ngoài hạn mức).
+   *
+   * @param params - { accountId, type, amount }
+   * @param manager - EntityManager của transaction hiện tại
+   * @returns { balanceBefore, balanceAfter }
+   */
+  async revertTransactionBalance(
+    params: {
+      accountId: string;
+      type: TransactionType;
+      amount: number;
+    },
+    manager: EntityManager,
+  ): Promise<{ balanceBefore: number; balanceAfter: number }> {
+    const { accountId, type, amount } = params;
+    const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
+    if (!account) throw new AccountNotFoundException(accountId);
+    if (account.isArchived) throw new AccountArchivedException(accountId);
+
+    const balanceBefore = account.balance;
+    let balanceAfter: number;
+
+    if (type === TransactionType.EXPENSE) {
+      balanceAfter = round2(balanceBefore + amount);
+    } else {
+      // Revert INCOME: Thu hồi lại tiền đã cộng trước đó
+      if (balanceBefore < amount) {
+        throw new AccountInsufficientBalanceException(balanceBefore, amount);
+      }
+      balanceAfter = round2(balanceBefore - amount);
+    }
+
+    account.balance = balanceAfter;
+    await this.accountRepo.save(account, manager);
+
+    return { balanceBefore, balanceAfter };
+  }
+
+  /**
+   * [CROSS-MODULE] Điều chỉnh số dư khi cập nhật giao dịch (đổi số tiền, loại hoặc chuyển sang tài khoản khác).
+   * Tự động sắp xếp ID tài khoản khi lock để phòng tránh Deadlock chéo.
+   *
+   * @param params - Cấu hình giao dịch cũ và cấu hình mới
+   * @param manager - EntityManager
+   * @returns { balanceAfter } của tài khoản mới
+   */
+  async adjustTransactionBalance(
+    params: {
+      old: { accountId: string; type: TransactionType; amount: number };
+      new: { accountId: string; type: TransactionType; amount: number };
+    },
+    manager: EntityManager,
+  ): Promise<{ balanceAfter: number }> {
+    const { old: oldTx, new: newTx } = params;
+
+    // TH1: Cập nhật trên cùng một tài khoản
+    if (oldTx.accountId === newTx.accountId) {
+      const account = await this.accountRepo.findByIdForUpdate(oldTx.accountId, manager);
+      if (!account) throw new AccountNotFoundException(oldTx.accountId);
+      if (account.isArchived) throw new AccountArchivedException(oldTx.accountId);
+
+      const oldEffect = oldTx.type === TransactionType.INCOME ? oldTx.amount : -oldTx.amount;
+      const newEffect = newTx.type === TransactionType.INCOME ? newTx.amount : -newTx.amount;
+      const netDelta = newEffect - oldEffect;
+
+      const newBalance = round2(account.balance + netDelta);
+      if (newBalance < 0) {
+        throw new AccountInsufficientBalanceException(account.balance, Math.abs(netDelta));
+      }
+
+      account.balance = newBalance;
+      await this.accountRepo.save(account, manager);
+      return { balanceAfter: account.balance };
+    }
+
+    // TH2: Chuyển sang tài khoản khác -> Khóa theo thứ tự ID tránh Deadlock
+    const [firstId, secondId] = [oldTx.accountId, newTx.accountId].sort();
+    const firstAcc = await this.accountRepo.findByIdForUpdate(firstId, manager);
+    const secondAcc = await this.accountRepo.findByIdForUpdate(secondId, manager);
+
+    if (!firstAcc) throw new AccountNotFoundException(firstId);
+    if (!secondAcc) throw new AccountNotFoundException(secondId);
+    if (firstAcc.isArchived) throw new AccountArchivedException(firstId);
+    if (secondAcc.isArchived) throw new AccountArchivedException(secondId);
+
+    const oldAcc = oldTx.accountId === firstId ? firstAcc : secondAcc;
+    const newAcc = newTx.accountId === firstId ? firstAcc : secondAcc;
+
+    // 1. Hoàn tác trên tài khoản cũ
+    if (oldTx.type === TransactionType.EXPENSE) {
+      oldAcc.balance = round2(oldAcc.balance + oldTx.amount);
+    } else {
+      if (oldAcc.balance < oldTx.amount) {
+        throw new AccountInsufficientBalanceException(oldAcc.balance, oldTx.amount);
+      }
+      oldAcc.balance = round2(oldAcc.balance - oldTx.amount);
+    }
+
+    // 2. Áp dụng trên tài khoản mới
+    if (newTx.type === TransactionType.INCOME) {
+      newAcc.balance = round2(newAcc.balance + newTx.amount);
+    } else {
+      if (newAcc.balance < newTx.amount) {
+        throw new AccountInsufficientBalanceException(newAcc.balance, newTx.amount);
+      }
+      newAcc.balance = round2(newAcc.balance - newTx.amount);
+    }
+
+    await this.accountRepo.save(oldAcc, manager);
+    await this.accountRepo.save(newAcc, manager);
+
+    return { balanceAfter: newAcc.balance };
   }
 }

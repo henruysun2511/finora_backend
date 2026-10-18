@@ -4,13 +4,13 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from 'modules/auth/auth.service';
 import { UsersService } from 'modules/users/users.service';
 import { AuthorizationService } from 'modules/authorization/authorization.service';
-import { TokenRepository } from 'modules/auth/repository/token.repository';
+import { TokenRepository } from 'modules/auth/repositories/token.repository';
 import { User } from 'modules/users/entities/user.entity';
 import { RoleResponseDto } from 'modules/authorization/dto/response/role.dto';
 import { Token } from 'modules/auth/entities/token.entity';
 import { AuthProvider } from 'common/enums/auth-provider.enum';
-import { UserStatus } from 'common/enums/user-status.enum';
-import { TokenType } from 'common/enums/token-type.enum';
+import { UserStatus } from 'modules/users/enums/user-status.enum';
+import { TokenType } from 'modules/auth/enums/token-type.enum';
 import {
   InvalidCredentialsException,
   InvalidTokenException,

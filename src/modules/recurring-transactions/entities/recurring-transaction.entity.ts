@@ -10,7 +10,7 @@ import { TransactionType } from '../../../common/enums/transaction-type.enum';
 import { RecurrencePeriod } from '../../../common/enums/recurrence-period.enum';
 import { Account } from '../../accounts/entities/account.entity';
 import { Category } from '../../categories/entities/category.entity';
-import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 
 @Entity('recurring_transactions')
 export class RecurringTransaction extends BaseEntity {

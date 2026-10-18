@@ -1,11 +1,9 @@
 // src/modules/exchange-rates/exchange-rates.service.ts
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
-  DEFAULT_EXCHANGE_RATE_API_URL,
-  EXCHANGE_RATE_CACHE_TTL_MS,
-  EXCHANGE_RATE_REQUEST_TIMEOUT_MS,
   FALLBACK_RATES_TO_USD,
 } from './exchange-rates.constant';
+import { ExchangeRateConfig } from '../../config/exchange-rate.config';
 import {
   ConvertCurrencyResponseDto,
   ExchangeRateResponseDto,
@@ -122,7 +120,7 @@ export class ExchangeRatesService {
 
   private async setCachedRates(base: string, data: CachedRates): Promise<void> {
     const cacheKey = `fx:rates:${base}`;
-    const ttlSeconds = Math.floor(EXCHANGE_RATE_CACHE_TTL_MS / 1000);
+    const ttlSeconds = ExchangeRateConfig.CACHE_TTL_SECONDS;
 
     // 1. Lưu vào Redis
     if (this.redisService?.isReady) {
@@ -150,8 +148,8 @@ export class ExchangeRatesService {
     const now = Date.now();
     const cached = await this.getCachedRates(base);
 
-    // 1. Kiểm tra cache còn hạn (TTL 1h)
-    if (cached && now - cached.timestamp < EXCHANGE_RATE_CACHE_TTL_MS) {
+    // 1. Kiểm tra cache còn hạn (TTL cấu hình)
+    if (cached && now - cached.timestamp < ExchangeRateConfig.CACHE_TTL_SECONDS * 1000) {
       const targetRate = cached.rates[target];
       if (targetRate !== undefined) {
         return {
@@ -209,11 +207,11 @@ export class ExchangeRatesService {
   }
 
   private async fetchFromExternalApi(base: string): Promise<Record<string, number>> {
-    const apiUrl = process.env.EXCHANGE_RATE_API_URL || DEFAULT_EXCHANGE_RATE_API_URL;
+    const apiUrl = ExchangeRateConfig.API_URL;
     const url = `${apiUrl}/${base}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), EXCHANGE_RATE_REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), ExchangeRateConfig.TIMEOUT_MS);
 
     try {
       const response = await fetch(url, { signal: controller.signal });

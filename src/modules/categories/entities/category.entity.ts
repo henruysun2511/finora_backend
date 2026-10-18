@@ -7,7 +7,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { CategoryType } from '../../../common/enums/category-type.enum';
+import { CategoryType } from '../enums/category-type.enum';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('categories')

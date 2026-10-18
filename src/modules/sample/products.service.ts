@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ProductRepository } from './repository/product.repository';
+import { ProductRepository } from './repositories/product.repository';
 import { ProductMapper } from './mapper/product.mapper';
 import { notFound } from '../../common/errors/app.error';
 import { ProductSkuAlreadyExistsException } from './exceptions/product.exception';

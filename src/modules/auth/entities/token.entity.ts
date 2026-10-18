@@ -1,6 +1,6 @@
 import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { TokenType } from '../../../common/enums/token-type.enum';
+import { TokenType } from '../../../modules/auth/enums/token-type.enum';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('tokens')

@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { RoleRepository } from './repository/role.repository';
-import { PermissionRepository } from './repository/permission.repository';
-import { RolePermissionRepository } from './repository/role-permission.repository';
+import { RoleRepository } from './repositories/role.repository';
+import { PermissionRepository } from './repositories/permission.repository';
+import { RolePermissionRepository } from './repositories/role-permission.repository';
 import { AuthorizationMapper } from './mapper/authorization.mapper';
 import { CreateRoleDto } from './dto/request/create-role.dto';
 import { UpdateRoleDto } from './dto/request/update-role.dto';

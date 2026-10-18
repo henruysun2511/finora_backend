@@ -9,6 +9,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 
@@ -23,6 +24,7 @@ import { PermissionsGuard } from './modules/authorization/guards/permissions.gua
     AccountsModule,
     ExchangeRatesModule,
     TransfersModule,
+    TransactionsModule,
   ],
 
   providers: [

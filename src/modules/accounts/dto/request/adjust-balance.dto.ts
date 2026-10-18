@@ -2,7 +2,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsNumber, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { BalanceDirection } from '../../../../common/enums/balance-direction.enum';
+import { BalanceDirection } from '../../../../modules/accounts/enums/balance-direction.enum';
 import { MAX_MONEY_AMOUNT } from '../../accounts.constant';
 
 export class AdjustBalanceDto {

@@ -1,4 +1,4 @@
-// src/modules/transfers/repository/transfer.repository.ts
+// src/modules/transfers/repositories/transfer.repository.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';

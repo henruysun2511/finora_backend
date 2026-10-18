@@ -7,11 +7,11 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { LifecycleStatus } from '../../../common/enums/lifecycle-status.enum';
+import { LifecycleStatus } from '../../../modules/loans/enums/lifecycle-status.enum';
 import { LoanType } from '../enums/loan-type.enum';
 import { Wallet } from '../../wallets/entities/wallet.entity';
 import { User } from '../../users/entities/user.entity';
-import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 import type { LoanPayment } from './loan-payment.entity';
 
 @Entity('loans')

@@ -1,6 +1,0 @@
-export enum MessageType {
-  TEXT = 'TEXT',
-  CHART = 'CHART',
-  TRANSACTION_CONFIRMATION = 'TRANSACTION_CONFIRMATION',
-  REPORT = 'REPORT',
-}

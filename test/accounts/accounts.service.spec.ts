@@ -2,11 +2,12 @@
 import { AccountsService } from '../../src/modules/accounts/accounts.service';
 import { AccountMapper } from '../../src/modules/accounts/mapper/account.mapper';
 import { AccountType } from '../../src/modules/accounts/enums/account-type.enum';
-import { BalanceDirection } from '../../src/common/enums/balance-direction.enum';
+import { BalanceDirection } from '../../src/modules/accounts/enums/balance-direction.enum';
 import {
   WalletMemberRole,
   WalletMemberStatus,
 } from '../../src/common/enums/wallet-member-role.enum';
+import { TransactionType } from '../../src/common/enums/transaction-type.enum';
 import {
   AccountAccessDeniedException,
   AccountArchivedException,
@@ -347,6 +348,105 @@ describe('AccountsService', () => {
       await expect(service.adjustBalance(USER, 'a1', inc, undefined)).rejects.toBeInstanceOf(
         IdempotencyKeyRequiredException,
       );
+    });
+  });
+
+  describe('revertTransactionBalance', () => {
+    it('Hoàn tác EXPENSE: cộng lại tiền vào tài khoản', async () => {
+      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ balance: 100000 }));
+      const result = await service.revertTransactionBalance(
+        {
+          accountId: 'a1',
+          type: TransactionType.EXPENSE,
+          amount: 50000,
+        },
+        manager,
+      );
+
+      expect(result.balanceBefore).toBe(100000);
+      expect(result.balanceAfter).toBe(150000);
+      expect(accountRepo.save).toHaveBeenCalled();
+    });
+
+    it('Hoàn tác INCOME: trừ tiền khỏi tài khoản', async () => {
+      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ balance: 100000 }));
+      const result = await service.revertTransactionBalance(
+        {
+          accountId: 'a1',
+          type: TransactionType.INCOME,
+          amount: 40000,
+        },
+        manager,
+      );
+
+      expect(result.balanceBefore).toBe(100000);
+      expect(result.balanceAfter).toBe(60000);
+      expect(accountRepo.save).toHaveBeenCalled();
+    });
+
+    it('Hoàn tác INCOME thất bại nếu số dư tài khoản không đủ để trừ', async () => {
+      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ balance: 30000 }));
+      await expect(
+        service.revertTransactionBalance(
+          {
+            accountId: 'a1',
+            type: TransactionType.INCOME,
+            amount: 50000,
+          },
+          manager,
+        ),
+      ).rejects.toBeInstanceOf(AccountInsufficientBalanceException);
+    });
+  });
+
+  describe('adjustTransactionBalance', () => {
+    it('Cùng tài khoản: điều chỉnh tăng số tiền EXPENSE (trừ thêm tiền)', async () => {
+      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ balance: 100000 }));
+      const result = await service.adjustTransactionBalance(
+        {
+          old: { accountId: 'a1', type: TransactionType.EXPENSE, amount: 50000 },
+          new: { accountId: 'a1', type: TransactionType.EXPENSE, amount: 70000 },
+        },
+        manager,
+      );
+
+      expect(result.balanceAfter).toBe(80000);
+    });
+
+    it('Cùng tài khoản: đổi từ EXPENSE sang INCOME (cộng lại tiền cũ và cộng thêm tiền mới)', async () => {
+      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ balance: 100000 }));
+      const result = await service.adjustTransactionBalance(
+        {
+          old: { accountId: 'a1', type: TransactionType.EXPENSE, amount: 50000 },
+          new: { accountId: 'a1', type: TransactionType.INCOME, amount: 30000 },
+        },
+        manager,
+      );
+
+      expect(result.balanceAfter).toBe(180000);
+    });
+
+    it('Khác tài khoản: hoàn tác tài khoản cũ và trừ tiền tài khoản mới', async () => {
+      const acc1 = makeAccount({ id: 'a1', balance: 100000 });
+      const acc2 = makeAccount({ id: 'a2', balance: 200000 });
+
+      accountRepo.findByIdForUpdate.mockImplementation((id: string) => {
+        if (id === 'a1') return Promise.resolve(acc1);
+        if (id === 'a2') return Promise.resolve(acc2);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.adjustTransactionBalance(
+        {
+          old: { accountId: 'a1', type: TransactionType.EXPENSE, amount: 30000 },
+          new: { accountId: 'a2', type: TransactionType.EXPENSE, amount: 50000 },
+        },
+        manager,
+      );
+
+      expect(acc1.balance).toBe(130000); // hoàn tác cộng lại 30k
+      expect(acc2.balance).toBe(150000); // trừ 50k
+      expect(result.balanceAfter).toBe(150000);
     });
   });
 });

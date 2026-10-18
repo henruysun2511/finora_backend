@@ -13,6 +13,10 @@ const SCHEMA: Schema = {
   DATABASE_URL: { required: true, type: 'string' },
   JWT_SECRET: { type: 'string' },
   JWT_REFRESH_SECRET: { type: 'string' },
+  REDIS_PORT: { type: 'number' },
+  EXCHANGE_RATE_API_URL: { type: 'string' },
+  EXCHANGE_RATE_CACHE_TTL_SECONDS: { type: 'number' },
+  EXCHANGE_RATE_TIMEOUT_MS: { type: 'number' },
 };
 
 export function validateEnv(): void {
@@ -27,7 +31,7 @@ export function validateEnv(): void {
       continue;
     }
 
-    if (value === undefined) continue;
+    if (value === undefined || value === '') continue;
 
     if (rule.type === 'number' && Number.isNaN(Number(value))) {
       invalid.push(name);

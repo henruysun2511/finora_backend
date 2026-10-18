@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { Wallet } from './entities/wallet.entity';
-import { WalletRepository } from './repository/wallet.repository';
-import { WalletMemberRepository } from './repository/wallet-member.repository';
+import { WalletRepository } from './repositories/wallet.repository';
+import { WalletMemberRepository } from './repositories/wallet-member.repository';
 import { WalletMapper } from './mapper/wallet.mapper';
 
 import { CreateWalletDto } from './dto/request/create-wallet.dto';

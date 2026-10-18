@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AuthProvider } from '../../../../common/enums/auth-provider.enum';
-import { UserStatus } from '../../../../common/enums/user-status.enum';
+import { UserStatus } from '../../../../modules/users/enums/user-status.enum';
 
 export class RoleSummaryDto {
   @ApiProperty()

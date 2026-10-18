@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { CategoryRepository } from './repository/category.repository';
+import { CategoryRepository } from './repositories/category.repository';
 import { CategoryMapper } from './mapper/category.mapper';
 import { CreateCategoryDto } from './dto/request/create-category.dto';
 import { UpdateCategoryDto } from './dto/request/update-category.dto';
 import { CategoryQueryDto } from './dto/request/category-query.dto';
 import { CategoryResponseDto } from './dto/response/category.dto';
-import { CategoryEntity } from './entities/category.entity';
+import { CategoryEntity, CategoryType } from './entities/category.entity';
+import { TransactionType } from '../../common/enums/transaction-type.enum';
 import {
   CategoryNotFoundException,
   CategoryHasTransactionsException,
@@ -211,5 +212,46 @@ export class CategoriesService {
     }
 
     return roots;
+  }
+
+  // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
+
+  /**
+   * [CROSS-MODULE] Xác thực tính hợp lệ của danh mục cho giao dịch Thu / Chi.
+   * Kiểm tra tồn tại, quyền truy cập của user và tính tương thích loại (INCOME / EXPENSE).
+   *
+   * @param categoryId - UUID danh mục
+   * @param transactionType - Loại giao dịch (EXPENSE / INCOME)
+   * @param userId - UUID người dùng
+   * @returns CategoryEntity
+   */
+  async validateCategoryForTransaction(
+    categoryId: string,
+    transactionType: TransactionType,
+    userId: string,
+  ): Promise<CategoryEntity> {
+    const category = await this.categoryRepo.findById(categoryId);
+    if (!category) throw new CategoryNotFoundException(categoryId);
+
+    // Quyền truy cập: danh mục hệ thống hoặc do chính user tạo
+    if (category.userId && category.userId !== userId && !category.isDefault) {
+      throw new CategoryNotFoundException(categoryId);
+    }
+
+    // Kiểm tra khớp loại thu/chi
+    if (category.type !== CategoryType.BOTH) {
+      const expectedType =
+        transactionType === TransactionType.EXPENSE
+          ? CategoryType.EXPENSE
+          : CategoryType.INCOME;
+
+      if (category.type !== expectedType) {
+        throw new CategoryTypeConflictException(
+          `Danh mục '${category.name}' (${category.type}) không phù hợp với giao dịch loại ${transactionType}`,
+        );
+      }
+    }
+
+    return category;
   }
 }

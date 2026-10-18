@@ -1,4 +1,4 @@
 export enum TransactionVisibility {
-  PRIVATE = 'private',
-  FRIENDS = 'friends',
+  PRIVATE = 'PRIVATE',
+  FRIENDS = 'FRIENDS',
 }

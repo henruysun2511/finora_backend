@@ -6,7 +6,7 @@ import { CreateUserDto } from 'modules/users/dto/request/create-user.dto';
 import { UpdateUserDto } from 'modules/users/dto/request/update-user.dto';
 import { UserQueryDto } from 'modules/users/dto/request/user-query.dto';
 import { AssignRoleDto } from 'modules/users/dto/request/assign-role.dto';
-import { UserStatus } from 'common/enums/user-status.enum';
+import { UserStatus } from 'modules/users/enums/user-status.enum';
 import { AuthProvider } from 'common/enums/auth-provider.enum';
 import { ApiResponse, PaginatedResponse } from 'common/response/api-response';
 

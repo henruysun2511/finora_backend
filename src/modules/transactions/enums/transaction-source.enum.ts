@@ -1,7 +1,8 @@
 export enum TransactionSource {
-  CHAT = 'chat',
-  VOICE = 'voice',
-  RECEIPT = 'receipt',
-  BANK_SYNC = 'bank_sync',
-  MANUAL = 'manual',
+  MANUAL = 'MANUAL',
+  CHAT_TEXT = 'CHAT_TEXT',
+  VOICE = 'VOICE',
+  RECEIPT_SCAN = 'RECEIPT_SCAN',
+  BANK_NOTIFICATION = 'BANK_NOTIFICATION',
+  RECURRING = 'RECURRING',
 }

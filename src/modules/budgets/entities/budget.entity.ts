@@ -11,7 +11,7 @@ import { BaseEntity } from '../../../common/entities/base.entity';
 import { RecurrencePeriod } from '../../../common/enums/recurrence-period.enum';
 import { Wallet } from '../../wallets/entities/wallet.entity';
 import { Category } from '../../categories/entities/category.entity';
-import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 import type { BudgetPeriod } from './budget-period.entity';
 
 @Entity('budgets')

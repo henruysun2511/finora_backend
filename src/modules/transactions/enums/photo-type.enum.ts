@@ -1,4 +1,4 @@
 export enum PhotoType {
-  RECEIPT = 'receipt',
-  MOMENT = 'moment',
+  RECEIPT = 'RECEIPT',
+  MOMENT = 'MOMENT',
 }

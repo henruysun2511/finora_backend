@@ -2,8 +2,8 @@
 import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Account } from './account.entity';
-import { BalanceDirection } from '../../../common/enums/balance-direction.enum';
-import { decimalTransformer } from '../utils/decimal.transformer';
+import { BalanceDirection } from '../../../modules/accounts/enums/balance-direction.enum';
+import { decimalTransformer } from '../../../common/utils/decimal.transformer';
 
 @Entity('account_balance_adjustments')
 @Index('uq_acc_adj_account_idempotency', ['accountId', 'idempotencyKey'], { unique: true })

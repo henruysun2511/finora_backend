@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { ParticipantStatus } from '../enums/participant-status.enum';
-import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 import { ExpenseSplit } from './expense-split.entity';
 import { User } from '../../users/entities/user.entity';
 import { Loan } from '../../loans/entities/loan.entity';

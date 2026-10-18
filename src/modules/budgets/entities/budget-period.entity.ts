@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Budget } from './budget.entity';
-import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 
 @Entity('budget_periods')
 @Unique(['budgetId', 'startDate', 'endDate'])

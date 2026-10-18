@@ -8,7 +8,7 @@ import {
   IsEnum,
   IsBoolean,
 } from 'class-validator';
-import { UserStatus } from '../../../../common/enums/user-status.enum';
+import { UserStatus } from '../../../../modules/users/enums/user-status.enum';
 
 export class CreateUserDto {
   @ApiProperty({

@@ -1,4 +1,4 @@
-// src/modules/accounts/repository/account.repository.ts
+// src/modules/accounts/repositories/account.repository.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';

@@ -9,7 +9,7 @@ import { AuthResponseDto } from 'modules/auth/dto/response/auth-response.dto';
 import { AuthTokensDto } from 'modules/auth/dto/response/auth-tokens.dto';
 import { UserResponseDto } from 'modules/users/dto/response/user.dto';
 import { AuthProvider } from 'common/enums/auth-provider.enum';
-import { UserStatus } from 'common/enums/user-status.enum';
+import { UserStatus } from 'modules/users/enums/user-status.enum';
 
 describe('AuthController', () => {
   let controller: AuthController;

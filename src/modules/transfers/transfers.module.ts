@@ -2,7 +2,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Transfer } from './entities/transfer.entity';
-import { TransferRepository } from './repository/transfer.repository';
+import { TransferRepository } from './repositories/transfer.repository';
 import { TransferMapper } from './mapper/transfer.mapper';
 import { TransfersService } from './transfers.service';
 import { TransfersController } from './transfers.controller';

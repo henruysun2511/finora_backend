@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from 'modules/users/users.service';
-import { UserRepository } from 'modules/users/repository/user.repository';
-import { UserRoleRepository } from 'modules/users/repository/user-role.repository';
+import { UserRepository } from 'modules/users/repositories/user.repository';
+import { UserRoleRepository } from 'modules/users/repositories/user-role.repository';
 import { UserMapper } from 'modules/users/mapper/user.mapper';
-import { UserStatus } from 'common/enums/user-status.enum';
+import { UserStatus } from 'modules/users/enums/user-status.enum';
 import { AuthProvider } from 'common/enums/auth-provider.enum';
 import {
   EmailAlreadyExistsException,

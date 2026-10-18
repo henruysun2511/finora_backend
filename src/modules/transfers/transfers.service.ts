@@ -1,7 +1,7 @@
 // src/modules/transfers/transfers.service.ts
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { TransferRepository } from './repository/transfer.repository';
+import { TransferRepository } from './repositories/transfer.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { TransferMapper } from './mapper/transfer.mapper';

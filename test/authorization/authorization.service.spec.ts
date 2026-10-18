@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { AuthorizationService } from 'modules/authorization/authorization.service';
-import { RoleRepository } from 'modules/authorization/repository/role.repository';
-import { PermissionRepository } from 'modules/authorization/repository/permission.repository';
-import { RolePermissionRepository } from 'modules/authorization/repository/role-permission.repository';
+import { RoleRepository } from 'modules/authorization/repositories/role.repository';
+import { PermissionRepository } from 'modules/authorization/repositories/permission.repository';
+import { RolePermissionRepository } from 'modules/authorization/repositories/role-permission.repository';
 import { AuthorizationMapper } from 'modules/authorization/mapper/authorization.mapper';
 import { Role } from 'modules/authorization/entities/role.entity';
 import { Permission } from 'modules/authorization/entities/permission.entity';

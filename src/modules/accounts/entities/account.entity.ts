@@ -10,7 +10,7 @@ import {
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { AccountType } from '../enums/account-type.enum';
 import { Wallet } from '../../wallets/entities/wallet.entity';
-import { decimalTransformer } from '../utils/decimal.transformer';
+import { decimalTransformer } from '../../../common/utils/decimal.transformer';
 
 @Entity('accounts')
 @Index('uq_accounts_creator_idempotency', ['createdBy', 'idempotencyKey'], {

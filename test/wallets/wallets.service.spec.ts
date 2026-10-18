@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { WalletsService } from '../../src/modules/wallets/wallets.service';
-import { WalletRepository } from '../../src/modules/wallets/repository/wallet.repository';
-import { WalletMemberRepository } from '../../src/modules/wallets/repository/wallet-member.repository';
+import { WalletRepository } from '../../src/modules/wallets/repositories/wallet.repository';
+import { WalletMemberRepository } from '../../src/modules/wallets/repositories/wallet-member.repository';
 import { WalletMapper } from '../../src/modules/wallets/mapper/wallet.mapper';
 import {
   WalletNameAlreadyExistsException,

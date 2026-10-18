@@ -9,7 +9,7 @@ import {
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Account } from '../../accounts/entities/account.entity';
 import { User } from '../../users/entities/user.entity';
-import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 
 @Entity('transfers')
 export class Transfer extends BaseEntity {

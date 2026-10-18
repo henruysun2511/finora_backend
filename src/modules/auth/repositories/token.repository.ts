@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Token } from '../entities/token.entity';
-import { TokenType } from '../../../common/enums/token-type.enum';
+import { TokenType } from '../../../modules/auth/enums/token-type.enum';
 
 @Injectable()
 export class TokenRepository {

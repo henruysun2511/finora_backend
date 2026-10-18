@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { Token } from './entities/token.entity';
-import { TokenRepository } from './repository/token.repository';
+import { TokenRepository } from './repositories/token.repository';
 import { UsersModule } from '../users/users.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { JwtStrategy } from './strategies/jwt.strategy';

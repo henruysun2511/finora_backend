@@ -1,6 +1,6 @@
 // src/modules/accounts/dto/response/balance-adjustment-response.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { BalanceDirection } from '../../../../common/enums/balance-direction.enum';
+import { BalanceDirection } from '../../../../modules/accounts/enums/balance-direction.enum';
 
 export class BalanceAdjustmentResponseDto {
   @ApiProperty() id: string;

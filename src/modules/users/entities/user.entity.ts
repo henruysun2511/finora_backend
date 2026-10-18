@@ -1,7 +1,7 @@
 import { Entity, Column, Index, OneToMany, OneToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { AuthProvider } from '../../../common/enums/auth-provider.enum';
-import { UserStatus } from '../../../common/enums/user-status.enum';
+import { UserStatus } from '../../../modules/users/enums/user-status.enum';
 import { UserRole } from './user-role.entity';
 import type { Wallet } from '../../wallets/entities/wallet.entity';
 import type { WalletMember } from '../../wallets/entities/wallet-member.entity';

@@ -5,8 +5,8 @@ import { WalletMember } from './entities/wallet-member.entity';
 import { Account } from '../accounts/entities/account.entity';
 import { WalletsController } from './wallets.controller';
 import { WalletsService } from './wallets.service';
-import { WalletRepository } from './repository/wallet.repository';
-import { WalletMemberRepository } from './repository/wallet-member.repository';
+import { WalletRepository } from './repositories/wallet.repository';
+import { WalletMemberRepository } from './repositories/wallet-member.repository';
 import { WalletMapper } from './mapper/wallet.mapper';
 
 @Module({

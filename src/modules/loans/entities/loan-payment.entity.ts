@@ -8,7 +8,7 @@ import {
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Loan } from './loan.entity';
 import { Account } from '../../accounts/entities/account.entity';
-import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 
 @Entity('loan_payments')
 export class LoanPayment extends BaseEntity {
