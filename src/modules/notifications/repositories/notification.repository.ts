@@ -63,6 +63,7 @@ export class NotificationRepository {
 
     if (!notif.isRead) {
       notif.isRead = true;
+      notif.readAt = new Date();
       return this.repo.save(notif);
     }
     return notif;
@@ -72,7 +73,7 @@ export class NotificationRepository {
     const result = await this.repo
       .createQueryBuilder()
       .update(Notification)
-      .set({ isRead: true })
+      .set({ isRead: true, readAt: new Date() })
       .where('userId = :userId', { userId })
       .andWhere('isRead = false')
       .andWhere('deletedAt IS NULL')

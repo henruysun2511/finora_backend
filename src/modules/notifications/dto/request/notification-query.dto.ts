@@ -35,7 +35,7 @@ export class NotificationQueryDto {
   @ApiPropertyOptional({
     enum: NotificationType,
     description: 'Lọc theo loại thông báo',
-    example: NotificationType.BUDGET_ALERT,
+    example: NotificationType.BUDGET_WARNING,
   })
   @IsOptional()
   @IsEnum(NotificationType, { message: 'type không hợp lệ' })

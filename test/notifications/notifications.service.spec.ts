@@ -39,7 +39,7 @@ describe('NotificationsService', () => {
     it('Lưu notification vào DB và bắn realtime qua Socket Gateway', async () => {
       const dto = {
         userId: USER_ID,
-        type: NotificationType.BUDGET_ALERT,
+        type: NotificationType.BUDGET_WARNING,
         title: 'Ngân sách sắp hết',
         body: 'Đã chi 80%',
         relatedEntityType: 'BUDGET',

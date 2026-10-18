@@ -12,7 +12,7 @@ describe('NotificationMapper', () => {
     const entity = {
       id: 'notif-1',
       userId: 'user-1',
-      type: NotificationType.BUDGET_ALERT,
+      type: NotificationType.BUDGET_WARNING,
       title: 'Ngân sách chạm ngưỡng',
       body: 'Bạn đã tiêu 80%',
       isRead: false,
@@ -38,7 +38,7 @@ describe('NotificationMapper', () => {
       '/splits/split-1',
     );
     expect(mapper.toResponse({ relatedEntityType: 'FRIEND_REQUEST', relatedEntityId: 'fr-1' } as any).actionUrl).toBe(
-      '/social/friends',
+      '/friends/requests',
     );
   });
 
@@ -46,7 +46,7 @@ describe('NotificationMapper', () => {
     const res = mapper.toResponse({
       id: 'notif-2',
       userId: 'user-1',
-      type: NotificationType.FRIEND_POST,
+      type: NotificationType.FRIEND_TRANSACTION_POSTED,
       title: 'Bài viết mới',
       body: 'Nội dung',
       isRead: false,

@@ -27,7 +27,7 @@ describe('NotificationsController', () => {
         {
           id: 'notif-1',
           userId: USER_ID,
-          type: NotificationType.BUDGET_ALERT,
+          type: NotificationType.BUDGET_WARNING,
           title: 'Cảnh báo',
           body: 'Nội dung',
           isRead: false,

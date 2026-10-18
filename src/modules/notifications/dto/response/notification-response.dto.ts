@@ -8,7 +8,7 @@ export class NotificationResponseDto {
   @ApiProperty({ description: 'UUID người nhận', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6' })
   userId: string;
 
-  @ApiProperty({ enum: NotificationType, description: 'Loại thông báo', example: NotificationType.BUDGET_ALERT })
+  @ApiProperty({ enum: NotificationType, description: 'Loại thông báo', example: NotificationType.BUDGET_WARNING })
   type: NotificationType;
 
   @ApiProperty({ description: 'Tiêu đề thông báo', example: 'Ngân sách Ăn uống sắp chạm ngưỡng!' })
@@ -28,6 +28,12 @@ export class NotificationResponseDto {
 
   @ApiPropertyOptional({ description: 'Đường dẫn điều hướng (Deep link)', example: '/budgets/a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' })
   actionUrl?: string | null;
+
+  @ApiPropertyOptional({ description: 'Dữ liệu metadata mở rộng (JSON)', example: { avatar: 'https://...' } })
+  metadata?: Record<string, any> | null;
+
+  @ApiPropertyOptional({ description: 'Thời điểm đọc thông báo' })
+  readAt?: Date | null;
 
   @ApiProperty({ description: 'Thời gian tạo thông báo' })
   createdAt: Date;

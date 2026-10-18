@@ -40,4 +40,14 @@ export class Notification extends BaseEntity {
   @Column({ name: 'related_entity_id', type: 'uuid', nullable: true })
   @Index('idx_notifications_related_entity_id')
   relatedEntityId?: string;
+
+  @Column({ name: 'action_url', length: 500, nullable: true })
+  actionUrl?: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata?: Record<string, any> | null;
+
+  @Column({ name: 'read_at', type: 'timestamptz', nullable: true })
+  readAt?: Date | null;
 }
+

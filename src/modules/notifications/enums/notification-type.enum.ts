@@ -1,14 +1,41 @@
 export enum NotificationType {
-  BUDGET_ALERT = 'budget_alert',
-  RECURRING_DUE = 'recurring_due',
-  LOAN_DUE = 'loan_due',
-  FRIEND_REQUEST = 'friend_request',
-  FRIEND_POST = 'friend_post',
-  SAVINGS_GOAL_REACHED = 'savings_goal_reached',
-  DIRECT_MESSAGE = 'direct_message',
-  POST_REACTION = 'post_reaction',
-  SPLIT_REQUEST = 'split_request',
-  SPLIT_PROPOSAL = 'split_proposal',
-  SPLIT_ACCEPTED = 'split_accepted',
-  SPLIT_CONFIRMED = 'split_confirmed',
+  // Ngân sách
+  BUDGET_WARNING = 'BUDGET_WARNING',
+  BUDGET_EXCEEDED = 'BUDGET_EXCEEDED',
+
+  // Giao dịch định kỳ & Vay nợ
+  RECURRING_EXECUTED = 'RECURRING_EXECUTED',
+  LOAN_DUE = 'LOAN_DUE',
+  LOAN_PAYMENT_RECEIVED = 'LOAN_PAYMENT_RECEIVED',
+
+  // Tiết kiệm & Hạng tài sản
+  SAVINGS_GOAL_COMPLETED = 'SAVINGS_GOAL_COMPLETED',
+  SAVINGS_GOAL_MILESTONE = 'SAVINGS_GOAL_MILESTONE',
+  ASSET_TIER_UP = 'ASSET_TIER_UP',
+
+  // Ví chung
+  WALLET_INVITE = 'WALLET_INVITE',
+  WALLET_MEMBER_CHANGED = 'WALLET_MEMBER_CHANGED',
+
+  // Bạn bè
+  FRIEND_REQUEST = 'FRIEND_REQUEST',
+  FRIEND_ACCEPTED = 'FRIEND_ACCEPTED',
+
+  // Bảng tin & Tương tác
+  FRIEND_TRANSACTION_POSTED = 'FRIEND_TRANSACTION_POSTED',
+  POST_REACTED = 'POST_REACTED',
+
+  // Nhắn tin trực tiếp
+  NEW_DIRECT_MESSAGE = 'NEW_DIRECT_MESSAGE',
+  MESSAGE_REACTED = 'MESSAGE_REACTED',
+
+  // Chia tiền nhóm
+  SPLIT_REQUEST = 'SPLIT_REQUEST',
+  SPLIT_PROPOSAL = 'SPLIT_PROPOSAL',
+  SPLIT_ACCEPTED = 'SPLIT_ACCEPTED',
+  SPLIT_CONFIRMED = 'SPLIT_CONFIRMED',
+
+  // Hệ thống & Bảo mật
+  SECURITY_ALERT = 'SECURITY_ALERT',
+  SYSTEM_ANNOUNCEMENT = 'SYSTEM_ANNOUNCEMENT',
 }
