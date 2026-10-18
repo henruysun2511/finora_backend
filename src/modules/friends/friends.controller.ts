@@ -1,5 +1,5 @@
 // src/modules/friends/friends.controller.ts
-import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, Patch } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { FriendsService } from './friends.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,6 +22,8 @@ export class FriendsController {
   @SwaggerDoc({
     summary: '1. Tìm kiếm người dùng',
     description: 'Tìm kiếm người dùng theo từ khóa tên hoặc email để kết bạn.',
+    responseType: FriendResponseDto,
+    isArray: true,
     bearerAuth: true,
   })
   async searchUsers(
@@ -32,10 +34,10 @@ export class FriendsController {
     return ApiResponse.success(data, 'Tìm kiếm người dùng thành công');
   }
 
-  @Post('request')
+  @Post('requests')
   @SwaggerDoc({
     summary: '2. Gửi lời mời kết bạn',
-    description: 'Gửi yêu cầu kết bạn đến một người dùng khác.',
+    description: 'Gửi yêu cầu kết bạn đến một người dùng khác (Tạo tài nguyên request mới).',
     bodyType: SendFriendRequestDto,
     status: 201,
     bearerAuth: true,
@@ -48,10 +50,12 @@ export class FriendsController {
     return ApiResponse.created(data, 'Gửi lời mời kết bạn thành công');
   }
 
-  @Get('pending-requests')
+  @Get('requests')
   @SwaggerDoc({
-    summary: '3. Xem lời mời đang chờ',
-    description: 'Lấy danh sách các lời mời kết bạn đang chờ phản hồi.',
+    summary: '3. Xem danh sách lời mời kết bạn đang chờ',
+    description: 'Lấy danh sách các yêu cầu kết bạn đang chờ phản hồi.',
+    responseType: FriendResponseDto,
+    isArray: true,
     bearerAuth: true,
   })
   async getPendingRequests(@CurrentUser('id') userId: string) {
@@ -59,38 +63,32 @@ export class FriendsController {
     return ApiResponse.success(data, 'Lấy danh sách lời mời chờ duyệt thành công');
   }
 
-  @Post('request/:id/accept')
+  @Patch('requests/:id')
   @SwaggerDoc({
-    summary: '4. Chấp nhận kết bạn',
-    description: 'Chấp nhận lời mời kết bạn dựa theo ID bản ghi lời mời.',
+    summary: '4 & 5. Cập nhật trạng thái lời mời kết bạn (Chấp nhận / Từ chối)',
+    description: 'Cập nhật trạng thái lời mời (ví dụ: chuyển thành ACCEPTED hoặc REJECTED).',
     bearerAuth: true,
   })
-  async acceptRequest(
+  async updateRequestStatus(
     @CurrentUser('id') userId: string,
     @Param('id') id: string,
+    @Body() body: { status: 'ACCEPTED' | 'REJECTED' }, // Dùng DTO chuyên dụng trong thực tế
   ) {
-    const data = await this.friendsService.acceptRequest(userId, id);
-    return ApiResponse.success(data, 'Đã chấp nhận lời mời kết bạn');
-  }
-
-  @Post('request/:id/reject')
-  @SwaggerDoc({
-    summary: '5. Từ chối kết bạn',
-    description: 'Từ chối lời mời kết bạn dựa theo ID bản ghi lời mời.',
-    bearerAuth: true,
-  })
-  async rejectRequest(
-    @CurrentUser('id') userId: string,
-    @Param('id') id: string,
-  ) {
-    const data = await this.friendsService.rejectRequest(userId, id);
-    return ApiResponse.success(data, 'Đã từ chối lời mời kết bạn');
+    // Tùy theo logic service của bạn để xử lý phân nhánh Accept hoặc Reject dựa trên body.status
+    const data = body.status === 'ACCEPTED' 
+      ? await this.friendsService.acceptRequest(userId, id)
+      : await this.friendsService.rejectRequest(userId, id);
+      
+    const message = body.status === 'ACCEPTED' ? 'Đã chấp nhận kết bạn' : 'Đã từ chối lời mời kết bạn';
+    return ApiResponse.success(data, message);
   }
 
   @Get()
   @SwaggerDoc({
     summary: '6. Lấy danh bạ bạn bè',
     description: 'Lấy danh sách bạn bè đã được chấp nhận (hỗ trợ phân trang).',
+    responseType: FriendResponseDto,
+    isArray: true,
     bearerAuth: true,
   })
   async getFriends(
@@ -115,18 +113,19 @@ export class FriendsController {
     return ApiResponse.success(null, 'Hủy kết bạn thành công');
   }
 
-  @Post(':id/block')
+  @Patch(':id/status')
   @SwaggerDoc({
-    summary: '8. Chặn người dùng',
-    description: 'Chặn một người dùng khỏi hệ thống liên lạc và chia sẻ.',
+    summary: '8. Cập nhật trạng thái quan hệ (Chặn người dùng)',
+    description: 'Chặn hoặc thay đổi trạng thái quan hệ với người dùng.',
     bearerAuth: true,
   })
-  async blockUser(
+  async updateFriendshipStatus(
     @CurrentUser('id') userId: string,
     @Param('id') id: string,
+    @Body() body: { status: 'BLOCKED' | 'ACTIVE' },
   ) {
     const data = await this.friendsService.blockUser(userId, id);
-    return ApiResponse.success(data, 'Đã chặn người dùng thành công');
+    return ApiResponse.success(data, 'Đã cập nhật trạng thái người dùng thành công');
   }
 
   @Get(':targetUserId/status')
