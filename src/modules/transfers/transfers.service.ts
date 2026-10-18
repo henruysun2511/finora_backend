@@ -1,0 +1,182 @@
+// src/modules/transfers/transfers.service.ts
+import { Injectable } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { TransferRepository } from './repository/transfer.repository';
+import { AccountsService } from '../accounts/accounts.service';
+import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
+import { TransferMapper } from './mapper/transfer.mapper';
+import { CreateTransferDto } from './dto/request/create-transfer.dto';
+import { ConvertCurrencyDto } from './dto/request/convert-currency.dto';
+import { TransferQueryDto } from './dto/request/transfer-query.dto';
+import { TransferResponseDto } from './dto/response/transfer-response.dto';
+import { ConvertPreviewResponseDto } from './dto/response/convert-preview-response.dto';
+import { PaginatedResponse } from '../../common/response/api-response';
+import {
+  TransferAccessDeniedException,
+  TransferNotFoundException,
+} from './exceptions/transfer.exception';
+
+@Injectable()
+export class TransfersService {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly transferRepo: TransferRepository,
+    private readonly accountsService: AccountsService,
+    private readonly exchangeRatesService: ExchangeRatesService,
+    private readonly mapper: TransferMapper,
+  ) {}
+
+  /**
+   * Tạo giao dịch chuyển tiền giữa 2 tài khoản (cùng loại hoặc khác loại tiền tệ).
+   *
+   * @param userId - UUID của người dùng thực hiện
+   * @param dto - Thông tin giao dịch chuyển tiền
+   * @returns TransferResponseDto
+   */
+  async createTransfer(userId: string, dto: CreateTransferDto): Promise<TransferResponseDto> {
+    // 1. Kiểm tra tính hợp lệ và quyền hạn của 2 tài khoản nguồn & đích
+    const { fromAccount, toAccount } = await this.accountsService.validateTransferAccounts(
+      userId,
+      dto.fromAccountId,
+      dto.toAccountId,
+    );
+
+    // 2. Tính toán tỷ giá và số tiền nhận được ở tài khoản đích
+    let exchangeRate = 1;
+    let toAmount = dto.amount;
+
+    if (fromAccount.currency.toUpperCase() !== toAccount.currency.toUpperCase()) {
+      const fx = await this.exchangeRatesService.convert(
+        dto.amount,
+        fromAccount.currency,
+        toAccount.currency,
+      );
+      exchangeRate = fx.rate;
+      toAmount = fx.convertedAmount;
+    }
+
+    // 3. Thực thi cập nhật số dư và lưu giao dịch trong 1 database transaction ACID
+    return this.dataSource.transaction(async (manager) => {
+      await this.accountsService.executeTransferBalances(
+        {
+          fromAccountId: dto.fromAccountId,
+          toAccountId: dto.toAccountId,
+          fromAmount: dto.amount,
+          toAmount,
+          fee: dto.fee ?? 0,
+          feeAccountId: dto.feeAccountId,
+        },
+        manager,
+      );
+
+      const transfer = this.transferRepo.create({
+        fromAccountId: dto.fromAccountId,
+        toAccountId: dto.toAccountId,
+        createdBy: userId,
+        feeAccountId: dto.feeAccountId ?? null,
+        fee: dto.fee ?? 0,
+        fromAmount: dto.amount,
+        fromCurrency: fromAccount.currency,
+        toAmount,
+        toCurrency: toAccount.currency,
+        exchangeRate,
+        note: dto.note ?? null,
+        transferDate: dto.transferDate ? new Date(dto.transferDate) : new Date(),
+      });
+
+      const saved = await this.transferRepo.save(transfer, manager);
+      saved.fromAccount = fromAccount;
+      saved.toAccount = toAccount;
+
+      return this.mapper.toResponse(saved);
+    });
+  }
+
+  /**
+   * Preview tính toán quy đổi tiền tệ và xem tỷ giá trước khi xác nhận chuyển tiền.
+   *
+   * @param userId - UUID của người dùng
+   * @param dto - Thông tin tài khoản và số tiền cần quy đổi
+   * @returns ConvertPreviewResponseDto
+   */
+  async convertPreview(userId: string, dto: ConvertCurrencyDto): Promise<ConvertPreviewResponseDto> {
+    const { fromAccount, toAccount } = await this.accountsService.validateTransferAccounts(
+      userId,
+      dto.fromAccountId,
+      dto.toAccountId,
+    );
+
+    if (fromAccount.currency.toUpperCase() === toAccount.currency.toUpperCase()) {
+      return this.mapper.toConvertPreview(fromAccount, toAccount, dto.amount, dto.amount, {
+        from: fromAccount.currency,
+        to: toAccount.currency,
+        rate: 1,
+        inverseRate: 1,
+        updatedAt: new Date(),
+        source: 'live',
+        isEstimated: false,
+      });
+    }
+
+    const fx = await this.exchangeRatesService.convert(
+      dto.amount,
+      fromAccount.currency,
+      toAccount.currency,
+    );
+
+    return this.mapper.toConvertPreview(
+      fromAccount,
+      toAccount,
+      dto.amount,
+      fx.convertedAmount,
+      fx,
+    );
+  }
+
+  /**
+   * Lấy danh sách lịch sử chuyển tiền có phân trang.
+   *
+   * @param userId - UUID của người dùng
+   * @param query - Bộ lọc phân trang, tài khoản và thời gian
+   * @returns PaginatedResponse<TransferResponseDto>
+   */
+  async getTransfers(
+    userId: string,
+    query: TransferQueryDto,
+  ): Promise<PaginatedResponse<TransferResponseDto>> {
+    const accessibleAccountIds = await this.accountsService.getUserAccessibleAccountIds(userId);
+    const [transfers, total] = await this.transferRepo.findPaged(query, accessibleAccountIds);
+
+    return PaginatedResponse.of(
+      transfers.map((t) => this.mapper.toResponse(t)),
+      total,
+      query.page,
+      query.limit,
+    );
+  }
+
+  /**
+   * Xem chi tiết một giao dịch chuyển tiền.
+   *
+   * @param userId - UUID của người dùng
+   * @param id - UUID của giao dịch chuyển tiền
+   * @returns TransferResponseDto
+   */
+  async getTransferById(userId: string, id: string): Promise<TransferResponseDto> {
+    const transfer = await this.transferRepo.findById(id);
+    if (!transfer) {
+      throw new TransferNotFoundException(id);
+    }
+
+    const accessibleAccountIds = await this.accountsService.getUserAccessibleAccountIds(userId);
+    const hasAccess =
+      accessibleAccountIds.includes(transfer.fromAccountId) ||
+      accessibleAccountIds.includes(transfer.toAccountId);
+
+    if (!hasAccess) {
+      throw new TransferAccessDeniedException(id);
+    }
+
+    return this.mapper.toResponse(transfer);
+  }
+}

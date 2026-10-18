@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { Wallet } from './entities/wallet.entity';
 import { WalletRepository } from './repository/wallet.repository';
 import { WalletMemberRepository } from './repository/wallet-member.repository';
 import { WalletMapper } from './mapper/wallet.mapper';
@@ -213,6 +214,86 @@ export class WalletsService {
     await this.walletRepo.softDeleteById(walletId);
   }
 
+  // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
+
+  /**
+   * [CROSS-MODULE] Kiểm tra ví có tồn tại hay không.
+   *
+   * @param walletId - UUID của ví
+   * @returns boolean
+   */
+  async exists(walletId: string): Promise<boolean> {
+    const wallet = await this.walletRepo.findById(walletId);
+    return Boolean(wallet);
+  }
+
+  /**
+   * [CROSS-MODULE] Tìm entity Wallet theo ID.
+   *
+   * @param walletId - UUID của ví
+   * @returns Wallet entity hoặc null nếu không tồn tại
+   */
+  async findById(walletId: string): Promise<Wallet | null> {
+    return this.walletRepo.findById(walletId);
+  }
+
+  /**
+   * [CROSS-MODULE] Lấy vai trò thành viên của người dùng trong ví.
+   * Trả về WalletMemberRole nếu là OWNER hoặc thành viên ACCEPTED, ngược lại trả về null.
+   *
+   * @param walletId - UUID của ví
+   * @param userId - UUID của người dùng
+   * @returns WalletMemberRole hoặc null
+   */
+  async getMemberRole(
+    walletId: string,
+    userId: string,
+  ): Promise<WalletMemberRole | null> {
+    const wallet = await this.walletRepo.findById(walletId);
+    if (!wallet) {
+      return null;
+    }
+
+    if (wallet.ownerId === userId) {
+      return WalletMemberRole.OWNER;
+    }
+
+    const member = await this.walletMemberRepo.findByWalletAndUser(
+      walletId,
+      userId,
+    );
+    if (
+      member &&
+      !member.deletedAt &&
+      member.status === WalletMemberStatus.ACCEPTED
+    ) {
+      return member.role;
+    }
+
+    return null;
+  }
+
+  /**
+   * [CROSS-MODULE] Lấy danh sách ID ví mà người dùng có quyền truy cập (owner hoặc thành viên).
+   *
+   * @param userId - UUID của người dùng
+   * @returns Mảng các UUID của ví
+   */
+  async getUserWalletIds(userId: string): Promise<string[]> {
+    const wallets = await this.walletRepo.findWalletsByUserId(userId);
+    return wallets.map((w) => w.id);
+  }
+
+  /**
+   * [CROSS-MODULE] Lấy danh sách các entity Wallet mà người dùng có quyền truy cập.
+   *
+   * @param userId - UUID của người dùng
+   * @returns Mảng các Wallet entity
+   */
+  async getUserWallets(userId: string): Promise<Wallet[]> {
+    return this.walletRepo.findWalletsByUserId(userId);
+  }
+
   /**
    * [CROSS-MODULE] Lấy danh sách tài khoản trong ví.
    * Dùng cho controller và các module ngoại vi (TransactionsService, BudgetsService...)
@@ -273,3 +354,4 @@ export class WalletsService {
     return this.walletMapper.toBalanceResponse(wallet, accounts, balanceMap);
   }
 }
+
