@@ -10,6 +10,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 
@@ -25,6 +26,7 @@ import { PermissionsGuard } from './modules/authorization/guards/permissions.gua
     ExchangeRatesModule,
     TransfersModule,
     TransactionsModule,
+    NotificationsModule,
   ],
 
   providers: [
