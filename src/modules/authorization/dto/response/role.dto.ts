@@ -21,7 +21,6 @@ export class RoleResponseDto {
   isSysAdmin: boolean;
 
   @ApiPropertyOptional({ type: [PermissionResponseDto] })
-
   permissions?: PermissionResponseDto[];
 
   @ApiProperty()

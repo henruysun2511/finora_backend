@@ -1,10 +1,11 @@
 import { Module, ClassSerializerInterceptor } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { DatabaseModule } from './shared/database/database.module';
+import { InfrastructuresModule } from './infrastructures/infrastructures.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
@@ -13,11 +14,12 @@ import { PermissionsGuard } from './modules/authorization/guards/permissions.gua
 
 @Module({
   imports: [
-    DatabaseModule,
+    InfrastructuresModule,
     UsersModule,
     AuthorizationModule,
     AuthModule,
     WalletsModule,
+    CategoriesModule,
     AccountsModule,
     ExchangeRatesModule,
     TransfersModule,
@@ -39,4 +41,3 @@ import { PermissionsGuard } from './modules/authorization/guards/permissions.gua
   ],
 })
 export class AppModule {}
-

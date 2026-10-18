@@ -48,5 +48,5 @@ export class UserSetting extends BaseEntity {
   defaultAmountHidden: boolean;
 
   @Column({ name: 'notification_preferences', type: 'jsonb', nullable: true })
-  notificationPreferences?: Record<string, any>;
+  notificationPreferences?: Record<string, unknown>;
 }

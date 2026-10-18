@@ -4,8 +4,8 @@ import { AppConfig } from '../../config/app.config';
 import { DatabaseConfig } from '../../config/database.config';
 
 /**
- * DatabaseModule — cấu hình TypeORM root kết nối PostgreSQL.
- * Tự động bật SSL cho các cloud postgres (như Neon) khi url yêu cầu ssl hoặc chứa neon.tech.
+ * DatabaseModule — Cấu hình TypeORM root kết nối PostgreSQL.
+ * Tự động bật SSL cho các cloud Postgres (Neon, Supabase) khi URL yêu cầu ssl hoặc chứa neon.tech / supabase.co.
  */
 @Module({
   imports: [
@@ -13,18 +13,20 @@ import { DatabaseConfig } from '../../config/database.config';
       useFactory: () => {
         const isSsl =
           DatabaseConfig.URL.includes('sslmode=require') ||
-          DatabaseConfig.URL.includes('neon.tech');
+          DatabaseConfig.URL.includes('neon.tech') ||
+          DatabaseConfig.URL.includes('supabase.co');
         return {
           type: 'postgres',
           url: DatabaseConfig.URL,
           ssl: isSsl ? { rejectUnauthorized: false } : false,
           entities: [__dirname + '/../../**/*.entity{.ts,.js}'],
           migrations: [__dirname + '/../../database/migrations/*{.ts,.js}'],
-          synchronize: false, // Tắt synchronize tự động để quản lý toàn bộ cấu trúc DB bằng migration thủ công
+          synchronize: false, // Quản lý cấu trúc DB bằng migration thủ công
           logging: AppConfig.IS_DEV,
         };
       },
     }),
   ],
+  exports: [TypeOrmModule],
 })
 export class DatabaseModule {}

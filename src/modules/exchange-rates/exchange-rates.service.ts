@@ -1,5 +1,5 @@
 // src/modules/exchange-rates/exchange-rates.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
   DEFAULT_EXCHANGE_RATE_API_URL,
   EXCHANGE_RATE_CACHE_TTL_MS,
@@ -11,6 +11,7 @@ import {
   ExchangeRateResponseDto,
 } from './dto/response/exchange-rate-response.dto';
 import { UnsupportedCurrencyException } from './exceptions/exchange-rate.exception';
+import { RedisService } from '../../infrastructures/redis/redis.service';
 
 interface CachedRates {
   timestamp: number;
@@ -23,7 +24,12 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 @Injectable()
 export class ExchangeRatesService {
   private readonly logger = new Logger(ExchangeRatesService.name);
-  private readonly cache = new Map<string, CachedRates>();
+  private readonly localCache = new Map<string, CachedRates>();
+
+  constructor(
+    @Optional()
+    private readonly redisService?: RedisService,
+  ) {}
 
   /**
    * Lấy tỷ giá giữa 2 đồng tiền (from -> to).
@@ -95,6 +101,42 @@ export class ExchangeRatesService {
     }
   }
 
+  private async getCachedRates(base: string): Promise<CachedRates | null> {
+    const cacheKey = `fx:rates:${base}`;
+
+    // 1. Thử lấy từ Redis
+    if (this.redisService?.isReady) {
+      try {
+        const redisData = await this.redisService.get<CachedRates>(cacheKey);
+        if (redisData && redisData.rates) {
+          return redisData;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Lỗi đọc Redis cache cho key "${cacheKey}": ${err?.message}`);
+      }
+    }
+
+    // 2. Thử lấy từ Local In-Memory Cache
+    return this.localCache.get(base) ?? null;
+  }
+
+  private async setCachedRates(base: string, data: CachedRates): Promise<void> {
+    const cacheKey = `fx:rates:${base}`;
+    const ttlSeconds = Math.floor(EXCHANGE_RATE_CACHE_TTL_MS / 1000);
+
+    // 1. Lưu vào Redis
+    if (this.redisService?.isReady) {
+      try {
+        await this.redisService.set(cacheKey, data, ttlSeconds);
+      } catch (err: any) {
+        this.logger.warn(`Lỗi ghi Redis cache cho key "${cacheKey}": ${err?.message}`);
+      }
+    }
+
+    // 2. Lưu vào Local In-Memory Cache dự phòng
+    this.localCache.set(base, data);
+  }
+
   private async resolveRate(
     base: string,
     target: string,
@@ -106,7 +148,7 @@ export class ExchangeRatesService {
     updatedAt: Date;
   }> {
     const now = Date.now();
-    const cached = this.cache.get(base);
+    const cached = await this.getCachedRates(base);
 
     // 1. Kiểm tra cache còn hạn (TTL 1h)
     if (cached && now - cached.timestamp < EXCHANGE_RATE_CACHE_TTL_MS) {
@@ -125,7 +167,7 @@ export class ExchangeRatesService {
     // 2. Gọi API bên ngoài lấy tỷ giá mới nhất
     try {
       const fetchedRates = await this.fetchFromExternalApi(base);
-      this.cache.set(base, { timestamp: now, rates: fetchedRates });
+      await this.setCachedRates(base, { timestamp: now, rates: fetchedRates });
 
       const targetRate = fetchedRates[target];
       if (targetRate !== undefined) {
@@ -195,7 +237,6 @@ export class ExchangeRatesService {
     const usdToTarget = FALLBACK_RATES_TO_USD[target];
 
     if (!usdToBase || !usdToTarget) {
-      // Nếu là ngoại tệ chưa cấu hình trong snapshot, mặc định 1
       this.logger.error(`Thiếu tỷ giá fallback cho ${base} hoặc ${target}`);
       return 1;
     }

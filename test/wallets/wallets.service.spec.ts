@@ -17,6 +17,8 @@ import {
 } from '../../src/common/enums/wallet-member-role.enum';
 import { Wallet } from '../../src/modules/wallets/entities/wallet.entity';
 import { WalletMember } from '../../src/modules/wallets/entities/wallet-member.entity';
+import { Account } from '../../src/modules/accounts/entities/account.entity';
+import { AccountType } from '../../src/modules/accounts/enums/account-type.enum';
 
 describe('WalletsService', () => {
   let service: WalletsService;
@@ -33,6 +35,8 @@ describe('WalletsService', () => {
       findById: jest.fn(),
       findWalletsByUserIdPaginated: jest.fn(),
       softDeleteById: jest.fn(),
+      findAccountsByWalletId: jest.fn(),
+      getBalancesByAccountIds: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
     };
@@ -304,6 +308,96 @@ describe('WalletsService', () => {
         service.deleteWallet(mockWalletId, mockUserId),
       ).resolves.not.toThrow();
       expect(walletRepo.softDeleteById).toHaveBeenCalledWith(mockWalletId);
+    });
+  });
+
+  describe('getWalletAccounts', () => {
+    it('nên trả về danh sách tài khoản kèm số dư tính toán', async () => {
+      const wallet = { id: mockWalletId } as Wallet;
+      const member = {
+        walletId: mockWalletId,
+        userId: mockUserId,
+        role: WalletMemberRole.OWNER,
+        status: WalletMemberStatus.ACCEPTED,
+      } as WalletMember;
+
+      const mockAccounts: Account[] = [
+        {
+          id: 'acc-1',
+          walletId: mockWalletId,
+          name: 'Vietcombank',
+          type: AccountType.BANK,
+          currency: 'VND',
+          isArchived: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as Account,
+      ];
+
+      walletRepo.findById.mockResolvedValue(wallet);
+      walletMemberRepo.findByWalletAndUser.mockResolvedValue(member);
+      walletRepo.findAccountsByWalletId.mockResolvedValue(mockAccounts);
+      walletRepo.getBalancesByAccountIds.mockResolvedValue(
+        new Map([['acc-1', 15000000]]),
+      );
+
+      const result = await service.getWalletAccounts(mockWalletId, mockUserId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('acc-1');
+      expect(result[0].balance).toBe(15000000);
+    });
+  });
+
+  describe('getWalletBalance', () => {
+    it('nên trả về tổng tài sản ví và thống kê theo từng loại tiền tệ', async () => {
+      const wallet = {
+        id: mockWalletId,
+        name: 'Ví chi tiêu',
+        defaultCurrency: 'VND',
+      } as Wallet;
+
+      const member = {
+        walletId: mockWalletId,
+        userId: mockUserId,
+        role: WalletMemberRole.OWNER,
+        status: WalletMemberStatus.ACCEPTED,
+      } as WalletMember;
+
+      const mockAccounts: Account[] = [
+        {
+          id: 'acc-1',
+          walletId: mockWalletId,
+          currency: 'VND',
+          isArchived: false,
+        } as Account,
+        {
+          id: 'acc-2',
+          walletId: mockWalletId,
+          currency: 'USD',
+          isArchived: false,
+        } as Account,
+      ];
+
+      walletRepo.findById.mockResolvedValue(wallet);
+      walletMemberRepo.findByWalletAndUser.mockResolvedValue(member);
+      walletRepo.findAccountsByWalletId.mockResolvedValue(mockAccounts);
+      walletRepo.getBalancesByAccountIds.mockResolvedValue(
+        new Map([
+          ['acc-1', 20000000],
+          ['acc-2', 500],
+        ]),
+      );
+
+      const result = await service.getWalletBalance(mockWalletId, mockUserId);
+
+      expect(result.walletId).toBe(mockWalletId);
+      expect(result.totalBalance).toBe(20000000);
+      expect(result.breakdownByCurrency).toEqual({
+        VND: 20000000,
+        USD: 500,
+      });
+      expect(result.accountsCount).toBe(2);
     });
   });
 });

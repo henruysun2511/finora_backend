@@ -79,6 +79,50 @@ describe('ExchangeRatesService', () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
+    it('ưu tiên đọc tỷ giá từ Redis cache nếu có sẵn', async () => {
+      const mockRedisService = {
+        isReady: true,
+        get: jest.fn().mockResolvedValue({
+          timestamp: Date.now(),
+          rates: { VND: 25400 },
+        }),
+        set: jest.fn(),
+      } as any;
+
+      const redisAwareService = new ExchangeRatesService(mockRedisService);
+      const result = await redisAwareService.getExchangeRate('USD', 'VND');
+
+      expect(mockRedisService.get).toHaveBeenCalledWith('fx:rates:USD');
+      expect(result.source).toBe('cache');
+      expect(result.rate).toBe(25400);
+    });
+
+    it('lưu tỷ giá vào Redis sau khi fetch từ API ngoài', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          result: 'success',
+          base_code: 'USD',
+          rates: { VND: 25400 },
+        }),
+      } as any);
+
+      const mockRedisService = {
+        isReady: true,
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn().mockResolvedValue(true),
+      } as any;
+
+      const redisAwareService = new ExchangeRatesService(mockRedisService);
+      await redisAwareService.getExchangeRate('USD', 'VND');
+
+      expect(mockRedisService.set).toHaveBeenCalledWith(
+        'fx:rates:USD',
+        expect.objectContaining({ rates: { VND: 25400 } }),
+        3600,
+      );
+    });
+
     it('sử dụng fallback snapshot khi API bên ngoài bị lỗi kết nối', async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error('Network connection timeout'));
 

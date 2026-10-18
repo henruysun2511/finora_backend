@@ -9,7 +9,6 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthorizationService } from './authorization.service';
@@ -22,39 +21,32 @@ import { RoleResponseDto } from './dto/response/role.dto';
 import { PermissionResponseDto } from './dto/response/permission.dto';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { Roles } from './decorators/roles.decorator';
-import { SYSTEM_ROLES } from '../../common/constants/role.constant';
+import { Permissions } from './decorators/permissions.decorator';
+import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 
 @ApiTags('Authorization')
 @ApiBearerAuth('access-token')
 @Controller({ path: 'authorization', version: '1' })
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN)
 export class AuthorizationController {
-
-
   constructor(private readonly authzService: AuthorizationService) {}
 
   // ── Roles Endpoints ───────────────────────────────────────────────────────
   @Post('roles')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_CREATE)
   @SwaggerDoc({
     summary: 'Tạo vai trò mới',
     description: 'Thêm mới vai trò vào hệ thống (mã vai trò nhập từ FE)',
+    bodyType: CreateRoleDto,
     responseType: RoleResponseDto,
     status: 201,
   })
   async createRole(@Body() dto: CreateRoleDto) {
     const role = await this.authzService.createRole(dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.CREATED,
-      message: 'Tạo vai trò thành công',
-      data: role,
-    });
+    return ApiResponse.created(role, 'Tạo vai trò thành công');
   }
 
   @Get('roles')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_READ)
   @SwaggerDoc({
     summary: 'Danh sách vai trò',
     description: 'Lấy toàn bộ danh sách vai trò kèm danh sách quyền hạn đã gán',
@@ -63,14 +55,11 @@ export class AuthorizationController {
   })
   async findAllRoles() {
     const roles = await this.authzService.findAllRoles();
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Lấy danh sách vai trò thành công',
-      data: roles,
-    });
+    return ApiResponse.success(roles, 'Lấy danh sách vai trò thành công');
   }
 
   @Get('roles/:id')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_READ)
   @SwaggerDoc({
     summary: 'Chi tiết vai trò',
     description: 'Lấy thông tin vai trò theo UUID',
@@ -78,17 +67,15 @@ export class AuthorizationController {
   })
   async findRoleById(@Param('id', ParseUUIDPipe) id: string) {
     const role = await this.authzService.findRoleById(id);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Lấy thông tin vai trò thành công',
-      data: role,
-    });
+    return ApiResponse.success(role, 'Lấy thông tin vai trò thành công');
   }
 
   @Patch('roles/:id')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_UPDATE)
   @SwaggerDoc({
     summary: 'Cập nhật vai trò',
     description: 'Cập nhật tên hiển thị, mô tả hoặc trạng thái vai trò',
+    bodyType: UpdateRoleDto,
     responseType: RoleResponseDto,
   })
   async updateRole(
@@ -96,14 +83,11 @@ export class AuthorizationController {
     @Body() dto: UpdateRoleDto,
   ) {
     const role = await this.authzService.updateRole(id, dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Cập nhật vai trò thành công',
-      data: role,
-    });
+    return ApiResponse.success(role, 'Cập nhật vai trò thành công');
   }
 
   @Delete('roles/:id')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa mềm vai trò',
@@ -115,9 +99,11 @@ export class AuthorizationController {
   }
 
   @Post('roles/:id/permissions')
+  @Permissions(SYSTEM_PERMISSIONS.ROLES_ASSIGN_PERMISSION)
   @SwaggerDoc({
     summary: 'Gán quyền hạn cho vai trò',
     description: 'Cập nhật danh sách quyền hạn cho một vai trò',
+    bodyType: AssignPermissionDto,
     responseType: RoleResponseDto,
   })
   async assignPermissions(
@@ -125,31 +111,26 @@ export class AuthorizationController {
     @Body() dto: AssignPermissionDto,
   ) {
     const role = await this.authzService.assignPermissionsToRole(id, dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Gán quyền hạn cho vai trò thành công',
-      data: role,
-    });
+    return ApiResponse.success(role, 'Gán quyền hạn cho vai trò thành công');
   }
 
   // ── Permissions Endpoints ─────────────────────────────────────────────────
   @Post('permissions')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_CREATE)
   @SwaggerDoc({
     summary: 'Tạo quyền hạn mới',
     description: 'Thêm mới quyền hạn vào hệ thống (mã quyền nhập từ FE)',
+    bodyType: CreatePermissionDto,
     responseType: PermissionResponseDto,
     status: 201,
   })
   async createPermission(@Body() dto: CreatePermissionDto) {
     const permission = await this.authzService.createPermission(dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.CREATED,
-      message: 'Tạo quyền hạn thành công',
-      data: permission,
-    });
+    return ApiResponse.created(permission, 'Tạo quyền hạn thành công');
   }
 
   @Get('permissions')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_READ)
   @SwaggerDoc({
     summary: 'Danh sách quyền hạn',
     description: 'Lấy toàn bộ danh sách quyền hạn trong hệ thống',
@@ -158,14 +139,14 @@ export class AuthorizationController {
   })
   async findAllPermissions() {
     const permissions = await this.authzService.findAllPermissions();
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Lấy danh sách quyền hạn thành công',
-      data: permissions,
-    });
+    return ApiResponse.success(
+      permissions,
+      'Lấy danh sách quyền hạn thành công',
+    );
   }
 
   @Get('permissions/:id')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_READ)
   @SwaggerDoc({
     summary: 'Chi tiết quyền hạn',
     description: 'Lấy thông tin quyền hạn theo UUID',
@@ -173,17 +154,18 @@ export class AuthorizationController {
   })
   async findPermissionById(@Param('id', ParseUUIDPipe) id: string) {
     const permission = await this.authzService.findPermissionById(id);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Lấy thông tin quyền hạn thành công',
-      data: permission,
-    });
+    return ApiResponse.success(
+      permission,
+      'Lấy thông tin quyền hạn thành công',
+    );
   }
 
   @Patch('permissions/:id')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_UPDATE)
   @SwaggerDoc({
     summary: 'Cập nhật quyền hạn',
     description: 'Cập nhật tên, resource, action hoặc mô tả quyền hạn',
+    bodyType: UpdatePermissionDto,
     responseType: PermissionResponseDto,
   })
   async updatePermission(
@@ -191,14 +173,11 @@ export class AuthorizationController {
     @Body() dto: UpdatePermissionDto,
   ) {
     const permission = await this.authzService.updatePermission(id, dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Cập nhật quyền hạn thành công',
-      data: permission,
-    });
+    return ApiResponse.success(permission, 'Cập nhật quyền hạn thành công');
   }
 
   @Delete('permissions/:id')
+  @Permissions(SYSTEM_PERMISSIONS.PERMISSIONS_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa quyền hạn',
