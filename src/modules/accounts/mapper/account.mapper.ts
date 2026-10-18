@@ -9,13 +9,18 @@ import { BalanceAdjustmentResponseDto } from '../dto/response/balance-adjustment
 
 @Injectable()
 export class AccountMapper {
-  toEntity(dto: CreateAccountDto, userId: string, idempotencyKey?: string): Partial<Account> {
+  toEntity(
+    dto: CreateAccountDto,
+    userId: string,
+    idempotencyKey?: string,
+    currency?: string,
+  ): Partial<Account> {
     const initial = dto.initialBalance ?? 0;
     return {
       walletId: dto.walletId,
       name: dto.name,
       type: dto.type,
-      currency: dto.currency,
+      currency: currency ?? dto.currency ?? 'VND',
       balance: initial,
       initialBalance: initial,
       accountNumberLast4: dto.accountNumberLast4 ?? null,

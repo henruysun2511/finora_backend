@@ -38,10 +38,16 @@ export class CreateAccountDto {
   @IsEnum(AccountType, { message: 'Loại tài khoản không hợp lệ' })
   type: AccountType;
 
-  @ApiProperty({ example: 'VND', enum: SUPPORTED_CURRENCIES })
+  @ApiPropertyOptional({
+    example: 'VND',
+    enum: SUPPORTED_CURRENCIES,
+    description:
+      'Loại tiền tệ (mặc định lấy theo tiền tệ của ví nếu để trống). 1 Ví chỉ chứa các tài khoản cùng loại tiền tệ.',
+  })
+  @IsOptional()
   @Transform(upperTrim)
   @IsIn(SUPPORTED_CURRENCIES as unknown as string[], { message: 'Loại tiền tệ không hợp lệ' })
-  currency: string;
+  currency?: string;
 
   @ApiPropertyOptional({ example: 1000000, default: 0 })
   @IsOptional()

@@ -54,6 +54,9 @@ export class AccountRepository {
       .where('a.walletId IN (:...walletIds)', { walletIds })
       .andWhere('a.isArchived = :isArchived', { isArchived: query.isArchived });
 
+    if (query.keyword) {
+      qb.andWhere('a.name ILIKE :keyword', { keyword: `%${query.keyword}%` });
+    }
     if (query.type) qb.andWhere('a.type = :type', { type: query.type });
     if (query.currency) qb.andWhere('a.currency = :currency', { currency: query.currency });
 
@@ -92,5 +95,15 @@ export class AccountRepository {
 
   async softDelete(id: string, manager: EntityManager): Promise<void> {
     await manager.softDelete(Account, { id });
+  }
+
+  async findAccountIdsByWalletIds(walletIds: string[]): Promise<string[]> {
+    if (!walletIds.length) return [];
+    const accounts = await this.repo
+      .createQueryBuilder('a')
+      .select('a.id')
+      .where('a.walletId IN (:...walletIds)', { walletIds })
+      .getMany();
+    return accounts.map((a) => a.id);
   }
 }

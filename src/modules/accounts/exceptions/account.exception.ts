@@ -81,6 +81,17 @@ export class AccountCurrencyChangeNotAllowedException extends AppError {
   }
 }
 
+export class AccountCurrencyMismatchWalletException extends AppError {
+  constructor(accountCurrency: string, walletCurrency: string) {
+    super({
+      code: ACCOUNT_ERROR_CODE.CURRENCY_MISMATCH_WALLET,
+      message: `Tiền tệ của tài khoản (${accountCurrency}) phải trùng khớp với tiền tệ của ví (${walletCurrency}). Mỗi ví chỉ được chứa các tài khoản cùng loại tiền tệ`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      details: { accountCurrency, walletCurrency },
+    });
+  }
+}
+
 export class AccountInsufficientBalanceException extends AppError {
   constructor(balance: number, amount: number) {
     super({
@@ -101,3 +112,15 @@ export class IdempotencyKeyRequiredException extends AppError {
     });
   }
 }
+
+export class AccountSameSourceAndDestinationException extends AppError {
+  constructor(accountId: string) {
+    super({
+      code: ACCOUNT_ERROR_CODE.SAME_SOURCE_DESTINATION,
+      message: 'Tài khoản nguồn và tài khoản đích không được trùng nhau',
+      statusCode: HttpStatus.BAD_REQUEST,
+      details: { accountId },
+    });
+  }
+}
+

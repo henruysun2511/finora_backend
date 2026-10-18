@@ -1,4 +1,3 @@
-// src/modules/accounts/accounts.controller.ts
 import {
   Body,
   Controller,
@@ -6,6 +5,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -13,27 +13,31 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiHeader, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiTags } from '@nestjs/swagger';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/request/create-account.dto';
 import { UpdateAccountDto } from './dto/request/update-account.dto';
 import { AccountQueryDto } from './dto/request/account-query.dto';
 import { AdjustBalanceDto } from './dto/request/adjust-balance.dto';
-import { AccountDetailDto, PaginatedAccountsDto } from './dto/response/account-response.dto';
+import { AccountDetailDto, AccountResponseDto } from './dto/response/account-response.dto';
 import { AccountBalanceResponseDto } from './dto/response/account-balance-response.dto';
 import { BalanceAdjustmentResponseDto } from './dto/response/balance-adjustment-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
+import { Permissions } from '../authorization/decorators/permissions.decorator';
+import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 
 @ApiTags('Accounts')
+@ApiBearerAuth('access-token')
 @Controller('accounts')
 @UseGuards(JwtAuthGuard)
 export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 
   @Post()
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_CREATE)
   @ApiHeader({
     name: 'Idempotency-Key',
     required: false,
@@ -58,11 +62,13 @@ export class AccountsController {
   }
 
   @Get()
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_READ)
   @SwaggerDoc({
     summary: 'Lấy danh sách tài khoản',
     description:
       'Danh sách tài khoản thuộc các Wallet người dùng có quyền truy cập, có phân trang và bộ lọc. Mặc định chỉ trả tài khoản đang hoạt động.',
-    responseType: PaginatedAccountsDto,
+    responseType: AccountResponseDto,
+    isArray: true,
     status: 200,
     bearerAuth: true,
   })
@@ -72,6 +78,7 @@ export class AccountsController {
   }
 
   @Get(':id')
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_READ)
   @SwaggerDoc({
     summary: 'Lấy chi tiết tài khoản',
     description: 'Xem chi tiết một tài khoản (kể cả đã lưu trữ) nếu có quyền truy cập.',
@@ -85,6 +92,7 @@ export class AccountsController {
   }
 
   @Patch(':id')
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_UPDATE)
   @SwaggerDoc({
     summary: 'Cập nhật thông tin tài khoản',
     description:
@@ -104,20 +112,22 @@ export class AccountsController {
   }
 
   @Delete(':id')
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_DELETE)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa mềm tài khoản',
     description:
       'Xóa mềm tài khoản chưa phát sinh giao dịch. Tài khoản đã có giao dịch bị chặn xóa, hãy dùng lưu trữ.',
-    status: 200,
+    status: 204,
     bearerAuth: true,
   })
   async remove(@CurrentUser('id') userId: string, @Param('id', ParseUUIDPipe) id: string) {
     await this.accountsService.deleteAccount(userId, id);
-    return ApiResponse.success(null, 'Xóa tài khoản thành công');
   }
 
   @Post(':id/archive')
-  @HttpCode(200)
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_UPDATE)
+  @HttpCode(HttpStatus.OK)
   @SwaggerDoc({
     summary: 'Lưu trữ tài khoản',
     description:
@@ -132,7 +142,8 @@ export class AccountsController {
   }
 
   @Post(':id/unarchive')
-  @HttpCode(200)
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_UPDATE)
+  @HttpCode(HttpStatus.OK)
   @SwaggerDoc({
     summary: 'Bỏ lưu trữ tài khoản',
     description: 'Khôi phục tài khoản về trạng thái hoạt động.',
@@ -146,6 +157,7 @@ export class AccountsController {
   }
 
   @Get(':id/balance')
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_READ)
   @SwaggerDoc({
     summary: 'Lấy số dư tài khoản',
     description:
@@ -160,7 +172,8 @@ export class AccountsController {
   }
 
   @Post(':id/balance-adjustments')
-  @HttpCode(200)
+  @Permissions(SYSTEM_PERMISSIONS.ACCOUNTS_ADJUST_BALANCE)
+  @HttpCode(HttpStatus.OK)
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
@@ -185,3 +198,4 @@ export class AccountsController {
     return ApiResponse.success(data, 'Điều chỉnh số dư thành công');
   }
 }
+

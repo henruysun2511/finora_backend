@@ -21,6 +21,11 @@ export class AccountQueryDto {
   @Max(100)
   limit: number = 10;
 
+  @ApiPropertyOptional({ description: 'Tìm kiếm theo tên tài khoản' })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  keyword?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID(undefined, { message: 'walletId không hợp lệ' })

@@ -11,6 +11,7 @@ import {
   AccountAccessDeniedException,
   AccountArchivedException,
   AccountCurrencyChangeNotAllowedException,
+  AccountCurrencyMismatchWalletException,
   AccountHasTransactionsException,
   AccountInsufficientBalanceException,
   AccountNameAlreadyExistsException,
@@ -21,15 +22,14 @@ import {
 
 describe('AccountsService', () => {
   const USER = 'u1';
-  const WALLET = { id: 'w1', ownerId: USER };
+  const WALLET = { id: 'w1', ownerId: USER, defaultCurrency: 'VND' };
   const manager = {} as any;
 
   let service: AccountsService;
   let dataSource: any;
   let accountRepo: any;
   let adjustmentRepo: any;
-  let walletRepo: any;
-  let walletMemberRepo: any;
+  let walletsService: any;
 
   const makeAccount = (override: Record<string, any> = {}) => ({
     id: 'a1',
@@ -65,19 +65,18 @@ describe('AccountsService', () => {
       save: jest.fn((a) => Promise.resolve(a)),
       findByKey: jest.fn().mockResolvedValue(null),
     };
-    walletRepo = {
+    walletsService = {
+      exists: jest.fn().mockResolvedValue(true),
+      getMemberRole: jest.fn().mockResolvedValue(WalletMemberRole.OWNER),
+      getUserWalletIds: jest.fn().mockResolvedValue(['w1']),
+      getUserWallets: jest.fn().mockResolvedValue([WALLET]),
       findById: jest.fn().mockResolvedValue(WALLET),
-      findWalletsByUserId: jest.fn().mockResolvedValue([{ id: 'w1' }]),
-    };
-    walletMemberRepo = {
-      findByWalletAndUser: jest.fn().mockResolvedValue(null),
     };
     service = new AccountsService(
       dataSource,
       accountRepo,
       adjustmentRepo,
-      walletRepo,
-      walletMemberRepo,
+      walletsService,
       new AccountMapper(),
     );
   });
@@ -101,11 +100,7 @@ describe('AccountsService', () => {
     });
 
     it('editor của ví được phép tạo tài khoản', async () => {
-      walletRepo.findById.mockResolvedValue({ id: 'w1', ownerId: 'other' });
-      walletMemberRepo.findByWalletAndUser.mockResolvedValue({
-        role: WalletMemberRole.EDITOR,
-        status: WalletMemberStatus.ACCEPTED,
-      });
+      walletsService.getMemberRole.mockResolvedValue(WalletMemberRole.EDITOR);
       const result = await service.createAccount(USER, dto as any);
       expect(result.name).toBe('Vietcombank');
     });
@@ -116,15 +111,27 @@ describe('AccountsService', () => {
       expect(accountRepo.save).not.toHaveBeenCalled();
     });
 
+    it('tự động kế thừa tiền tệ của ví nếu client không gửi currency', async () => {
+      const { currency: _c, ...dtoWithoutCurrency } = dto;
+      const result = await service.createAccount(USER, dtoWithoutCurrency as any);
+      expect(result.currency).toBe('VND');
+    });
+
+    it('từ chối tạo tài khoản nếu currency khác với tiền tệ của ví', async () => {
+      await expect(
+        service.createAccount(USER, { ...dto, currency: 'USD' } as any),
+      ).rejects.toBeInstanceOf(AccountCurrencyMismatchWalletException);
+    });
+
     it('ném lỗi khi wallet không tồn tại', async () => {
-      walletRepo.findById.mockResolvedValue(null);
+      walletsService.findById.mockResolvedValue(null);
       await expect(service.createAccount(USER, dto as any)).rejects.toBeInstanceOf(
         AccountWalletNotFoundException,
       );
     });
 
     it('từ chối khi không phải thành viên của wallet', async () => {
-      walletRepo.findById.mockResolvedValue({ id: 'w1', ownerId: 'other' });
+      walletsService.getMemberRole.mockResolvedValue(null);
       await expect(service.createAccount(USER, dto as any)).rejects.toBeInstanceOf(
         AccountAccessDeniedException,
       );
@@ -132,11 +139,7 @@ describe('AccountsService', () => {
     });
 
     it('từ chối khi chỉ là viewer', async () => {
-      walletRepo.findById.mockResolvedValue({ id: 'w1', ownerId: 'other' });
-      walletMemberRepo.findByWalletAndUser.mockResolvedValue({
-        role: WalletMemberRole.VIEWER,
-        status: WalletMemberStatus.ACCEPTED,
-      });
+      walletsService.getMemberRole.mockResolvedValue(WalletMemberRole.VIEWER);
       await expect(service.createAccount(USER, dto as any)).rejects.toBeInstanceOf(
         AccountAccessDeniedException,
       );
@@ -155,7 +158,14 @@ describe('AccountsService', () => {
       accountRepo.findPaged.mockResolvedValue([[makeAccount()], 1]);
       const res = await service.listAccounts(USER, { page: 1, limit: 10, isArchived: false } as any);
       expect(res.items).toHaveLength(1);
-      expect(res.meta).toEqual({ page: 1, limit: 10, total: 1, totalPages: 1 });
+      expect(res.pagination).toEqual({
+        page: 1,
+        limit: 10,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      });
     });
 
     it('từ chối khi lọc theo wallet ngoài phạm vi quyền', async () => {
@@ -173,11 +183,7 @@ describe('AccountsService', () => {
 
     it('viewer vẫn xem được chi tiết', async () => {
       accountRepo.findById.mockResolvedValue(makeAccount());
-      walletRepo.findById.mockResolvedValue({ id: 'w1', ownerId: 'other' });
-      walletMemberRepo.findByWalletAndUser.mockResolvedValue({
-        role: WalletMemberRole.VIEWER,
-        status: WalletMemberStatus.ACCEPTED,
-      });
+      walletsService.getMemberRole.mockResolvedValue(WalletMemberRole.VIEWER);
       const res = await service.getAccount(USER, 'a1');
       expect(res.id).toBe('a1');
     });
@@ -204,8 +210,17 @@ describe('AccountsService', () => {
       );
     });
 
-    it('từ chối đổi tiền tệ khi còn số dư', async () => {
-      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ balance: 5000 }));
+    it('từ chối đổi tiền tệ khác với tiền tệ của ví', async () => {
+      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ balance: 0 }));
+      await expect(
+        service.updateAccount(USER, 'a1', { currency: 'USD' } as any),
+      ).rejects.toBeInstanceOf(AccountCurrencyMismatchWalletException);
+      expect(accountRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('từ chối đổi tiền tệ khi còn số dư dù tiền tệ trùng với ví', async () => {
+      walletsService.findById.mockResolvedValue({ ...WALLET, defaultCurrency: 'USD' });
+      accountRepo.findByIdForUpdate.mockResolvedValue(makeAccount({ currency: 'VND', balance: 5000 }));
       await expect(
         service.updateAccount(USER, 'a1', { currency: 'USD' } as any),
       ).rejects.toBeInstanceOf(AccountCurrencyChangeNotAllowedException);

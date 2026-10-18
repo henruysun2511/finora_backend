@@ -1,31 +1,30 @@
-// src/modules/accounts/accounts.service.ts
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { AccountRepository } from './repository/account.repository';
 import { AccountBalanceAdjustmentRepository } from './repository/account-balance-adjustment.repository';
-import { WalletRepository } from '../wallets/repository/wallet.repository';
-import { WalletMemberRepository } from '../wallets/repository/wallet-member.repository';
+import { WalletsService } from '../wallets/wallets.service';
+import { Wallet } from '../wallets/entities/wallet.entity';
 import { AccountMapper } from './mapper/account.mapper';
 import { CreateAccountDto } from './dto/request/create-account.dto';
 import { UpdateAccountDto } from './dto/request/update-account.dto';
 import { AccountQueryDto } from './dto/request/account-query.dto';
 import { AdjustBalanceDto } from './dto/request/adjust-balance.dto';
+import { AccountResponseDto } from './dto/response/account-response.dto';
+import { PaginatedResponse } from '../../common/response/api-response';
 import { ACCOUNT_WRITE_ROLES } from './accounts.constant';
 import {
   AccountAccessDeniedException,
   AccountArchivedException,
   AccountCurrencyChangeNotAllowedException,
+  AccountCurrencyMismatchWalletException,
   AccountHasTransactionsException,
   AccountInsufficientBalanceException,
   AccountNameAlreadyExistsException,
   AccountNotFoundException,
+  AccountSameSourceAndDestinationException,
   AccountWalletNotFoundException,
   IdempotencyKeyRequiredException,
 } from './exceptions/account.exception';
-import {
-  WalletMemberRole,
-  WalletMemberStatus,
-} from '../../common/enums/wallet-member-role.enum';
 import { BalanceDirection } from '../../common/enums/balance-direction.enum';
 
 type AccessMode = 'read' | 'write';
@@ -38,36 +37,27 @@ export class AccountsService {
     private readonly dataSource: DataSource,
     private readonly accountRepo: AccountRepository,
     private readonly adjustmentRepo: AccountBalanceAdjustmentRepository,
-    private readonly walletRepo: WalletRepository,
-    private readonly walletMemberRepo: WalletMemberRepository,
+    private readonly walletsService: WalletsService,
     private readonly accountMapper: AccountMapper,
   ) {}
 
   // ---------------------------------------------------------------- helpers
 
-  /** Ném lỗi nếu ví không tồn tại hoặc user không đủ quyền. */
+  /** Ném lỗi nếu ví không tồn tại hoặc user không đủ quyền. Trả về Wallet entity. */
   private async assertWalletAccess(
     walletId: string,
     userId: string,
     mode: AccessMode,
-  ): Promise<void> {
-    const wallet = await this.walletRepo.findById(walletId);
+  ): Promise<Wallet> {
+    const wallet = await this.walletsService.findById(walletId);
     if (!wallet) throw new AccountWalletNotFoundException(walletId);
 
-    let role: WalletMemberRole | null = null;
-    if (wallet.ownerId === userId) {
-      role = WalletMemberRole.OWNER;
-    } else {
-      const member = await this.walletMemberRepo.findByWalletAndUser(walletId, userId);
-      if (member && member.status === WalletMemberStatus.ACCEPTED) {
-        role = member.role;
-      }
-    }
-
+    const role = await this.walletsService.getMemberRole(walletId, userId);
     if (!role) throw new AccountAccessDeniedException(walletId);
     if (mode === 'write' && !ACCOUNT_WRITE_ROLES.includes(role)) {
       throw new AccountAccessDeniedException(walletId);
     }
+    return wallet;
   }
 
   private async getAccountWithAccess(accountId: string, userId: string, mode: AccessMode) {
@@ -85,7 +75,17 @@ export class AccountsService {
       if (existed) return this.accountMapper.toDetail(existed);
     }
 
-    await this.assertWalletAccess(dto.walletId, userId, 'write');
+    const wallet = await this.assertWalletAccess(dto.walletId, userId, 'write');
+
+    // Rule: 1 Ví chỉ chứa các Tài khoản cùng loại tiền tệ
+    const walletCurrency = (wallet.defaultCurrency ?? 'VND').toUpperCase();
+    if (dto.currency && dto.currency.toUpperCase() !== walletCurrency) {
+      throw new AccountCurrencyMismatchWalletException(
+        dto.currency.toUpperCase(),
+        walletCurrency,
+      );
+    }
+    const resolvedCurrency = (dto.currency ?? walletCurrency).toUpperCase();
 
     const duplicated = await this.accountRepo.findByWalletAndName(dto.walletId, dto.name);
     if (duplicated) throw new AccountNameAlreadyExistsException(dto.name);
@@ -93,7 +93,7 @@ export class AccountsService {
     try {
       return await this.dataSource.transaction(async (manager) => {
         const account = this.accountRepo.create(
-          this.accountMapper.toEntity(dto, userId, idempotencyKey),
+          this.accountMapper.toEntity(dto, userId, idempotencyKey, resolvedCurrency),
         );
         const saved = await this.accountRepo.save(account, manager);
         return this.accountMapper.toDetail(saved);
@@ -110,9 +110,11 @@ export class AccountsService {
 
   // ---------------------------------------------------------------- read
 
-  async listAccounts(userId: string, query: AccountQueryDto) {
-    const wallets = await this.walletRepo.findWalletsByUserId(userId);
-    let walletIds = wallets.map((w) => w.id);
+  async listAccounts(
+    userId: string,
+    query: AccountQueryDto,
+  ): Promise<PaginatedResponse<AccountResponseDto>> {
+    let walletIds = await this.walletsService.getUserWalletIds(userId);
 
     if (query.walletId) {
       if (!walletIds.includes(query.walletId)) {
@@ -122,15 +124,12 @@ export class AccountsService {
     }
 
     const [accounts, total] = await this.accountRepo.findPaged(query, walletIds);
-    return {
-      items: accounts.map((a) => this.accountMapper.toResponse(a)),
-      meta: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.ceil(total / query.limit),
-      },
-    };
+    return PaginatedResponse.of(
+      accounts.map((a) => this.accountMapper.toResponse(a)),
+      total,
+      query.page,
+      query.limit,
+    );
   }
 
   async getAccount(userId: string, accountId: string) {
@@ -149,7 +148,7 @@ export class AccountsService {
     return this.dataSource.transaction(async (manager) => {
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
       if (!account) throw new AccountNotFoundException(accountId);
-      await this.assertWalletAccess(account.walletId, userId, 'write');
+      const wallet = await this.assertWalletAccess(account.walletId, userId, 'write');
 
       if (account.isArchived) throw new AccountArchivedException(accountId);
 
@@ -160,12 +159,20 @@ export class AccountsService {
         }
       }
 
-      if (dto.currency !== undefined && dto.currency !== account.currency) {
+      if (dto.currency !== undefined && dto.currency.toUpperCase() !== account.currency.toUpperCase()) {
+        const walletCurrency = (wallet.defaultCurrency ?? 'VND').toUpperCase();
+        if (dto.currency.toUpperCase() !== walletCurrency) {
+          throw new AccountCurrencyMismatchWalletException(
+            dto.currency.toUpperCase(),
+            walletCurrency,
+          );
+        }
+
         const hasHistory = await this.accountRepo.hasFinancialHistory(account.id, manager);
         if (account.balance !== 0 || hasHistory) {
           throw new AccountCurrencyChangeNotAllowedException(accountId);
         }
-        account.currency = dto.currency;
+        account.currency = dto.currency.toUpperCase();
       }
 
       if (dto.name !== undefined) account.name = dto.name;
@@ -271,4 +278,123 @@ export class AccountsService {
       return this.accountMapper.toAdjustmentResponse(saved, account.currency);
     });
   }
-}
+
+  // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
+
+  /**
+   * [CROSS-MODULE] Tìm entity Account theo ID.
+   * Dùng cho TransactionsService, TransfersService... kiểm tra tài khoản hợp lệ.
+   *
+   * @param id - UUID của tài khoản
+   * @returns Account entity hoặc null nếu không tồn tại
+   */
+  async findById(id: string) {
+    return this.accountRepo.findById(id);
+  }
+
+  /**
+   * [CROSS-MODULE] Xác thực tính hợp lệ của tài khoản nguồn & đích cho giao dịch chuyển tiền.
+   * Kiểm tra tồn tại, không trùng nhau, không bị lưu trữ, và user có quyền ghi trên cả 2 ví.
+   *
+   * @param userId - UUID của người dùng thực hiện
+   * @param fromAccountId - UUID tài khoản nguồn
+   * @param toAccountId - UUID tài khoản đích
+   * @returns { fromAccount, toAccount }
+   */
+  async validateTransferAccounts(userId: string, fromAccountId: string, toAccountId: string) {
+    if (fromAccountId === toAccountId) {
+      throw new AccountSameSourceAndDestinationException(fromAccountId);
+    }
+
+    const fromAccount = await this.accountRepo.findById(fromAccountId);
+    if (!fromAccount) throw new AccountNotFoundException(fromAccountId);
+
+    const toAccount = await this.accountRepo.findById(toAccountId);
+    if (!toAccount) throw new AccountNotFoundException(toAccountId);
+
+    if (fromAccount.isArchived) throw new AccountArchivedException(fromAccountId);
+    if (toAccount.isArchived) throw new AccountArchivedException(toAccountId);
+
+    await this.assertWalletAccess(fromAccount.walletId, userId, 'write');
+    await this.assertWalletAccess(toAccount.walletId, userId, 'write');
+
+    return { fromAccount, toAccount };
+  }
+
+  /**
+   * [CROSS-MODULE] Thực thi cập nhật số dư 2 tài khoản (và tài khoản phí nếu có) trong transaction.
+   * Khóa dòng tài khoản theo thứ tự UUID tăng dần để ngăn ngừa hoàn toàn deadlock.
+   *
+   * @param params - Thông tin số tiền nguồn, đích và phí
+   * @param manager - TypeORM EntityManager của transaction hiện tại
+   */
+  async executeTransferBalances(
+    params: {
+      fromAccountId: string;
+      toAccountId: string;
+      fromAmount: number;
+      toAmount: number;
+      fee?: number;
+      feeAccountId?: string;
+    },
+    manager: EntityManager,
+  ) {
+    const { fromAccountId, toAccountId, fromAmount, toAmount, fee = 0, feeAccountId } = params;
+
+    // Sắp xếp các ID theo thứ tự alphabet để tránh deadlock giữa 2 giao dịch song song
+    const idsToLock = Array.from(
+      new Set([fromAccountId, toAccountId, feeAccountId].filter(Boolean) as string[]),
+    ).sort();
+
+    const accountMap = new Map<string, any>();
+    for (const id of idsToLock) {
+      const acc = await this.accountRepo.findByIdForUpdate(id, manager);
+      if (!acc) throw new AccountNotFoundException(id);
+      if (acc.isArchived) throw new AccountArchivedException(id);
+      accountMap.set(id, acc);
+    }
+
+    const fromAcc = accountMap.get(fromAccountId);
+    const toAcc = accountMap.get(toAccountId);
+
+    // Tính tổng số tiền bị trừ từ tài khoản nguồn
+    const deductFromSource =
+      feeAccountId && feeAccountId !== fromAccountId ? fromAmount : round2(fromAmount + fee);
+
+    if (fromAcc.balance < deductFromSource) {
+      throw new AccountInsufficientBalanceException(fromAcc.balance, deductFromSource);
+    }
+
+    // Nếu trừ phí từ tài khoản riêng biệt
+    if (fee > 0 && feeAccountId && feeAccountId !== fromAccountId) {
+      const feeAcc = accountMap.get(feeAccountId);
+      if (feeAcc.balance < fee) {
+        throw new AccountInsufficientBalanceException(feeAcc.balance, fee);
+      }
+      feeAcc.balance = round2(feeAcc.balance - fee);
+      await this.accountRepo.save(feeAcc, manager);
+    }
+
+    fromAcc.balance = round2(fromAcc.balance - deductFromSource);
+    toAcc.balance = round2(toAcc.balance + toAmount);
+
+    await this.accountRepo.save(fromAcc, manager);
+    await this.accountRepo.save(toAcc, manager);
+
+    return {
+      fromBalanceAfter: fromAcc.balance,
+      toBalanceAfter: toAcc.balance,
+    };
+  }
+
+  /**
+   * [CROSS-MODULE] Lấy danh sách ID các tài khoản mà user có quyền truy cập (thông qua các ví của user).
+   *
+   * @param userId - UUID người dùng
+   * @returns Danh sách account ID
+   */
+  async getUserAccessibleAccountIds(userId: string): Promise<string[]> {
+    const walletIds = await this.walletsService.getUserWalletIds(userId);
+    return this.accountRepo.findAccountIdsByWalletIds(walletIds);
+  }
+}

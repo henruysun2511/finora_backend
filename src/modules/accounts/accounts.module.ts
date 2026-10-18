@@ -19,6 +19,6 @@ import { WalletsModule } from '../wallets/wallets.module';
     AccountBalanceAdjustmentRepository,
     AccountMapper,
   ],
-  exports: [AccountsService, AccountRepository],
+  exports: [AccountsService],
 })
 export class AccountsModule {}

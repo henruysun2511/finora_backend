@@ -1,12 +1,15 @@
 import { Module, ClassSerializerInterceptor } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { DatabaseModule } from './shared/database/database.module';
-import { ProductsModule } from './modules/sample/products.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
+import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
+import { TransfersModule } from './modules/transfers/transfers.module';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import { AccountsModule } from './modules/accounts/accounts.module';
     AuthorizationModule,
     AuthModule,
     WalletsModule,
+    AccountsModule,
+    ExchangeRatesModule,
+    TransfersModule,
   ],
 
   providers: [
@@ -22,6 +28,15 @@ import { AccountsModule } from './modules/accounts/accounts.module';
       provide: APP_INTERCEPTOR,
       useClass: ClassSerializerInterceptor,
     },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
+    },
   ],
 })
 export class AppModule {}
+
