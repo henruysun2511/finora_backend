@@ -95,7 +95,7 @@ flowchart TD
   - Tùy chọn nhập `note`: Lý do đề xuất (ví dụ: *"Hôm nay mình ăn chay chỉ gọi rau 30k"*).
 - Khi có đề xuất, phiên chia chưa thể hoàn tất. Chủ giao dịch nhận được thông báo phản hồi và có thể:
   1. Chấp nhận đề xuất: Hệ thống điều chỉnh lại mức chia của bạn đó và cộng/trừ phần chênh lệch vào phần của chủ hoặc những người còn lại.
-  2. Từ chối đề xuất: Giữ nguyên hoặc trao đổi lại qua chat trực tiếp ([`DirectMessage`](file:///f:/Project/FINORA/finora_be/src/modules/social/entities/direct-message.entity.ts)).
+  2. Từ chối đề xuất: Giữ nguyên hoặc trao đổi lại qua chat trực tiếp ([`DirectMessage`](file:///f:/Project/FINORA/finora_be/src/modules/messages/entities/direct-message.entity.ts)).
 
 ### 4.3. Quy tắc Đồng thuận Tuyệt đối (100% Consensus)
 - Giao dịch **chỉ được phép chuyển sang trạng thái sẵn sàng chốt (`all_accepted`)** khi và chỉ khi:

@@ -7,7 +7,7 @@ import {
   Unique,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { ReactionEmoji } from '../../../modules/social/enums/reaction-emoji.enum';
+import { ReactionEmoji } from '../../../common/enums/reaction-emoji.enum';
 import { DirectMessage } from './direct-message.entity';
 import { User } from '../../users/entities/user.entity';
 
