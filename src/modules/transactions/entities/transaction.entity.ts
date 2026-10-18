@@ -16,7 +16,7 @@ import { PhotoType } from '../enums/photo-type.enum';
 import { Account } from '../../accounts/entities/account.entity';
 import { Category } from '../../categories/entities/category.entity';
 import { User } from '../../users/entities/user.entity';
-import { DecimalTransformer } from 'common/utils/decimal.transformer';
+import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 
 
 @Entity('transactions')
