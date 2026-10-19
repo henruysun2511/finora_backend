@@ -1,20 +1,34 @@
-// src/modules/friends/friends.service.ts
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
-import { DataSource, ILike, Not, Brackets } from 'typeorm';
-import { FriendshipRepository } from './repository/friends.repository';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
+import { DataSource, ILike, Not } from 'typeorm';
+import { FriendshipRepository } from './repositories/friendship.repository';
 import { FriendMapper } from './mapper/friends.mapper';
 import { FriendshipStatus } from './enums/friendship-status.enum';
 import { SendFriendRequestDto } from './dto/request/send-friend-request.dto';
 import { FriendQueryDto } from './dto/request/friend-query.dto';
 import { SearchUserQueryDto } from './dto/request/search-user-query.dto';
-import { 
-  CannotFriendSelfException, 
-  FriendRequestAlreadyExistsException, 
-  AlreadyFriendsException, 
-  UserBlockedException, 
-  FriendshipNotFoundException 
+import {
+  PendingRequestQueryDto,
+  PendingRequestType,
+} from './dto/request/pending-request-query.dto';
+import { FriendResponseDto } from './dto/response/friend-response.dto';
+import { PendingFriendRequestResponseDto } from './dto/response/pending-request-response.dto';
+import { SearchUserResultDto } from './dto/response/search-user-response.dto';
+import { FriendshipStatusResponseDto } from './dto/response/friend-status-response.dto';
+import {
+  CannotFriendSelfException,
+  FriendRequestAlreadyExistsException,
+  AlreadyFriendsException,
+  UserBlockedException,
+  FriendshipNotFoundException,
 } from './exceptions/friends.exception';
 import { User } from '../users/entities/user.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/enums/notification-type.enum';
+import { CreateNotificationDto } from '../notifications/dto/request/create-notification.dto';
 
 @Injectable()
 export class FriendsService {
@@ -22,13 +36,21 @@ export class FriendsService {
     private readonly dataSource: DataSource,
     private readonly friendshipRepo: FriendshipRepository,
     private readonly friendMapper: FriendMapper,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
-  // 1. GET /api/v1/friends/search — Tìm kiếm người dùng
-  async searchUsers(currentUserId: string, queryDto: SearchUserQueryDto) {
+  // ── 1. TÌM KIẾM NGƯỜI DÙNG ─────────────────────────────────────────────────
+
+  /**
+   * Tìm kiếm người dùng theo từ khóa và xác định trạng thái quan hệ với người tìm kiếm.
+   * [TỐI ƯU HÓA]: Gom quan hệ của toàn bộ danh sách tìm thấy trong 1 query duy nhất (khử N+1).
+   */
+  async searchUsers(
+    currentUserId: string,
+    queryDto: SearchUserQueryDto,
+  ): Promise<SearchUserResultDto[]> {
     const keyword = queryDto.query ? `%${queryDto.query}%` : '%';
-    
-    // Lấy danh sách user khớp từ khóa nhưng loại trừ chính mình
+
     const userRepository = this.dataSource.getRepository(User);
     const users = await userRepository.find({
       where: [
@@ -38,32 +60,60 @@ export class FriendsService {
       take: 20,
     });
 
-    // Lấy kèm trạng thái quan hệ với currentUserId để UI hiển thị nút tương ứng (Kết bạn, Đã gửi, Bạn bè...)
-    const results = await Promise.all(
-      users.map(async (user) => {
-        const relation = await this.friendshipRepo.findBetweenUsers(currentUserId, user.id);
-        let relationStatus: string = 'NONE';
-        if (relation) {
-          if (relation.status === FriendshipStatus.ACCEPTED) relationStatus = 'ACCEPTED';
-          else if (relation.status === FriendshipStatus.PENDING) {
-            relationStatus = relation.requesterId === currentUserId ? 'PENDING_SENT' : 'PENDING_RECEIVED';
-          } else if (relation.status === FriendshipStatus.BLOCKED) relationStatus = 'BLOCKED';
-        }
-        return {
-          id: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          avatar: user.avatar,
-          relationStatus,
-        };
-      }),
+    if (users.length === 0) {
+      return [];
+    }
+
+    const userIds = users.map((u) => u.id);
+    const relations = await this.friendshipRepo.findRelationsBetweenUserAndMany(
+      currentUserId,
+      userIds,
     );
 
-    return results;
+    // Lập bản đồ tra cứu quan hệ theo targetUserId (O(1) lookup)
+    const relationMap = new Map<string, (typeof relations)[0]>();
+    for (const rel of relations) {
+      const otherUserId = rel.requesterId === currentUserId ? rel.addresseeId : rel.requesterId;
+      relationMap.set(otherUserId, rel);
+    }
+
+    return users.map((user) => {
+      const relation = relationMap.get(user.id);
+      let relationStatus = 'NONE';
+
+      if (relation) {
+        if (relation.status === FriendshipStatus.ACCEPTED) {
+          relationStatus = 'ACCEPTED';
+        } else if (relation.status === FriendshipStatus.PENDING) {
+          relationStatus =
+            relation.requesterId === currentUserId ? 'PENDING_SENT' : 'PENDING_RECEIVED';
+        } else if (relation.status === FriendshipStatus.BLOCKED) {
+          relationStatus = 'BLOCKED';
+        }
+      }
+
+      return {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        avatar: user.avatar ?? null,
+        relationStatus,
+      };
+    });
   }
 
-  // 2. POST /api/v1/friends/request — Gửi lời mời kết bạn (Xử lý Auto-Accept nếu có thuận chiều ngược lại)
-  async sendRequest(requesterId: string, dto: SendFriendRequestDto) {
+  // ── 2. GỬI LỜI MỜI KẾT BẠN ────────────────────────────────────────────────
+
+  /**
+   * Gửi lời mời kết bạn.
+   * Xử lý Auto-Accept nếu người kia đã gửi lời mời trước đó.
+   * Gửi thông báo realtime (FRIEND_REQUEST hoặc FRIEND_ACCEPTED).
+   */
+  async sendRequest(
+    requesterId: string,
+    requesterFullName: string,
+    dto: SendFriendRequestDto,
+  ) {
     const addresseeId = dto.addresseeId;
     if (requesterId === addresseeId) {
       throw new CannotFriendSelfException();
@@ -78,15 +128,26 @@ export class FriendsService {
       if (existing.status === FriendshipStatus.ACCEPTED) {
         throw new AlreadyFriendsException();
       }
-      // Ràng buộc Anti-Spam & Auto-Accept:
       if (existing.status === FriendshipStatus.PENDING) {
         if (existing.requesterId === requesterId) {
           throw new FriendRequestAlreadyExistsException();
         } else {
-          // B đã gửi cho A trước đó, giờ A gửi lại -> Tự động chuyển thành ACCEPTED
+          // B đã gửi cho A trước đó, giờ A gửi lại -> Auto-Accept
           existing.status = FriendshipStatus.ACCEPTED;
           existing.respondedAt = new Date();
-          return this.friendshipRepo.save(existing);
+          const saved = await this.friendshipRepo.save(existing);
+
+          // Bắn thông báo kết bạn thành công cho người gửi ban đầu
+          await this.sendNotificationSafe({
+            userId: existing.requesterId,
+            type: NotificationType.FRIEND_ACCEPTED,
+            title: `${requesterFullName} đã chấp nhận lời mời kết bạn`,
+            body: 'Hai bạn đã chính thức trở thành bạn bè trên FINORA',
+            relatedEntityType: 'FRIENDSHIP',
+            relatedEntityId: saved.id,
+          });
+
+          return saved;
         }
       }
     }
@@ -96,41 +157,74 @@ export class FriendsService {
       addresseeId,
       status: FriendshipStatus.PENDING,
     });
-    return this.friendshipRepo.save(friendship);
+    const saved = await this.friendshipRepo.save(friendship);
+
+    // Bắn thông báo lời mời kết bạn mới cho người nhận
+    await this.sendNotificationSafe({
+      userId: addresseeId,
+      type: NotificationType.FRIEND_REQUEST,
+      title: `${requesterFullName} vừa gửi cho bạn một lời mời kết bạn`,
+      body: 'Nhấn để xem và phản hồi lời mời kết bạn',
+      relatedEntityType: 'FRIENDSHIP',
+      relatedEntityId: saved.id,
+    });
+
+    return saved;
   }
 
-  // 3. GET /api/v1/friends/pending-requests — Xem lời mời đang chờ
-  async getPendingRequests(userId: string) {
-    const requests = await this.friendshipRepo.findPendingRequests(userId);
-    return requests.map((req) => ({
-      id: req.id,
-      requester: {
-        id: req.requester.id,
-        fullName: req.requester.fullName,
-        email: req.requester.email,
-        avatar: req.requester.avatar,
-      },
-      createdAt: req.createdAt,
-    }));
+  // ── 3. DANH SÁCH LỜI MỜI ĐANG CHỜ ─────────────────────────────────────────
+
+  /**
+   * Xem danh sách lời mời kết bạn đang chờ phản hồi.
+   * Hỗ trợ lọc theo lời mời nhận được (received) hoặc lời mời đã gửi đi (sent).
+   */
+  async getPendingRequests(
+    userId: string,
+    query: PendingRequestQueryDto,
+  ): Promise<PendingFriendRequestResponseDto[]> {
+    const type = query.type ?? PendingRequestType.RECEIVED;
+    const requests = await this.friendshipRepo.findPendingRequests(userId, type);
+
+    return requests.map((req) => this.friendMapper.toPendingRequestResponse(req, userId));
   }
 
-  // 4. POST /api/v1/friends/request/:id/accept — Chấp nhận kết bạn
-  async acceptRequest(userId: string, friendshipId: string) {
+  // ── 4. CHẤP NHẬN KẾT BẠN ──────────────────────────────────────────────────
+
+  /**
+   * Người nhận (addressee) chấp nhận lời mời kết bạn.
+   * Gửi thông báo FRIEND_ACCEPTED cho người gửi lời mời ban đầu.
+   */
+  async acceptRequest(userId: string, userFullName: string, friendshipId: string) {
     const friendship = await this.friendshipRepo.findById(friendshipId);
     if (!friendship || friendship.status !== FriendshipStatus.PENDING) {
       throw new FriendshipNotFoundException();
     }
-    // Chỉ người nhận (addressee) mới có quyền accept
     if (friendship.addresseeId !== userId) {
       throw new ForbiddenException('Bạn không có quyền chấp nhận lời mời này');
     }
 
     friendship.status = FriendshipStatus.ACCEPTED;
     friendship.respondedAt = new Date();
-    return this.friendshipRepo.save(friendship);
+    const saved = await this.friendshipRepo.save(friendship);
+
+    // Bắn thông báo cho người gửi ban đầu
+    await this.sendNotificationSafe({
+      userId: friendship.requesterId,
+      type: NotificationType.FRIEND_ACCEPTED,
+      title: `${userFullName} đã chấp nhận lời mời kết bạn của bạn`,
+      body: 'Hai bạn đã chính thức trở thành bạn bè trên FINORA',
+      relatedEntityType: 'FRIENDSHIP',
+      relatedEntityId: saved.id,
+    });
+
+    return saved;
   }
 
-  // 5. POST /api/v1/friends/request/:id/reject — Từ chối kết bạn
+  // ── 5. TỪ CHỐI KẾT BẠN ────────────────────────────────────────────────────
+
+  /**
+   * Người nhận (addressee) từ chối lời mời kết bạn.
+   */
   async rejectRequest(userId: string, friendshipId: string) {
     const friendship = await this.friendshipRepo.findById(friendshipId);
     if (!friendship || friendship.status !== FriendshipStatus.PENDING) {
@@ -145,27 +239,30 @@ export class FriendsService {
     return this.friendshipRepo.save(friendship);
   }
 
-  // 6. GET /api/v1/friends — Lấy danh bạ bạn bè (Phân trang)
-  async getFriends(userId: string, queryDto: FriendQueryDto) {
+  // ── 6. LẤY DANH BẠ BẠN BÈ ─────────────────────────────────────────────────
+
+  /**
+   * Lấy danh sách bạn bè đã chấp nhận kết bạn (ACCEPTED) có phân trang.
+   */
+  async getFriends(
+    userId: string,
+    queryDto: FriendQueryDto,
+  ): Promise<{ items: FriendResponseDto[]; total: number }> {
     const page = queryDto.page ?? 1;
     const limit = queryDto.limit ?? 10;
     const skip = (page - 1) * limit;
 
-    const { items, total } = await this.friendshipRepo.findFriendsPaged(userId, skip, limit);
-    const data = items.map((friendship) => this.friendMapper.toFriendResponse(friendship, userId));
+    const [items, total] = await this.friendshipRepo.findFriendsPaged(userId, skip, limit);
+    const data = items.map((f) => this.friendMapper.toFriendResponse(f, userId));
 
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    return { items: data, total };
   }
 
-  // 7. DELETE /api/v1/friends/:id — Hủy kết bạn (Xóa quan hệ)
+  // ── 7. HỦY KẾT BẠN ───────────────────────────────────────────────────────
+
+  /**
+   * Hủy kết bạn giữa 2 người dùng.
+   */
   async unfriend(userId: string, friendId: string) {
     const friendship = await this.friendshipRepo.findBetweenUsers(userId, friendId);
     if (!friendship || friendship.status !== FriendshipStatus.ACCEPTED) {
@@ -175,7 +272,11 @@ export class FriendsService {
     return { success: true };
   }
 
-  // 8. POST /api/v1/friends/:id/block — Chặn người dùng
+  // ── 8. CHẶN NGƯỜI DÙNG ───────────────────────────────────────────────────
+
+  /**
+   * Chặn người dùng (Block).
+   */
   async blockUser(userId: string, targetUserId: string) {
     if (userId === targetUserId) {
       throw new BadRequestException('Không thể tự chặn chính mình');
@@ -190,15 +291,21 @@ export class FriendsService {
       });
     } else {
       friendship.status = FriendshipStatus.BLOCKED;
-      // Đảm bảo requesterId là người thực hiện chặn nếu cần, hoặc cập nhật linh hoạt
       friendship.requesterId = userId;
       friendship.addresseeId = targetUserId;
     }
     return this.friendshipRepo.save(friendship);
   }
 
-  // 9. GET /api/v1/friends/:targetUserId/status — Kiểm tra trạng thái quan hệ
-  async getStatus(userId: string, targetUserId: string) {
+  // ── 9. KIỂM TRA TRẠNG THÁI QUAN HỆ ────────────────────────────────────────
+
+  /**
+   * Kiểm tra trạng thái quan hệ giữa user hiện tại và targetUserId.
+   */
+  async getStatus(
+    userId: string,
+    targetUserId: string,
+  ): Promise<FriendshipStatusResponseDto> {
     const friendship = await this.friendshipRepo.findBetweenUsers(userId, targetUserId);
     if (!friendship) {
       return { status: null, isRequester: false };
@@ -209,9 +316,37 @@ export class FriendsService {
     };
   }
 
-  // Cross-module method cho Feed & Transactions gọi kiểm tra quyền xem bài
+  // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
+
+  /**
+   * [CROSS-MODULE] Lấy danh sách UUID bạn bè đã chấp nhận (ACCEPTED) của một user.
+   * Dùng cho FeedService dựng bảng tin và gửi thông báo chia sẻ bài đăng.
+   */
+  async getAcceptedFriendIds(userId: string): Promise<string[]> {
+    const friendships = await this.friendshipRepo.findAcceptedByUserId(userId);
+    return friendships.map((f) =>
+      f.requesterId === userId ? f.addresseeId : f.requesterId,
+    );
+  }
+
+  /**
+   * [CROSS-MODULE] Kiểm tra hai người dùng đã là bạn bè (ACCEPTED) hay chưa.
+   * Dùng cho FeedService, DirectMessages kiểm tra quyền truy cập.
+   */
   async areFriends(userA: string, userB: string): Promise<boolean> {
-    const friendship = await this.friendshipRepo.findBetweenUsers(userA, userB);
-    return friendship?.status === FriendshipStatus.ACCEPTED;
+    return this.friendshipRepo.existsAcceptedBetween(userA, userB);
+  }
+
+  // ── HELPERS ──────────────────────────────────────────────────────────────
+
+  /**
+   * Gửi thông báo an toàn: sự cố thông báo không làm gián đoạn luồng nghiệp vụ chính.
+   */
+  private async sendNotificationSafe(dto: CreateNotificationDto): Promise<void> {
+    try {
+      await this.notificationsService.createNotification(dto);
+    } catch {
+      // Bỏ qua lỗi gửi thông báo để đảm bảo tính toàn vẹn nghiệp vụ
+    }
   }
 }

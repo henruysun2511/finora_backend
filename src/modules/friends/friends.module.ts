@@ -3,13 +3,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Friendship } from './entities/friendship.entity';
 import { FriendsController } from './friends.controller';
 import { FriendsService } from './friends.service';
-import { FriendshipRepository } from './repository/friends.repository';
+import { FriendshipRepository } from './repositories/friendship.repository';
 import { FriendMapper } from './mapper/friends.mapper';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Friendship])],
+  imports: [
+    TypeOrmModule.forFeature([Friendship]),
+    NotificationsModule,
+  ],
   controllers: [FriendsController],
   providers: [FriendsService, FriendshipRepository, FriendMapper],
-  exports: [FriendsService], // Xuất service nếu module khác cần dùng areFriends
+  exports: [FriendsService],
 })
 export class FriendsModule {}
