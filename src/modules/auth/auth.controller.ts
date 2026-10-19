@@ -141,19 +141,6 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('me')
-  @SwaggerDoc({
-    summary: 'Thông tin cá nhân (Profile)',
-    description:
-      'Lấy thông tin tài khoản đang đăng nhập kèm danh sách vai trò và quyền hạn',
-    responseType: UserResponseDto,
-    bearerAuth: true,
-  })
-  async getProfile(@CurrentUser() user: UserResponseDto) {
-    return ApiResponse.success(user, 'Lấy thông tin tài khoản thành công');
-  }
-
-  @UseGuards(JwtAuthGuard)
   @Patch('change-password')
   @HttpCode(HttpStatus.OK)
   @SwaggerDoc({

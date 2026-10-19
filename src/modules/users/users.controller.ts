@@ -13,8 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/request/create-user.dto';
-import { UpdateUserDto } from './dto/request/update-user.dto';
+import { UpdateProfileDto } from './dto/request/update-profile.dto';
 import { UserQueryDto } from './dto/request/user-query.dto';
 import { AssignRoleDto } from './dto/request/assign-role.dto';
 import { UserResponseDto } from './dto/response/user.dto';
@@ -22,6 +21,7 @@ import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
 import { Permissions } from '../authorization/decorators/permissions.decorator';
 import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -29,19 +29,36 @@ import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  @Permissions(SYSTEM_PERMISSIONS.USERS_CREATE)
+  @Get('me')
   @SwaggerDoc({
-    summary: 'Tạo tài khoản người dùng mới',
-    description: 'Tạo người dùng mới trong hệ thống bằng email và mật khẩu',
+    summary: 'Thông tin cá nhân (Profile)',
+    description:
+      'Lấy thông tin tài khoản đang đăng nhập kèm danh sách vai trò và quyền hạn',
     responseType: UserResponseDto,
-    status: 201,
   })
-  async create(@Body() dto: CreateUserDto) {
-    const user = await this.usersService.create(dto);
+  async getProfile(@CurrentUser() user: UserResponseDto) {
     return new ApiResponse({
-      statusCode: HttpStatus.CREATED,
-      message: 'Tạo tài khoản người dùng thành công',
+      statusCode: HttpStatus.OK,
+      message: 'Lấy thông tin tài khoản thành công',
+      data: user,
+    });
+  }
+
+  @Patch('profile')
+  @SwaggerDoc({
+    summary: 'Cập nhật thông tin cá nhân (Profile)',
+    description:
+      'Người dùng tự cập nhật họ tên, số điện thoại hoặc ảnh đại diện của chính mình',
+    responseType: UserResponseDto,
+  })
+  async updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    const user = await this.usersService.updateProfile(userId, dto);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: 'Cập nhật thông tin cá nhân thành công',
       data: user,
     });
   }
@@ -70,26 +87,6 @@ export class UsersController {
     return new ApiResponse({
       statusCode: HttpStatus.OK,
       message: 'Lấy thông tin người dùng thành công',
-      data: user,
-    });
-  }
-
-  @Patch(':id')
-  @Permissions(SYSTEM_PERMISSIONS.USERS_UPDATE)
-  @SwaggerDoc({
-    summary: 'Cập nhật thông tin người dùng',
-    description:
-      'Cập nhật họ tên, mật khẩu, số điện thoại, avatar hoặc trạng thái',
-    responseType: UserResponseDto,
-  })
-  async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateUserDto,
-  ) {
-    const user = await this.usersService.update(id, dto);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: 'Cập nhật thông tin người dùng thành công',
       data: user,
     });
   }
