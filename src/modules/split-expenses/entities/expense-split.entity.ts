@@ -11,7 +11,7 @@ import { BaseEntity } from '../../../common/entities/base.entity';
 import { SplitType } from '../enums/split-type.enum';
 import { SplitStatus } from '../enums/split-status.enum';
 import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
-import { Transaction } from './transaction.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
 import { Wallet } from '../../wallets/entities/wallet.entity';
 import { User } from '../../users/entities/user.entity';
 

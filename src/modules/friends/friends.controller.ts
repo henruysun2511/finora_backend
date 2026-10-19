@@ -30,7 +30,7 @@ import { PendingFriendRequestResponseDto } from './dto/response/pending-request-
 import { FriendshipStatusResponseDto } from './dto/response/friend-status-response.dto';
 
 @ApiTags('Friends')
-@Controller('api/v1/friends')
+@Controller('friends')
 @UseGuards(JwtAuthGuard)
 export class FriendsController {
   constructor(private readonly friendsService: FriendsService) {}

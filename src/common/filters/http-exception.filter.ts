@@ -24,17 +24,40 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode = exception.getStatus();
       const exRes = exception.getResponse();
 
-      if (typeof exRes === 'object' && 'code' in (exRes as object)) {
+      if (typeof exRes === 'object' && exRes !== null && 'code' in exRes) {
         body = exRes as Record<string, unknown>;
+      } else if (typeof exRes === 'object' && exRes !== null) {
+        const rawRes = exRes as Record<string, unknown>;
+        const rawMessage = rawRes.message;
+
+        if (Array.isArray(rawMessage)) {
+          // Lỗi Validation từ ValidationPipe (Class-Validator)
+          body = {
+            success: false,
+            statusCode,
+            code: 'VALIDATION_ERROR',
+            message: 'Dữ liệu không hợp lệ',
+            errors: rawMessage,
+            timestamp: new Date().toISOString(),
+          };
+        } else {
+          body = {
+            success: false,
+            statusCode,
+            code:
+              typeof rawRes.error === 'string'
+                ? rawRes.error.toUpperCase().replace(/\s+/g, '_')
+                : 'HTTP_EXCEPTION',
+            message: typeof rawMessage === 'string' ? rawMessage : 'Error',
+            timestamp: new Date().toISOString(),
+          };
+        }
       } else {
         body = {
           success: false,
           statusCode,
           code: 'HTTP_EXCEPTION',
-          message:
-            typeof exRes === 'string'
-              ? exRes
-              : String((exRes as Record<string, unknown>).message ?? 'Error'),
+          message: typeof exRes === 'string' ? exRes : 'Error',
           timestamp: new Date().toISOString(),
         };
       }
