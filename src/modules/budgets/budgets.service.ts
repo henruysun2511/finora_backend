@@ -15,6 +15,8 @@ import { BudgetStatusResponseDto } from './dto/response/budget-status-response.d
 import { BudgetResponseDto } from './dto/response/budget-response.dto';
 import { BudgetPeriod } from './entities/budget-period.entity';
 import { Budget } from './entities/budget.entity';
+import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
+import { Optional } from '@nestjs/common';
 import {
   BudgetDuplicateException,
   BudgetNotFoundException,
@@ -35,6 +37,8 @@ export interface BudgetAlertEvent {
   walletId: string;
   categoryName: string;
   percentage: number;
+  spentAmount?: number;
+  effectiveLimit?: number;
   type: NotificationType.BUDGET_WARNING | NotificationType.BUDGET_EXCEEDED;
 }
 
@@ -42,6 +46,7 @@ export interface TransactionBudgetImpact {
   walletId: string;
   categoryId: string;
   amount: number;
+  currency?: string;
   type: TransactionType;
   transactionDate: Date;
 }
@@ -56,6 +61,8 @@ export class BudgetsService {
     private readonly categoriesService: CategoriesService,
     private readonly notificationsService: NotificationsService,
     private readonly mapper: BudgetMapper,
+    @Optional()
+    private readonly exchangeRatesService?: ExchangeRatesService,
   ) {}
 
   async createBudget(userId: string, dto: CreateBudgetDto) {
@@ -334,13 +341,30 @@ export class BudgetsService {
       );
       const date = item.transactionDate.toISOString().slice(0, 10);
       for (const budget of budgets) {
+        let amount = item.amount;
+        const targetCurrency = budget.wallet?.defaultCurrency;
+        if (
+          item.currency &&
+          targetCurrency &&
+          item.currency.trim().toUpperCase() !==
+            targetCurrency.trim().toUpperCase() &&
+          this.exchangeRatesService
+        ) {
+          const fx = await this.exchangeRatesService.convert(
+            item.amount,
+            item.currency,
+            targetCurrency,
+          );
+          amount = fx.convertedAmount;
+        }
+
         const period = await this.ensurePeriodThrough(budget, date, manager);
         if (!period) continue;
         const key = `${budget.id}:${period.id}`;
         const impact = impacts.get(key);
-        if (impact) impact.amountDelta += sign * item.amount;
+        if (impact) impact.amountDelta += sign * amount;
         else
-          impacts.set(key, { budget, period, amountDelta: sign * item.amount });
+          impacts.set(key, { budget, period, amountDelta: sign * amount });
       }
     }
 
@@ -366,6 +390,8 @@ export class BudgetsService {
           walletId: budget.walletId,
           categoryName: budget.category?.name ?? 'Danh mục',
           percentage: round2(percentage),
+          spentAmount: period.spentAmount,
+          effectiveLimit,
           type: NotificationType.BUDGET_WARNING,
         });
       }
@@ -381,6 +407,8 @@ export class BudgetsService {
           walletId: budget.walletId,
           categoryName: budget.category?.name ?? 'Danh mục',
           percentage: round2(percentage),
+          spentAmount: period.spentAmount,
+          effectiveLimit,
           type: NotificationType.BUDGET_EXCEEDED,
         });
       }
@@ -395,13 +423,17 @@ export class BudgetsService {
       const userIds = await this.walletsService.getAcceptedMemberUserIds(
         alert.walletId,
       );
+      const formattedLimit =
+        alert.spentAmount !== undefined && alert.effectiveLimit !== undefined
+          ? ` (${alert.spentAmount.toLocaleString()} / ${alert.effectiveLimit.toLocaleString()})`
+          : '';
       const dto: Omit<CreateNotificationDto, 'userId'> = {
         type: alert.type,
         title:
           alert.type === NotificationType.BUDGET_EXCEEDED
             ? 'Đã vượt ngân sách'
             : 'Cảnh báo ngân sách',
-        body: `Danh mục ${alert.categoryName} đã sử dụng ${alert.percentage}% hạn mức.`,
+        body: `Danh mục ${alert.categoryName} đã sử dụng ${alert.percentage}% hạn mức${formattedLimit}.`,
         relatedEntityType: 'budget',
         relatedEntityId: alert.budgetId,
       };

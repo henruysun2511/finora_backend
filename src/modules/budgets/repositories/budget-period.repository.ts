@@ -32,13 +32,13 @@ export class BudgetPeriodRepository {
       .values(data)
       .orIgnore()
       .execute();
-    const period = await repo.findOne({
-      where: {
-        budgetId: data.budgetId,
-        startDate: data.startDate,
-        endDate: data.endDate,
-      },
-    });
+    const query = repo
+      .createQueryBuilder('period')
+      .where('period.budgetId = :budgetId', { budgetId: data.budgetId })
+      .andWhere('period.startDate = :startDate', { startDate: data.startDate })
+      .andWhere('period.endDate = :endDate', { endDate: data.endDate });
+    if (manager) query.setLock('pessimistic_write');
+    const period = await query.getOne();
     if (!period) {
       throw new Error('Không thể tạo hoặc đọc lại chu kỳ ngân sách');
     }
@@ -84,11 +84,12 @@ export class BudgetPeriodRepository {
     manager?: EntityManager,
   ): Promise<BudgetPeriod[]> {
     const repo = manager ? manager.getRepository(BudgetPeriod) : this.repo;
-    return repo
+    const query = repo
       .createQueryBuilder('period')
       .where('period.budgetId = :budgetId', { budgetId })
       .andWhere('period.startDate > :startDate', { startDate })
-      .orderBy('period.startDate', 'ASC')
-      .getMany();
+      .orderBy('period.startDate', 'ASC');
+    if (manager) query.setLock('pessimistic_write');
+    return query.getMany();
   }
 }

@@ -66,7 +66,7 @@ export class BudgetRepository {
     const repo = manager ? manager.getRepository(Budget) : this.repo;
     return repo.find({
       where: { walletId, categoryId },
-      relations: ['category'],
+      relations: ['category', 'wallet'],
     });
   }
 

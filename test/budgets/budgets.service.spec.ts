@@ -22,6 +22,7 @@ describe('BudgetsService', () => {
   let periodRepo: jest.Mocked<BudgetPeriodRepository>;
   let walletsService: jest.Mocked<WalletsService>;
   let categoriesService: jest.Mocked<CategoriesService>;
+  let exchangeRatesService: { convert: jest.Mock };
   let dataSource: { transaction: jest.Mock };
 
   beforeEach(() => {
@@ -45,6 +46,9 @@ describe('BudgetsService', () => {
     categoriesService = {
       validateCategoryForTransaction: jest.fn(),
     } as any;
+    exchangeRatesService = {
+      convert: jest.fn(),
+    };
     dataSource = {
       transaction: jest.fn((callback) => callback({})),
     };
@@ -57,6 +61,7 @@ describe('BudgetsService', () => {
       categoriesService,
       {} as NotificationsService,
       new BudgetMapper(),
+      exchangeRatesService as any,
     );
   });
 
@@ -343,5 +348,129 @@ describe('BudgetsService', () => {
       today,
       manager,
     );
+  });
+
+  it('converts amount using ExchangeRatesService when transaction currency differs from wallet defaultCurrency', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const period = {
+      id: 'period-1',
+      startDate: today,
+      endDate: today,
+      limitAmount: 10000000,
+      rolloverAmount: 0,
+      spentAmount: 0,
+      warningAlertSent: false,
+      exceededAlertSent: false,
+    };
+    const budget = {
+      id: 'budget-1',
+      walletId: 'wallet-1',
+      wallet: { defaultCurrency: 'VND' },
+      categoryId: 'category-1',
+      category: { name: 'Food' },
+      isRollover: false,
+    };
+    budgetRepo.findActiveByWalletCategory.mockResolvedValue([budget] as any);
+    periodRepo.findByDate.mockResolvedValue(period as any);
+    periodRepo.findAfter.mockResolvedValue([]);
+    periodRepo.save.mockImplementation(async (value) => value);
+
+    exchangeRatesService.convert.mockResolvedValue({
+      convertedAmount: 2500000,
+    });
+
+    await service.syncTransactionChange(
+      null,
+      {
+        walletId: 'wallet-1',
+        categoryId: 'category-1',
+        amount: 100,
+        currency: 'USD',
+        type: TransactionType.EXPENSE,
+        transactionDate: new Date(),
+      },
+      {} as any,
+    );
+
+    expect(exchangeRatesService.convert).toHaveBeenCalledWith(100, 'USD', 'VND');
+    expect(period.spentAmount).toBe(2500000);
+  });
+
+  it('swaps spending correctly when transaction category changes', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const periodFood = {
+      id: 'period-food',
+      startDate: today,
+      endDate: today,
+      limitAmount: 5000,
+      rolloverAmount: 0,
+      spentAmount: 2000,
+      warningAlertSent: false,
+      exceededAlertSent: false,
+    };
+    const periodShopping = {
+      id: 'period-shopping',
+      startDate: today,
+      endDate: today,
+      limitAmount: 8000,
+      rolloverAmount: 0,
+      spentAmount: 1000,
+      warningAlertSent: false,
+      exceededAlertSent: false,
+    };
+
+    const budgetFood = {
+      id: 'budget-food',
+      walletId: 'wallet-1',
+      categoryId: 'cat-food',
+      category: { name: 'Food' },
+      isRollover: false,
+    };
+    const budgetShopping = {
+      id: 'budget-shopping',
+      walletId: 'wallet-1',
+      categoryId: 'cat-shopping',
+      category: { name: 'Shopping' },
+      isRollover: false,
+    };
+
+    budgetRepo.findActiveByWalletCategory.mockImplementation(
+      async (walletId: string, categoryId: string) => {
+        if (categoryId === 'cat-food') return [budgetFood] as any;
+        if (categoryId === 'cat-shopping') return [budgetShopping] as any;
+        return [];
+      },
+    );
+
+    periodRepo.findByDate.mockImplementation(
+      async (budgetId: string) => {
+        if (budgetId === 'budget-food') return periodFood as any;
+        if (budgetId === 'budget-shopping') return periodShopping as any;
+        return null;
+      },
+    );
+    periodRepo.findAfter.mockResolvedValue([]);
+    periodRepo.save.mockImplementation(async (value) => value);
+
+    await service.syncTransactionChange(
+      {
+        walletId: 'wallet-1',
+        categoryId: 'cat-food',
+        amount: 500,
+        type: TransactionType.EXPENSE,
+        transactionDate: new Date(),
+      },
+      {
+        walletId: 'wallet-1',
+        categoryId: 'cat-shopping',
+        amount: 500,
+        type: TransactionType.EXPENSE,
+        transactionDate: new Date(),
+      },
+      {} as any,
+    );
+
+    expect(periodFood.spentAmount).toBe(1500); // 2000 - 500
+    expect(periodShopping.spentAmount).toBe(1500); // 1000 + 500
   });
 });
