@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction } from './entities/transaction.entity';
@@ -46,6 +46,8 @@ export class TransactionsService {
   async createTransaction(
     userId: string,
     dto: CreateTransactionDto,
+    manager?: EntityManager,
+    recurringTransactionId?: string,
   ): Promise<TransactionResponseDto> {
     // 1. Xác thực tài khoản: tồn tại, chưa lưu trữ và user có quyền ghi (OWNER / EDITOR)
     const account = await this.accountsService.validateAccountForTransaction(
@@ -67,7 +69,7 @@ export class TransactionsService {
         : category.name || (dto.type === TransactionType.INCOME ? 'Khoản thu' : 'Khoản chi');
 
     // 4. Mở DB transaction: khóa tài khoản, cập nhật số dư & lưu giao dịch
-    const result = await this.dataSource.transaction(async (manager) => {
+    const execute = async (transactionManager: EntityManager) => {
       // 4.1. Cập nhật số dư tài khoản (chặn âm tiền nếu là EXPENSE)
       const { balanceAfter } = await this.accountsService.executeTransactionBalance(
         {
@@ -75,16 +77,22 @@ export class TransactionsService {
           type: dto.type,
           amount: dto.amount,
         },
-        manager,
+        transactionManager,
       );
 
       // 4.2. Khởi tạo & Lưu entity Transaction
       const transactionEntity = this.transactionRepo.create(
-        this.mapper.toEntity(dto, userId, account.currency, fallbackName),
+        this.mapper.toEntity(
+          dto,
+          userId,
+          account.currency,
+          fallbackName,
+          recurringTransactionId,
+        ),
       );
       const savedTransaction = await this.transactionRepo.save(
         transactionEntity,
-        manager,
+        transactionManager,
       );
 
       savedTransaction.account = account;
@@ -100,13 +108,16 @@ export class TransactionsService {
           type: savedTransaction.type,
           transactionDate: savedTransaction.transactionDate,
         },
-        manager,
+        transactionManager,
       );
       return {
         response: this.mapper.toResponse(savedTransaction, balanceAfter),
         alerts,
       };
-    });
+    };
+    const result = manager
+      ? await execute(manager)
+      : await this.dataSource.transaction(execute);
     await this.budgetsService.notifyBudgetAlerts(result.alerts);
     return result.response;
   }
@@ -484,6 +495,10 @@ export class TransactionsService {
    */
   async findEntityById(id: string): Promise<Transaction | null> {
     return this.transactionRepo.findById(id);
+  }
+
+  async findByRecurringId(recurringTransactionId: string): Promise<Transaction[]> {
+    return this.transactionRepo.findByRecurringId(recurringTransactionId);
   }
 
   /**
