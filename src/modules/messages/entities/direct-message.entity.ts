@@ -9,6 +9,7 @@ import {
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
+import { DirectMessageType } from '../enums/direct-message-type.enum';
 import type { MessageReaction } from './message-reaction.entity';
 
 @Entity('direct_messages')
@@ -29,8 +30,18 @@ export class DirectMessage extends BaseEntity {
   @JoinColumn({ name: 'receiver_id' })
   receiver: User;
 
+  @Column({
+    type: 'enum',
+    enum: DirectMessageType,
+    default: DirectMessageType.TEXT,
+  })
+  type: DirectMessageType;
+
   @Column({ type: 'text' })
   content: string;
+
+  @Column({ name: 'media_url', length: 500, nullable: true })
+  mediaUrl?: string | null;
 
   @Column({ name: 'reply_to_message_id', type: 'uuid', nullable: true })
   @Index('idx_direct_messages_reply_to_id')
@@ -50,6 +61,15 @@ export class DirectMessage extends BaseEntity {
 
   @Column({ name: 'is_read', default: false })
   isRead: boolean;
+
+  @Column({ name: 'read_at', type: 'timestamptz', nullable: true })
+  readAt?: Date | null;
+
+  @Column({ name: 'deleted_for_sender', default: false })
+  deletedForSender: boolean;
+
+  @Column({ name: 'deleted_for_receiver', default: false })
+  deletedForReceiver: boolean;
 
   @OneToMany('MessageReaction', 'message')
   reactions: MessageReaction[];
