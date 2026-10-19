@@ -14,8 +14,6 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { FriendsModule } from './modules/friends/friends.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
-import { FriendsModule } from './modules/friends/friends.module';
-// trong @Module({ imports: [ ..., NotificationsModule, FriendsModule, FeedModule ] })
 import { FeedModule } from './modules/feeds/feed.module';
 @Module({
   imports: [
@@ -31,6 +29,7 @@ import { FeedModule } from './modules/feeds/feed.module';
     TransactionsModule,
     NotificationsModule,
     FriendsModule,
+    FeedModule
   ],
 
   providers: [
