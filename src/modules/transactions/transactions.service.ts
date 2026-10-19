@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { AccountsService } from '../accounts/accounts.service';
+import { Transaction } from './entities/transaction.entity';
 import { CategoriesService } from '../categories/categories.service';
 import { TransactionMapper } from './mapper/transaction.mapper';
 import { CreateTransactionDto } from './dto/request/create-transaction.dto';
@@ -400,5 +401,33 @@ export class TransactionsService {
       days,
     };
   }
-}
+  // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
 
+  /**
+   * [CROSS-MODULE] Lấy bài đăng Bảng tin (visibility = FRIENDS) của các tác giả cho trước,
+   * kèm thông tin người đăng và danh mục. Dùng cho FeedService.
+   */
+  async findFriendsFeed(
+    authorIds: string[],
+    page: number,
+    limit: number,
+  ): Promise<[Transaction[], number]> {
+    return this.transactionRepo.findFriendsFeed(authorIds, page, limit);
+  }
+
+  /**
+   * [CROSS-MODULE] Tìm entity Transaction theo ID (bỏ qua bản ghi đã xóa mềm).
+   * Dùng cho FeedService kiểm tra bài đăng trước khi thả reaction / chỉnh sửa.
+   */
+  async findEntityById(id: string): Promise<Transaction | null> {
+    return this.transactionRepo.findById(id);
+  }
+
+  /**
+   * [CROSS-MODULE] Lưu entity Transaction đã chỉnh sửa các trường hiển thị
+   * (visibility, amountHidden, note). Dùng cho FeedService.updatePost.
+   */
+  async saveEntity(transaction: Transaction): Promise<Transaction> {
+    return this.transactionRepo.save(transaction);
+  }
+}

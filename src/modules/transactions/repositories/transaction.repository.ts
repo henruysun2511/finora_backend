@@ -4,7 +4,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { Transaction } from '../entities/transaction.entity';
 import { TransactionQueryDto } from '../dto/request/transaction-query.dto';
 import { TransactionType } from '../../../common/enums/transaction-type.enum';
-
+import { TransactionVisibility } from '../../../common/enums/transaction-visibility.enum';
 @Injectable()
 export class TransactionRepository {
   constructor(
@@ -114,10 +114,32 @@ export class TransactionRepository {
 
     return qb.getMany();
   }
+async findFriendsFeed(
+    authorIds: string[],
+    page: number,
+    limit: number,
+  ): Promise<[Transaction[], number]> {
+    if (authorIds.length === 0) {
+      return [[], 0];
+    }
 
+    return this.repo
+      .createQueryBuilder('t')
+      .leftJoin('t.creator', 'creator')
+      .addSelect(['creator.id', 'creator.fullName', 'creator.username', 'creator.avatar'])
+      .leftJoin('t.category', 'category')
+      .addSelect(['category.id', 'category.name', 'category.icon', 'category.color'])
+      .where('t.createdBy IN (:...authorIds)', { authorIds })
+      .andWhere('t.visibility = :visibility', { visibility: TransactionVisibility.FRIENDS })
+      .andWhere('t.deletedAt IS NULL')
+      .orderBy('t.transactionDate', 'DESC')
+      .addOrderBy('t.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+  }
   async softDelete(id: string, manager?: EntityManager): Promise<void> {
     const repository = manager ? manager.getRepository(Transaction) : this.repo;
     await repository.softDelete(id);
   }
 }
-
