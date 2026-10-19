@@ -1,29 +1,44 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
+import { AppError } from '../../../common/errors/app.error';
+import { BUDGET_ERROR_CODE } from '../budgets.constant';
 
-export class BudgetNotFoundException extends NotFoundException {
+export class BudgetNotFoundException extends AppError {
   constructor(id: string) {
-    super(`Không tìm thấy ngân sách với ID: ${id}`);
+    super({
+      code: BUDGET_ERROR_CODE.NOT_FOUND,
+      message: `Không tìm thấy ngân sách với ID: ${id}`,
+      statusCode: HttpStatus.NOT_FOUND,
+      details: { id },
+    });
   }
 }
 
-export class BudgetDuplicateException extends ConflictException {
+export class BudgetDuplicateException extends AppError {
   constructor() {
-    super('Ngân sách cho danh mục và chu kỳ này đã tồn tại trong ví');
+    super({
+      code: BUDGET_ERROR_CODE.DUPLICATE,
+      message: 'Ngân sách cho danh mục và chu kỳ này đã tồn tại trong ví',
+      statusCode: HttpStatus.CONFLICT,
+    });
   }
 }
 
-export class InvalidBudgetCategoryException extends BadRequestException {
+export class InvalidBudgetCategoryException extends AppError {
   constructor() {
-    super('Ngân sách chỉ áp dụng cho danh mục chi tiêu');
+    super({
+      code: BUDGET_ERROR_CODE.INVALID_CATEGORY,
+      message: 'Ngân sách chỉ áp dụng cho danh mục chi tiêu',
+      statusCode: HttpStatus.BAD_REQUEST,
+    });
   }
 }
 
-export class InvalidBudgetDateException extends BadRequestException {
+export class InvalidBudgetDateException extends AppError {
   constructor() {
-    super('startDate không hợp lệ');
+    super({
+      code: BUDGET_ERROR_CODE.INVALID_DATE,
+      message: 'startDate không hợp lệ',
+      statusCode: HttpStatus.BAD_REQUEST,
+    });
   }
 }
