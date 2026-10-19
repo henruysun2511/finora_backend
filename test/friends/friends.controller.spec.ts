@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import { FriendsController } from '../../src/modules/friends/friends.controller';
-import { RespondFriendRequestStatus } from '../../src/modules/friends/dto/request/respond-friend-request.dto';
+import { RespondFriendRequestStatus } from '../../src/modules/friends/enums/respond-friend-request-status.enum';
 import { FriendshipStatus } from '../../src/modules/friends/enums/friendship-status.enum';
 
 describe('FriendsController', () => {

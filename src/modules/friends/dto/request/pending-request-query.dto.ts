@@ -1,10 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional } from 'class-validator';
-
-export enum PendingRequestType {
-  RECEIVED = 'received',
-  SENT = 'sent',
-}
+import { PendingRequestType } from '../../enums/pending-request-type.enum';
 
 export class PendingRequestQueryDto {
   @ApiPropertyOptional({

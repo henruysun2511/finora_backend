@@ -19,14 +19,10 @@ import { ApiResponse, PaginatedResponse } from '../../common/response/api-respon
 import { SendFriendRequestDto } from './dto/request/send-friend-request.dto';
 import { FriendQueryDto } from './dto/request/friend-query.dto';
 import { SearchUserQueryDto } from './dto/request/search-user-query.dto';
-import {
-  PendingRequestQueryDto,
-  PendingRequestType,
-} from './dto/request/pending-request-query.dto';
-import {
-  RespondFriendRequestDto,
-  RespondFriendRequestStatus,
-} from './dto/request/respond-friend-request.dto';
+import { PendingRequestQueryDto } from './dto/request/pending-request-query.dto';
+import { RespondFriendRequestDto } from './dto/request/respond-friend-request.dto';
+import { RespondFriendRequestStatus } from './enums/respond-friend-request-status.enum';
+import { PendingRequestType } from './enums/pending-request-type.enum';
 import { UpdateFriendshipStatusDto } from './dto/request/update-friendship-status.dto';
 import { FriendResponseDto } from './dto/response/friend-response.dto';
 import { SearchUserResultDto } from './dto/response/search-user-response.dto';

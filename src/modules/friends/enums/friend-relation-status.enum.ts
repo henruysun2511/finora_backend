@@ -1,0 +1,7 @@
+export enum FriendRelationStatus {
+  NONE = 'NONE',
+  ACCEPTED = 'ACCEPTED',
+  PENDING_SENT = 'PENDING_SENT',
+  PENDING_RECEIVED = 'PENDING_RECEIVED',
+  BLOCKED = 'BLOCKED',
+}

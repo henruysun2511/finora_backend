@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { FriendRelationStatus } from '../../enums/friend-relation-status.enum';
 
 export class SearchUserResultDto {
   @ApiProperty({ example: 'uuid-nguoi-dung' })
@@ -14,9 +15,9 @@ export class SearchUserResultDto {
   avatar?: string | null;
 
   @ApiProperty({
-    example: 'NONE',
-    enum: ['NONE', 'ACCEPTED', 'PENDING_SENT', 'PENDING_RECEIVED', 'BLOCKED'],
+    enum: FriendRelationStatus,
+    example: FriendRelationStatus.NONE,
     description: 'Trạng thái quan hệ với người dùng đang đăng nhập',
   })
-  relationStatus: string;
+  relationStatus: FriendRelationStatus;
 }

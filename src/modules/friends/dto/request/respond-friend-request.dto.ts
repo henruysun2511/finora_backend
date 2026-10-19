@@ -1,10 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty } from 'class-validator';
-
-export enum RespondFriendRequestStatus {
-  ACCEPTED = 'ACCEPTED',
-  REJECTED = 'REJECTED',
-}
+import { RespondFriendRequestStatus } from '../../enums/respond-friend-request-status.enum';
 
 export class RespondFriendRequestDto {
   @ApiProperty({

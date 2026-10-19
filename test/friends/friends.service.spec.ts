@@ -13,6 +13,8 @@ import {
   FriendshipNotFoundException,
 } from '../../src/modules/friends/exceptions/friends.exception';
 import { FriendshipStatus } from '../../src/modules/friends/enums/friendship-status.enum';
+import { FriendRelationStatus } from '../../src/modules/friends/enums/friend-relation-status.enum';
+import { PendingRequestType } from '../../src/modules/friends/enums/pending-request-type.enum';
 import { NotificationsService } from '../../src/modules/notifications/notifications.service';
 import { NotificationType } from '../../src/modules/notifications/enums/notification-type.enum';
 import { ForbiddenException, BadRequestException } from '@nestjs/common';
@@ -94,8 +96,8 @@ describe('FriendsService', () => {
         OTHER,
       ]);
       expect(results).toHaveLength(2);
-      expect(results[0].relationStatus).toBe('ACCEPTED');
-      expect(results[1].relationStatus).toBe('NONE');
+      expect(results[0].relationStatus).toBe(FriendRelationStatus.ACCEPTED);
+      expect(results[1].relationStatus).toBe(FriendRelationStatus.NONE);
     });
 
     it('Không có user nào khớp -> trả mảng rỗng ngay, không query quan hệ', async () => {

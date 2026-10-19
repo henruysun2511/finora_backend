@@ -12,8 +12,9 @@ import { FriendQueryDto } from './dto/request/friend-query.dto';
 import { SearchUserQueryDto } from './dto/request/search-user-query.dto';
 import {
   PendingRequestQueryDto,
-  PendingRequestType,
 } from './dto/request/pending-request-query.dto';
+import { PendingRequestType } from './enums/pending-request-type.enum';
+import { FriendRelationStatus } from './enums/friend-relation-status.enum';
 import { FriendResponseDto } from './dto/response/friend-response.dto';
 import { PendingFriendRequestResponseDto } from './dto/response/pending-request-response.dto';
 import { SearchUserResultDto } from './dto/response/search-user-response.dto';
@@ -79,16 +80,18 @@ export class FriendsService {
 
     return users.map((user) => {
       const relation = relationMap.get(user.id);
-      let relationStatus = 'NONE';
+      let relationStatus = FriendRelationStatus.NONE;
 
       if (relation) {
         if (relation.status === FriendshipStatus.ACCEPTED) {
-          relationStatus = 'ACCEPTED';
+          relationStatus = FriendRelationStatus.ACCEPTED;
         } else if (relation.status === FriendshipStatus.PENDING) {
           relationStatus =
-            relation.requesterId === currentUserId ? 'PENDING_SENT' : 'PENDING_RECEIVED';
+            relation.requesterId === currentUserId
+              ? FriendRelationStatus.PENDING_SENT
+              : FriendRelationStatus.PENDING_RECEIVED;
         } else if (relation.status === FriendshipStatus.BLOCKED) {
-          relationStatus = 'BLOCKED';
+          relationStatus = FriendRelationStatus.BLOCKED;
         }
       }
 
