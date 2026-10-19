@@ -25,7 +25,7 @@ import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
-@Controller({ path: 'users', version: '1' })
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

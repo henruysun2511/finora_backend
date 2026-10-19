@@ -30,7 +30,7 @@ import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
 
 @ApiTags('Auth')
-@Controller({ path: 'auth', version: '1' })
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
