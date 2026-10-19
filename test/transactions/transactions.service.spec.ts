@@ -3,6 +3,7 @@ import { TransactionsService } from '../../src/modules/transactions/transactions
 import { TransactionRepository } from '../../src/modules/transactions/repositories/transaction.repository';
 import { AccountsService } from '../../src/modules/accounts/accounts.service';
 import { CategoriesService } from '../../src/modules/categories/categories.service';
+import { BudgetsService } from '../../src/modules/budgets/budgets.service';
 import { TransactionMapper } from '../../src/modules/transactions/mapper/transaction.mapper';
 import { TransactionType } from '../../src/common/enums/transaction-type.enum';
 import { TransactionSource } from '../../src/modules/transactions/enums/transaction-source.enum';
@@ -25,6 +26,7 @@ describe('TransactionsService', () => {
   let transactionRepo: jest.Mocked<TransactionRepository>;
   let accountsService: jest.Mocked<AccountsService>;
   let categoriesService: jest.Mocked<CategoriesService>;
+  let budgetsService: jest.Mocked<BudgetsService>;
   let mapper: TransactionMapper;
 
   const mockManager = {
@@ -57,6 +59,11 @@ describe('TransactionsService', () => {
       validateCategoryForTransaction: jest.fn(),
     } as any;
 
+    budgetsService = {
+      syncTransactionChange: jest.fn().mockResolvedValue([]),
+      notifyBudgetAlerts: jest.fn().mockResolvedValue(undefined),
+    } as any;
+
     mapper = new TransactionMapper();
 
     service = new TransactionsService(
@@ -65,6 +72,7 @@ describe('TransactionsService', () => {
       accountsService,
       categoriesService,
       mapper,
+      budgetsService,
     );
   });
 

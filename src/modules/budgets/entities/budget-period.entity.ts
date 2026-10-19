@@ -1,17 +1,12 @@
-import {
-  Entity,
-  Column,
-  Index,
-  ManyToOne,
-  JoinColumn,
-  Unique,
-} from 'typeorm';
+import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Budget } from './budget.entity';
 import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 
 @Entity('budget_periods')
-@Unique(['budgetId', 'startDate', 'endDate'])
+@Index('uq_budget_periods_budget_dates', ['budgetId', 'startDate', 'endDate'], {
+  unique: true,
+})
 export class BudgetPeriod extends BaseEntity {
   @Column({ name: 'budget_id', type: 'uuid' })
   @Index('idx_budget_periods_budget_id')
@@ -57,4 +52,10 @@ export class BudgetPeriod extends BaseEntity {
     transformer: new DecimalTransformer(),
   })
   rolloverAmount: number;
+
+  @Column({ name: 'warning_alert_sent', default: false })
+  warningAlertSent: boolean;
+
+  @Column({ name: 'exceeded_alert_sent', default: false })
+  exceededAlertSent: boolean;
 }

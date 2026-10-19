@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { WalletMember } from '../entities/wallet-member.entity';
+import { WalletMemberStatus } from '../../../common/enums/wallet-member-role.enum';
 
 @Injectable()
 export class WalletMemberRepository {
@@ -37,5 +38,13 @@ export class WalletMemberRepository {
       relations: ['user'],
       order: { createdAt: 'ASC' },
     });
+  }
+
+  async findAcceptedUserIds(walletId: string): Promise<string[]> {
+    const members = await this.repo.find({
+      where: { walletId, status: WalletMemberStatus.ACCEPTED },
+      select: ['userId'],
+    });
+    return members.map((member) => member.userId);
   }
 }

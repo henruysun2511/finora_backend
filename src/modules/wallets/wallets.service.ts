@@ -273,6 +273,33 @@ export class WalletsService {
     return null;
   }
 
+  async assertWalletAccess(
+    walletId: string,
+    userId: string,
+    mode: 'read' | 'write',
+  ): Promise<void> {
+    const wallet = await this.walletRepo.findById(walletId);
+    if (!wallet) throw new WalletNotFoundException(walletId);
+
+    const role = await this.getMemberRole(walletId, userId);
+    const canWrite =
+      role === WalletMemberRole.OWNER || role === WalletMemberRole.EDITOR;
+    if (!role || (mode === 'write' && !canWrite)) {
+      throw new WalletAccessDeniedException(walletId);
+    }
+  }
+
+  async getAcceptedMemberUserIds(walletId: string): Promise<string[]> {
+    const wallet = await this.walletRepo.findById(walletId);
+    if (!wallet) throw new WalletNotFoundException(walletId);
+    return [
+      ...new Set([
+        wallet.ownerId,
+        ...(await this.walletMemberRepo.findAcceptedUserIds(walletId)),
+      ]),
+    ];
+  }
+
   /**
    * [CROSS-MODULE] Lấy danh sách ID ví mà người dùng có quyền truy cập (owner hoặc thành viên).
    *
@@ -354,4 +381,3 @@ export class WalletsService {
     return this.walletMapper.toBalanceResponse(wallet, accounts, balanceMap);
   }
 }
-
