@@ -1,3 +1,4 @@
+import { Inject, Logger, forwardRef } from '@nestjs/common';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -6,12 +7,14 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
+  WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { JwtConfig } from '../../../config/jwt.config';
 import { MessageResponseDto } from '../dto/response/message-response.dto';
+import { MessagesService } from '../messages.service';
+import { SendMessageDto } from '../dto/request/send-message.dto';
 
 @WebSocketGateway({
   cors: {
@@ -26,7 +29,23 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   private readonly logger = new Logger(MessagesGateway.name);
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    @Inject(forwardRef(() => MessagesService))
+    private readonly messagesService: MessagesService,
+  ) {}
+
+  @SubscribeMessage('message:send')
+  handleSendMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: SendMessageDto,
+  ): Promise<MessageResponseDto> {
+    const userId = client.data.userId;
+    if (typeof userId !== 'string') {
+      throw new WsException('Socket chưa được xác thực');
+    }
+    return this.messagesService.sendMessage(userId, dto);
+  }
 
   /**
    * Xác thực JWT và gán client vào room cá nhân `user:${userId}`.
@@ -56,8 +75,10 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       await client.join(roomName);
 
       this.logger.log(`[Messages Socket] Client ${client.id} đã kết nối vào phòng ${roomName}`);
-    } catch (err: any) {
-      this.logger.warn(`[Messages Socket] Xác thực JWT thất bại: ${err.message} (Socket ID: ${client.id})`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+      this.logger.warn(`[Messages Socket] Xác thực JWT thất bại: ${message} (Socket ID: ${client.id})`);
       client.disconnect();
     }
   }
@@ -80,6 +101,14 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
   sendRecalledToUser(userId: string, messageId: string) {
     const roomName = `user:${userId}`;
     this.server.to(roomName).emit('message:recalled', { messageId });
+  }
+
+  sendReactionUpdatedToUser(
+    userId: string,
+    payload: { messageId: string; userId: string; emoji: string },
+  ) {
+    const roomName = `user:${userId}`;
+    this.server.to(roomName).emit('message:reaction_updated', payload);
   }
 
   /**

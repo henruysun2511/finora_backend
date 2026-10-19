@@ -4,6 +4,8 @@ import {
   Post,
   Patch,
   Delete,
+  HttpCode,
+  HttpStatus,
   Param,
   Body,
   Query,
@@ -55,7 +57,8 @@ export class MessagesController {
   @Permissions(SYSTEM_PERMISSIONS.MESSAGES_READ)
   @SwaggerDoc({
     summary: '2. Lấy lịch sử tin nhắn với một người bạn',
-    description: 'Lấy lịch sử tin nhắn phân trang giữa user hiện tại và friendId.',
+    description:
+      'Lấy lịch sử tin nhắn phân trang giữa user hiện tại và friendId. Có thể dùng before để lấy tin cũ hơn một tin nhắn mốc.',
     responseType: MessageResponseDto,
     isArray: true,
     bearerAuth: true,
@@ -67,9 +70,14 @@ export class MessagesController {
     @Query() query: MessageHistoryQueryDto,
   ): Promise<PaginatedResponse<MessageResponseDto>> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const limit = query.limit ?? 30;
     const result = await this.messagesService.getHistory(userId, friendId, query);
-    return PaginatedResponse.of(result.items, result.total, page, limit);
+    return PaginatedResponse.of(
+      result.items,
+      result.total,
+      query.before ? 1 : page,
+      limit,
+    );
   }
 
   // ── API 3: POST /api/v1/messages ──────────────────────────────────────────
@@ -95,48 +103,53 @@ export class MessagesController {
   // ── API 4: PATCH /api/v1/messages/:friendId/read ──────────────────────────
 
   @Patch(':friendId/read')
+  @HttpCode(HttpStatus.OK)
   @Permissions(SYSTEM_PERMISSIONS.MESSAGES_UPDATE)
   @SwaggerDoc({
     summary: '4. Đánh dấu cuộc trò chuyện đã đọc',
     description: 'Đánh dấu tất cả tin nhắn từ friendId gửi cho user hiện tại thành đã đọc.',
+    status: HttpStatus.OK,
     bearerAuth: true,
   })
   @ApiParam({ name: 'friendId', description: 'UUID của người bạn' })
   async markAsRead(
     @CurrentUser('id') userId: string,
     @Param('friendId', ParseUUIDPipe) friendId: string,
-  ): Promise<ApiResponse<{ affected: number }>> {
+  ): Promise<{ success: true; markedCount: number }> {
     const data = await this.messagesService.markAsRead(userId, friendId);
-    return ApiResponse.success(data, 'Đánh dấu đã đọc thành công');
+    return { success: true, markedCount: data.markedCount };
   }
 
   // ── API 5: DELETE /api/v1/messages/:id ────────────────────────────────────
 
   @Delete(':id')
+  @HttpCode(HttpStatus.OK)
   @Permissions(SYSTEM_PERMISSIONS.MESSAGES_DELETE)
   @SwaggerDoc({
     summary: '5. Thu hồi tin nhắn',
     description: 'Thu hồi (xóa mềm) tin nhắn trong vòng 15 phút kể từ lúc gửi. Chỉ người gửi mới có quyền thu hồi.',
+    status: HttpStatus.OK,
     bearerAuth: true,
   })
   @ApiParam({ name: 'id', description: 'UUID của tin nhắn cần thu hồi' })
   async recallMessage(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<ApiResponse<null>> {
+  ): Promise<{ success: true; message: string }> {
     await this.messagesService.recallMessage(userId, id);
-    return ApiResponse.noContent('Thu hồi tin nhắn thành công');
+    return { success: true, message: 'Đã thu hồi tin nhắn' };
   }
 
   // ── API 6: POST /api/v1/messages/:id/reactions ────────────────────────────
 
   @Post(':id/reactions')
+  @HttpCode(HttpStatus.OK)
   @Permissions(SYSTEM_PERMISSIONS.MESSAGES_CREATE)
   @SwaggerDoc({
     summary: '6. Thả cảm xúc vào tin nhắn',
     description: 'Thả hoặc đổi emoji cảm xúc trên một tin nhắn. Mỗi user chỉ có tối đa 1 reaction trên 1 tin nhắn.',
     bodyType: AddMessageReactionDto,
-    status: 201,
+    status: HttpStatus.OK,
     bearerAuth: true,
   })
   @ApiParam({ name: 'id', description: 'UUID của tin nhắn' })
@@ -144,9 +157,8 @@ export class MessagesController {
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddMessageReactionDto,
-  ): Promise<ApiResponse<null>> {
-    await this.messagesService.addReaction(userId, id, dto);
-    return ApiResponse.created(null, 'Thả cảm xúc thành công');
+  ): Promise<{ success: true; emoji: string }> {
+    return this.messagesService.addReaction(userId, id, dto);
   }
 
   // ── API 7: DELETE /api/v1/messages/:id/reactions ──────────────────────────

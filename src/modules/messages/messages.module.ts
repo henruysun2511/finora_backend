@@ -11,6 +11,7 @@ import { MessagesService } from './messages.service';
 import { MessagesController } from './messages.controller';
 import { FriendsModule } from '../friends/friends.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { TransactionsModule } from '../transactions/transactions.module';
 import { JwtConfig } from '../../config/jwt.config';
 
 @Module({
@@ -22,6 +23,7 @@ import { JwtConfig } from '../../config/jwt.config';
     }),
     FriendsModule,
     NotificationsModule,
+    TransactionsModule,
   ],
   controllers: [MessagesController],
   providers: [

@@ -13,8 +13,11 @@ import {
   MessageNotFoundException,
   CannotMessageNonFriendException,
   MessageRecallTimeoutException,
+  UserBlockedException,
 } from '../../src/modules/messages/exceptions/message.exception';
 import { ReactionEmoji } from '../../src/common/enums/reaction-emoji.enum';
+import { FriendshipStatus } from '../../src/modules/friends/enums/friendship-status.enum';
+import { TransactionsService } from '../../src/modules/transactions/transactions.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -23,6 +26,7 @@ describe('MessagesService', () => {
   let messagesGateway: jest.Mocked<Partial<MessagesGateway>>;
   let friendsService: jest.Mocked<Partial<FriendsService>>;
   let notificationsService: jest.Mocked<Partial<NotificationsService>>;
+  let transactionsService: jest.Mocked<Partial<TransactionsService>>;
 
   const mockUserId = '11111111-1111-1111-1111-111111111111';
   const mockFriendId = '22222222-2222-2222-2222-222222222222';
@@ -47,10 +51,19 @@ describe('MessagesService', () => {
     messagesGateway = {
       sendMessageToUser: jest.fn(),
       sendRecalledToUser: jest.fn(),
+      sendReactionUpdatedToUser: jest.fn(),
     };
 
     friendsService = {
-      areFriends: jest.fn(),
+      areFriends: jest.fn().mockResolvedValue(true),
+      getStatus: jest.fn().mockResolvedValue({
+        status: null,
+        isRequester: false,
+      }),
+    };
+
+    transactionsService = {
+      findEntityById: jest.fn(),
     };
 
     notificationsService = {
@@ -66,6 +79,7 @@ describe('MessagesService', () => {
         { provide: MessagesGateway, useValue: messagesGateway },
         { provide: FriendsService, useValue: friendsService },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: TransactionsService, useValue: transactionsService },
       ],
     }).compile();
 
@@ -82,6 +96,7 @@ describe('MessagesService', () => {
 
     it('nên gửi tin nhắn thành công khi 2 người là bạn bè', async () => {
       friendsService.areFriends!.mockResolvedValue(true);
+      transactionsService.findEntityById!.mockResolvedValue(null);
 
       const createdMessage = {
         id: mockMessageId,
@@ -121,6 +136,19 @@ describe('MessagesService', () => {
         CannotMessageNonFriendException,
       );
 
+      expect(messageRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('nên ném UserBlockedException khi quan hệ bị chặn', async () => {
+      friendsService.areFriends!.mockResolvedValue(false);
+      friendsService.getStatus!.mockResolvedValue({
+        status: FriendshipStatus.BLOCKED,
+        isRequester: false,
+      });
+
+      await expect(service.sendMessage(mockUserId, dto)).rejects.toThrow(
+        UserBlockedException,
+      );
       expect(messageRepo.create).not.toHaveBeenCalled();
     });
   });
@@ -173,7 +201,7 @@ describe('MessagesService', () => {
 
       const result = await service.getHistory(mockUserId, mockFriendId, {
         page: 1,
-        limit: 20,
+        limit: 30,
       });
 
       expect(result.items).toHaveLength(1);
@@ -182,8 +210,61 @@ describe('MessagesService', () => {
         mockUserId,
         mockFriendId,
         0,
-        20,
+        30,
+        undefined,
+        undefined,
       );
+    });
+
+    it('nên lấy các tin nhắn cũ hơn cursor trong đúng cuộc trò chuyện', async () => {
+      const cursor = {
+        id: mockMessageId,
+        senderId: mockFriendId,
+        receiverId: mockUserId,
+        createdAt: new Date('2026-10-19T10:00:00.000Z'),
+      } as DirectMessage;
+      messageRepo.findById!.mockResolvedValue(cursor);
+      messageRepo.findHistory!.mockResolvedValue([[], 0]);
+
+      await service.getHistory(mockUserId, mockFriendId, {
+        before: mockMessageId,
+      });
+
+      expect(messageRepo.findHistory).toHaveBeenCalledWith(
+        mockUserId,
+        mockFriendId,
+        0,
+        30,
+        cursor.createdAt,
+        mockMessageId,
+      );
+    });
+
+    it('nên từ chối cursor không thuộc cuộc trò chuyện hiện tại', async () => {
+      messageRepo.findById!.mockResolvedValue({
+        id: mockMessageId,
+        senderId: '44444444-4444-4444-4444-444444444444',
+        receiverId: '55555555-5555-5555-5555-555555555555',
+        createdAt: new Date(),
+      } as DirectMessage);
+
+      await expect(
+        service.getHistory(mockUserId, mockFriendId, { before: mockMessageId }),
+      ).rejects.toThrow(MessageNotFoundException);
+      expect(messageRepo.findHistory).not.toHaveBeenCalled();
+    });
+
+    it('nên từ chối xem lịch sử nếu quan hệ đã bị chặn', async () => {
+      friendsService.areFriends!.mockResolvedValue(false);
+      friendsService.getStatus!.mockResolvedValue({
+        status: FriendshipStatus.BLOCKED,
+        isRequester: false,
+      });
+
+      await expect(
+        service.getHistory(mockUserId, mockFriendId, { page: 1, limit: 30 }),
+      ).rejects.toThrow(UserBlockedException);
+      expect(messageRepo.findHistory).not.toHaveBeenCalled();
     });
   });
 
@@ -195,8 +276,10 @@ describe('MessagesService', () => {
 
       const result = await service.markAsRead(mockUserId, mockFriendId);
 
-      expect(result.affected).toBe(5);
+      expect(result.markedCount).toBe(5);
       expect(messageRepo.markAllAsRead).toHaveBeenCalledWith(mockFriendId, mockUserId);
+      expect(messagesGateway.sendMessageToUser).not.toHaveBeenCalled();
+      expect(messagesGateway.sendRecalledToUser).not.toHaveBeenCalled();
     });
   });
 
@@ -226,6 +309,26 @@ describe('MessagesService', () => {
         mockFriendId,
         mockMessageId,
       );
+    });
+
+    it('nên cho phép thu hồi đúng tại mốc 15 phút', async () => {
+      const now = Date.now();
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+      const message = {
+        id: mockMessageId,
+        senderId: mockUserId,
+        receiverId: mockFriendId,
+        createdAt: new Date(now - 15 * 60 * 1000),
+      } as DirectMessage;
+      messageRepo.findById!.mockResolvedValue(message);
+      messageRepo.softDelete!.mockResolvedValue(undefined);
+
+      await expect(
+        service.recallMessage(mockUserId, mockMessageId),
+      ).resolves.toBeUndefined();
+
+      expect(messageRepo.softDelete).toHaveBeenCalledWith(mockMessageId);
+      jest.restoreAllMocks();
     });
 
     it('nên ném MessageNotFoundException khi tin nhắn không tồn tại', async () => {
@@ -264,6 +367,8 @@ describe('MessagesService', () => {
       await expect(service.recallMessage(mockUserId, mockMessageId)).rejects.toThrow(
         MessageRecallTimeoutException,
       );
+      expect(messageRepo.softDelete).not.toHaveBeenCalled();
+      expect(messagesGateway.sendRecalledToUser).not.toHaveBeenCalled();
     });
   });
 
@@ -283,13 +388,18 @@ describe('MessagesService', () => {
       messageRepo.findById!.mockResolvedValue(message);
       reactionRepo.upsertReaction!.mockResolvedValue({} as any);
 
-      await service.addReaction(mockUserId, mockMessageId, dto);
+      const result = await service.addReaction(mockUserId, mockMessageId, dto);
 
       expect(reactionRepo.upsertReaction).toHaveBeenCalledWith(
         mockMessageId,
         mockUserId,
         ReactionEmoji.LOVE,
       );
+      expect(messagesGateway.sendReactionUpdatedToUser).toHaveBeenCalledWith(
+        mockFriendId,
+        { messageId: mockMessageId, userId: mockUserId, emoji: 'LOVE' },
+      );
+      expect(result).toEqual({ success: true, emoji: 'LOVE' });
     });
 
     it('nên ném MessageNotFoundException khi tin nhắn không tồn tại', async () => {
@@ -298,6 +408,7 @@ describe('MessagesService', () => {
       await expect(
         service.addReaction(mockUserId, mockMessageId, dto),
       ).rejects.toThrow(MessageNotFoundException);
+      expect(messagesGateway.sendReactionUpdatedToUser).not.toHaveBeenCalled();
     });
 
     it('nên ném MessageNotFoundException khi user không thuộc cuộc trò chuyện', async () => {
@@ -344,6 +455,19 @@ describe('MessagesService', () => {
       await expect(
         service.removeReaction(mockUserId, mockMessageId),
       ).rejects.toThrow(MessageNotFoundException);
+    });
+
+    it('nên từ chối gỡ reaction trên tin nhắn ngoài cuộc trò chuyện', async () => {
+      messageRepo.findById!.mockResolvedValue({
+        id: mockMessageId,
+        senderId: mockFriendId,
+        receiverId: '44444444-4444-4444-4444-444444444444',
+      } as DirectMessage);
+
+      await expect(
+        service.removeReaction(mockUserId, mockMessageId),
+      ).rejects.toThrow(MessageNotFoundException);
+      expect(reactionRepo.deleteReaction).not.toHaveBeenCalled();
     });
   });
 });

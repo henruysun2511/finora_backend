@@ -26,7 +26,7 @@ export class MessageRecallTimeoutException extends AppError {
   constructor() {
     super({
       code: MESSAGE_ERROR_CODE.RECALL_TIMEOUT,
-      message: 'Không thể thu hồi tin nhắn đã gửi quá 15 phút',
+      message: 'Tin nhắn gửi quá 15 phút không thể thu hồi',
       statusCode: HttpStatus.BAD_REQUEST,
     });
   }

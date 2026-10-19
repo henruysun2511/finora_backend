@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { DirectMessageRepository } from './repositories/direct-message.repository';
 import { MessageReactionRepository } from './repositories/message-reaction.repository';
 import { MessageMapper } from './mapper/message.mapper';
 import { MessagesGateway } from './gateways/messages.gateway';
 import { FriendsService } from '../friends/friends.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TransactionsService } from '../transactions/transactions.service';
+import { TransactionVisibility } from '../../common/enums/transaction-visibility.enum';
+import { FriendshipStatus } from '../friends/enums/friendship-status.enum';
 import { SendMessageDto } from './dto/request/send-message.dto';
 import { MessageHistoryQueryDto } from './dto/request/message-history-query.dto';
 import { AddMessageReactionDto } from './dto/request/add-message-reaction.dto';
@@ -22,13 +25,17 @@ import { CreateNotificationDto } from '../notifications/dto/request/create-notif
 
 @Injectable()
 export class MessagesService {
+  private readonly logger = new Logger(MessagesService.name);
+
   constructor(
     private readonly messageRepo: DirectMessageRepository,
     private readonly reactionRepo: MessageReactionRepository,
     private readonly messageMapper: MessageMapper,
+    @Inject(forwardRef(() => MessagesGateway))
     private readonly messagesGateway: MessagesGateway,
     private readonly friendsService: FriendsService,
     private readonly notificationsService: NotificationsService,
+    private readonly transactionsService: TransactionsService,
   ) {}
 
   // ── API 3: Gửi tin nhắn mới ──────────────────────────────────────────────
@@ -37,10 +44,34 @@ export class MessagesService {
     userId: string,
     dto: SendMessageDto,
   ): Promise<MessageResponseDto> {
-    // Kiểm tra quan hệ bạn bè
-    const areFriends = await this.friendsService.areFriends(userId, dto.receiverId);
-    if (!areFriends) {
-      throw new CannotMessageNonFriendException();
+    await this.assertCanMessage(userId, dto.receiverId);
+
+    if (dto.replyToMessageId) {
+      const replyTo = await this.messageRepo.findById(dto.replyToMessageId);
+      if (
+        !replyTo ||
+        !this.isConversationParticipantPair(
+          replyTo.senderId,
+          replyTo.receiverId,
+          userId,
+          dto.receiverId,
+        )
+      ) {
+        throw new MessageNotFoundException();
+      }
+    }
+
+    if (dto.relatedTransactionId) {
+      const transaction = await this.transactionsService.findEntityById(
+        dto.relatedTransactionId,
+      );
+      if (
+        !transaction ||
+        transaction.createdBy !== dto.receiverId ||
+        transaction.visibility !== TransactionVisibility.FRIENDS
+      ) {
+        throw new MessageNotFoundException();
+      }
     }
 
     const message = this.messageRepo.create({
@@ -56,13 +87,16 @@ export class MessagesService {
 
     // Reload with relations để map response
     const full = await this.messageRepo.findById(saved.id);
-    const responseDto = this.messageMapper.toResponse(full!);
+    if (!full) {
+      throw new MessageNotFoundException();
+    }
+    const responseDto = this.messageMapper.toResponse(full);
 
     // Phát tin nhắn qua Socket.IO tới receiver
     this.messagesGateway.sendMessageToUser(dto.receiverId, responseDto);
 
     // Gửi push notification (không chặn luồng chính)
-    this.sendNotificationSafe({
+    void this.sendNotificationSafe({
       userId: dto.receiverId,
       type: NotificationType.NEW_DIRECT_MESSAGE,
       title: 'Tin nhắn mới',
@@ -90,15 +124,35 @@ export class MessagesService {
     friendId: string,
     query: MessageHistoryQueryDto,
   ): Promise<{ items: MessageResponseDto[]; total: number }> {
+    await this.assertCanMessage(userId, friendId);
     const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const limit = query.limit ?? 30;
+    let skip = (page - 1) * limit;
+    let beforeCreatedAt: Date | undefined;
+
+    if (query.before) {
+      const cursor = await this.messageRepo.findById(query.before);
+      if (
+        !cursor ||
+        !(
+          (cursor.senderId === userId && cursor.receiverId === friendId) ||
+          (cursor.senderId === friendId && cursor.receiverId === userId)
+        )
+      ) {
+        throw new MessageNotFoundException();
+      }
+
+      beforeCreatedAt = cursor.createdAt;
+      skip = 0;
+    }
 
     const [messages, total] = await this.messageRepo.findHistory(
       userId,
       friendId,
       skip,
       limit,
+      beforeCreatedAt,
+      query.before,
     );
 
     const items = messages.map((m) => this.messageMapper.toResponse(m));
@@ -110,10 +164,10 @@ export class MessagesService {
   async markAsRead(
     userId: string,
     friendId: string,
-  ): Promise<{ affected: number }> {
-    // Đánh dấu tất cả tin nhắn mà friendId gửi cho userId thành đã đọc
-    const affected = await this.messageRepo.markAllAsRead(friendId, userId);
-    return { affected };
+  ): Promise<{ markedCount: number }> {
+    await this.assertCanMessage(userId, friendId);
+    const markedCount = await this.messageRepo.markAllAsRead(friendId, userId);
+    return { markedCount };
   }
 
   // ── API 5: Thu hồi tin nhắn ──────────────────────────────────────────────
@@ -123,16 +177,10 @@ export class MessagesService {
     messageId: string,
   ): Promise<void> {
     const message = await this.messageRepo.findById(messageId);
-    if (!message) {
+    if (!message || message.senderId !== userId) {
       throw new MessageNotFoundException();
     }
 
-    // Chỉ người gửi mới được thu hồi
-    if (message.senderId !== userId) {
-      throw new MessageNotFoundException();
-    }
-
-    // Kiểm tra thời gian 15 phút
     const diffMs = Date.now() - message.createdAt.getTime();
     const diffMinutes = diffMs / (1000 * 60);
     if (diffMinutes > MESSAGE_RECALL_LIMIT_MINUTES) {
@@ -153,29 +201,38 @@ export class MessagesService {
     userId: string,
     messageId: string,
     dto: AddMessageReactionDto,
-  ): Promise<void> {
+  ): Promise<{ success: true; emoji: string }> {
     const message = await this.messageRepo.findById(messageId);
     if (!message) {
       throw new MessageNotFoundException();
     }
 
-    // Chỉ 2 bên tham gia cuộc trò chuyện mới được react
     if (message.senderId !== userId && message.receiverId !== userId) {
       throw new MessageNotFoundException();
     }
 
-    await this.reactionRepo.upsertReaction(messageId, userId, dto.emoji);
+    const otherUserId =
+      message.senderId === userId ? message.receiverId : message.senderId;
+    await this.assertCanMessage(userId, otherUserId);
 
-    // Gửi push notification cho người còn lại
-    const targetUserId = message.senderId === userId ? message.receiverId : message.senderId;
-    this.sendNotificationSafe({
-      userId: targetUserId,
+    await this.reactionRepo.upsertReaction(messageId, userId, dto.emoji);
+    const emoji = dto.emoji.toUpperCase();
+    this.messagesGateway.sendReactionUpdatedToUser(otherUserId, {
+      messageId,
+      userId,
+      emoji,
+    });
+
+    void this.sendNotificationSafe({
+      userId: otherUserId,
       type: NotificationType.MESSAGE_REACTED,
       title: 'Cảm xúc mới trên tin nhắn',
-      body: `Đã thả ${dto.emoji} vào tin nhắn của bạn`,
+      body: `Đã thả ${emoji} vào tin nhắn của bạn`,
       relatedEntityType: 'DIRECT_MESSAGE',
       relatedEntityId: messageId,
     });
+
+    return { success: true, emoji };
   }
 
   // ── API 7: Gỡ cảm xúc ───────────────────────────────────────────────────
@@ -189,6 +246,14 @@ export class MessagesService {
       throw new MessageNotFoundException();
     }
 
+    if (message.senderId !== userId && message.receiverId !== userId) {
+      throw new MessageNotFoundException();
+    }
+
+    const otherUserId =
+      message.senderId === userId ? message.receiverId : message.senderId;
+    await this.assertCanMessage(userId, otherUserId);
+
     await this.reactionRepo.deleteReaction(messageId, userId);
   }
 
@@ -197,8 +262,36 @@ export class MessagesService {
   private async sendNotificationSafe(dto: CreateNotificationDto): Promise<void> {
     try {
       await this.notificationsService.createNotification(dto);
-    } catch {
-      // Bỏ qua lỗi thông báo để không ảnh hưởng nghiệp vụ chính
+    } catch (error) {
+      this.logger.error(
+        `Failed to create message notification for user ${dto.userId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
     }
+  }
+
+  private async assertCanMessage(userId: string, friendId: string): Promise<void> {
+    if (await this.friendsService.areFriends(userId, friendId)) {
+      return;
+    }
+
+    const relation = await this.friendsService.getStatus(userId, friendId);
+    if (relation.status === FriendshipStatus.BLOCKED) {
+      throw new UserBlockedException();
+    }
+
+    throw new CannotMessageNonFriendException();
+  }
+
+  private isConversationParticipantPair(
+    senderId: string,
+    receiverId: string,
+    userA: string,
+    userB: string,
+  ): boolean {
+    return (
+      (senderId === userA && receiverId === userB) ||
+      (senderId === userB && receiverId === userA)
+    );
   }
 }

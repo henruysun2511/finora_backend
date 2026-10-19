@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { DirectMessage } from '../entities/direct-message.entity';
-import { MessageResponseDto, ReplySnippetDto, ReactionSummaryDto } from '../dto/response/message-response.dto';
+import { TransactionVisibility } from '../../../common/enums/transaction-visibility.enum';
+import {
+  MessageResponseDto,
+  ReplySnippetDto,
+  ReactionSummaryDto,
+  RelatedTransactionDto,
+} from '../dto/response/message-response.dto';
 
 @Injectable()
 export class MessageMapper {
@@ -18,6 +24,15 @@ export class MessageMapper {
       emoji: r.emoji,
       userId: r.userId,
     }));
+    const relatedTransaction: RelatedTransactionDto | null =
+      message.relatedTransaction?.visibility === TransactionVisibility.FRIENDS
+        ? {
+            id: message.relatedTransaction.id,
+            name: message.relatedTransaction.name,
+            photoUrl: message.relatedTransaction.photoUrl ?? null,
+            transactionDate: message.relatedTransaction.transactionDate,
+          }
+        : null;
 
     return {
       id: message.id,
@@ -26,6 +41,7 @@ export class MessageMapper {
       content: message.content,
       replyToMessage,
       relatedTransactionId: message.relatedTransactionId ?? null,
+      relatedTransaction,
       isRead: message.isRead,
       reactions,
       createdAt: message.createdAt,

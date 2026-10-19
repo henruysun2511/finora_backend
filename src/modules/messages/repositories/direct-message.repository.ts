@@ -21,7 +21,7 @@ export class DirectMessageRepository {
   findById(id: string): Promise<DirectMessage | null> {
     return this.repo.findOne({
       where: { id },
-      relations: ['replyToMessage', 'reactions'],
+      relations: ['replyToMessage', 'reactions', 'relatedTransaction'],
     });
   }
 
@@ -34,19 +34,32 @@ export class DirectMessageRepository {
     userB: string,
     skip: number,
     take: number,
+    beforeCreatedAt?: Date,
+    beforeId?: string,
   ): Promise<[DirectMessage[], number]> {
-    return this.repo
+    const query = this.repo
       .createQueryBuilder('m')
       .leftJoinAndSelect('m.replyToMessage', 'reply')
       .leftJoinAndSelect('m.reactions', 'reactions')
+      .leftJoinAndSelect('m.relatedTransaction', 'relatedTransaction')
       .where('m.deletedAt IS NULL')
       .andWhere(
         '((m.senderId = :userA AND m.receiverId = :userB) OR (m.senderId = :userB AND m.receiverId = :userA))',
         { userA, userB },
       )
       .orderBy('m.createdAt', 'DESC')
+      .addOrderBy('m.id', 'DESC')
       .skip(skip)
-      .take(take)
+      .take(take);
+
+    if (beforeCreatedAt && beforeId) {
+      query.andWhere(
+        '(m.createdAt < :beforeCreatedAt OR (m.createdAt = :beforeCreatedAt AND m.id < :beforeId))',
+        { beforeCreatedAt, beforeId },
+      );
+    }
+
+    return query
       .getManyAndCount();
   }
 
@@ -129,6 +142,19 @@ export class DirectMessageRepository {
       )
       .where('m.deleted_at IS NULL')
       .andWhere('(m.sender_id = :userId OR m.receiver_id = :userId)')
+      .andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM friendships f
+          WHERE f.deleted_at IS NULL
+            AND f.status = 'ACCEPTED'
+            AND (
+              (f.requester_id = :userId AND f.addressee_id = CASE WHEN m.sender_id = :userId THEN m.receiver_id ELSE m.sender_id END)
+              OR
+              (f.addressee_id = :userId AND f.requester_id = CASE WHEN m.sender_id = :userId THEN m.receiver_id ELSE m.sender_id END)
+            )
+        )`,
+      )
       .setParameter('userId', userId)
       .orderBy('last_msg.created_at', 'DESC');
 
