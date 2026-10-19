@@ -57,7 +57,7 @@ export class DirectMessage extends BaseEntity {
 
   @ManyToOne(() => Transaction, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'related_transaction_id' })
-  relatedTransaction?: Transaction;
+  relatedTransaction?: Transaction | null;
 
   @Column({ name: 'is_read', default: false })
   isRead: boolean;
