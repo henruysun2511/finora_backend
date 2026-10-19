@@ -10,7 +10,7 @@ import { BudgetPeriodRepository } from './repositories/budget-period.repository'
 import { BudgetRepository } from './repositories/budget.repository';
 import { BudgetsController } from './budgets.controller';
 import { BudgetsService } from './budgets.service';
-import { BudgetPeriodScheduler } from './budget-period.scheduler';
+import { BudgetPeriodScheduler } from './schedulers/budget-period.scheduler';
 
 @Module({
   imports: [
