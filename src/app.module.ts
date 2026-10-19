@@ -17,6 +17,7 @@ import { PermissionsGuard } from './modules/authorization/guards/permissions.gua
 import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 import { SplitExpensesModule } from './modules/split-expenses/split-expenses.module';
+import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
 import { LoansModule } from './modules/loans/loans.module';
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { LoansModule } from './modules/loans/loans.module';
     FeedModule,
     BudgetsModule,
     SplitExpensesModule,
+    RecurringTransactionsModule,
     LoansModule,
   ],
 
