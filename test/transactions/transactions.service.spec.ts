@@ -675,5 +675,38 @@ describe('TransactionsService', () => {
       expect(result.summary.totalTransactions).toBe(0);
       expect(result.summary.netAmount).toBe(0);
     });
+
+    it('Lọc giao dịch theo visibility trong getTransactions', async () => {
+      accountsService.getUserAccessibleAccountIds.mockResolvedValue(['acc-1']);
+      transactionRepo.findPaged.mockResolvedValue([[], 0]);
+
+      const query = {
+        page: 1,
+        limit: 10,
+        visibility: TransactionVisibility.FRIENDS,
+      };
+
+      await service.getTransactions(userId, query);
+
+      expect(transactionRepo.findPaged).toHaveBeenCalledWith(query, ['acc-1']);
+    });
+
+    it('Lọc dạng lưới theo visibility trong getDailyGrid', async () => {
+      accountsService.getUserAccessibleAccountIds.mockResolvedValue(['acc-1']);
+      transactionRepo.findForDailyGrid.mockResolvedValue([]);
+
+      await service.getDailyGrid(userId, {
+        startDate: '2026-10-01',
+        endDate: '2026-10-07',
+        visibility: TransactionVisibility.PRIVATE,
+      });
+
+      expect(transactionRepo.findForDailyGrid).toHaveBeenCalledWith(
+        ['acc-1'],
+        expect.objectContaining({
+          visibility: TransactionVisibility.PRIVATE,
+        }),
+      );
+    });
   });
 });

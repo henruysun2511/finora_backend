@@ -66,6 +66,10 @@ export class TransactionRepository {
       qb.andWhere('t.transactionDate <= :endDate', { endDate: new Date(query.endDate) });
     }
 
+    if (query.visibility) {
+      qb.andWhere('t.visibility = :visibility', { visibility: query.visibility });
+    }
+
     qb.orderBy('t.transactionDate', 'DESC')
       .addOrderBy('t.createdAt', 'DESC')
       .skip((query.page - 1) * query.limit)
@@ -82,6 +86,7 @@ export class TransactionRepository {
       accountId?: string;
       categoryId?: string;
       type?: TransactionType;
+      visibility?: TransactionVisibility;
     },
   ): Promise<Transaction[]> {
     if (accessibleAccountIds.length === 0) {
@@ -107,6 +112,10 @@ export class TransactionRepository {
 
     if (options.type) {
       qb.andWhere('t.type = :type', { type: options.type });
+    }
+
+    if (options.visibility) {
+      qb.andWhere('t.visibility = :visibility', { visibility: options.visibility });
     }
 
     qb.orderBy('t.transactionDate', 'DESC')

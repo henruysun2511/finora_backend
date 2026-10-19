@@ -384,6 +384,7 @@ export class TransactionsService {
       accountId: query.accountId,
       categoryId: query.categoryId,
       type: query.type,
+      visibility: query.visibility,
     });
 
     // 5. Gom nhóm theo ngày và tính toán thống kê

@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 import { IsDateString, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { TransactionType } from '../../../../common/enums/transaction-type.enum';
+import { TransactionVisibility } from '../../../../common/enums/transaction-visibility.enum';
 
 export class TransactionQueryDto {
   @ApiPropertyOptional({ default: 1 })
@@ -37,6 +38,15 @@ export class TransactionQueryDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsEnum(TransactionType)
   type?: TransactionType;
+
+  @ApiPropertyOptional({
+    enum: TransactionVisibility,
+    description: 'Lọc theo mức độ hiển thị (PRIVATE / FRIENDS)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @IsEnum(TransactionVisibility, { message: 'visibility không hợp lệ (PRIVATE hoặc FRIENDS)' })
+  visibility?: TransactionVisibility;
 
   @ApiPropertyOptional({ example: '2026-10-01', description: 'Từ ngày (ISO Date)' })
   @IsOptional()
