@@ -64,8 +64,7 @@ export class ReminderRateLimitException extends AppError {
       code: LOAN_ERROR_CODE.REMINDER_RATE_LIMIT,
       message: 'Bạn chỉ có thể gửi nhắc nợ mỗi 6 tiếng một lần',
       statusCode: HttpStatus.TOO_MANY_REQUESTS,
-      details:
-        hoursRemaining !== undefined ? { hoursRemaining } : undefined,
+      details: hoursRemaining !== undefined ? { hoursRemaining } : undefined,
     });
   }
 }

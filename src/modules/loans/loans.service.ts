@@ -16,8 +16,6 @@ import { LoanSummaryResponseDto } from './dto/response/loan-summary-response.dto
 import { LoanPaymentResponseDto } from './dto/response/loan-payment-response.dto';
 
 import {
-  AccountInsufficientBalanceException,
-  CannotChangeLoanTypeException,
   CannotDeleteLoanWithPaymentsException,
   CannotEditSettledLoanException,
   CounterpartyNotAppUserException,
@@ -62,7 +60,7 @@ export class LoansService {
     private readonly transactionsService: TransactionsService,
     private readonly notificationsService: NotificationsService,
     private readonly usersService: UsersService,
-  ) {}
+  ) { }
 
   /**
    * Xác định walletId hợp lệ: nếu không truyền từ query, tự động lấy ví cá nhân của người dùng.
@@ -90,7 +88,6 @@ export class LoansService {
     return personal.id;
   }
 
-  // ── [SCRUM-421] API 1: GET /api/v1/loans ──────────────────────────────────
   async getLoans(
     userId: string,
     query: LoanQueryDto,
@@ -122,7 +119,6 @@ export class LoansService {
     return PaginatedResponse.of(items, total, page, limit);
   }
 
-  // ── [SCRUM-423] API 2: GET /api/v1/loans/summary ──────────────────────────
   async getSummary(
     userId: string,
     walletId?: string,
@@ -141,7 +137,6 @@ export class LoansService {
     return summary;
   }
 
-  // ── [SCRUM-424] API 3: POST /api/v1/loans ─────────────────────────────────
   async createLoan(
     userId: string,
     dto: CreateLoanDto,
@@ -213,10 +208,7 @@ export class LoansService {
       const createdLoan = await this.loanRepo.save(loan, manager);
 
       // 3.4: Tạo bản ghi Transaction đồng bộ (Dual-Record)
-      if (
-        dto.affectsBalance !== false &&
-        dto.type !== LoanType.INSTALLMENT
-      ) {
+      if (dto.affectsBalance !== false && dto.type !== LoanType.INSTALLMENT) {
         const isLent = dto.type === LoanType.LENT;
         const categoryName = isLent ? 'Cho vay' : 'Đi vay';
         const categoryType = isLent
@@ -276,7 +268,6 @@ export class LoansService {
     return this.loanMapper.toResponse(savedLoan);
   }
 
-  // ── [SCRUM-425] API 4: GET /api/v1/loans/:id ──────────────────────────────
   async getLoanById(
     userId: string,
     id: string,
@@ -290,7 +281,6 @@ export class LoansService {
     return this.loanMapper.toDetailResponse(loan);
   }
 
-  // ── [SCRUM-426] API 5: PUT /api/v1/loans/:id ──────────────────────────────
   async updateLoan(
     userId: string,
     id: string,
@@ -328,10 +318,7 @@ export class LoansService {
       }
 
       // Nếu affectsBalance = true và không phải INSTALLMENT, bù trừ lại số dư tài khoản
-      if (
-        loan.affectsBalance &&
-        loan.type !== LoanType.INSTALLMENT
-      ) {
+      if (loan.affectsBalance && loan.type !== LoanType.INSTALLMENT) {
         const diff = round2(dto.principalAmount - loan.principalAmount);
         if (diff !== 0) {
           await this.dataSource.transaction(async (manager) => {
@@ -397,7 +384,6 @@ export class LoansService {
     return this.loanMapper.toResponse(saved);
   }
 
-  // ── [SCRUM-427] API 6: DELETE /api/v1/loans/:id ───────────────────────────
   async deleteLoan(userId: string, id: string): Promise<void> {
     const loan = await this.loanRepo.findById(id);
     if (!loan || loan.deletedAt) {
@@ -418,10 +404,7 @@ export class LoansService {
 
     await this.dataSource.transaction(async (manager) => {
       // Hoàn tác số dư nếu khi tạo có affectsBalance = true
-      if (
-        loan.affectsBalance &&
-        loan.type !== LoanType.INSTALLMENT
-      ) {
+      if (loan.affectsBalance && loan.type !== LoanType.INSTALLMENT) {
         if (loan.type === LoanType.LENT) {
           // Cho vay: hoàn lại tiền cho tài khoản (INCOME)
           await this.accountsService.executeTransactionBalance(
@@ -449,7 +432,6 @@ export class LoansService {
     });
   }
 
-  // ── [SCRUM-428] API 7: POST /api/v1/loans/:id/remind ──────────────────────
   async remindLoan(
     userId: string,
     id: string,
@@ -474,9 +456,7 @@ export class LoansService {
     }
 
     if (loan.status === LoanStatus.SETTLED || loan.remainingAmount <= 0) {
-      throw new LoanAlreadySettledException(
-        'Khoản nợ đã được thanh toán hết',
-      );
+      throw new LoanAlreadySettledException('Khoản nợ đã được thanh toán hết');
     }
 
     // Rate limiting: 6 tiếng / lần
@@ -519,7 +499,6 @@ export class LoansService {
     };
   }
 
-  // ── [SCRUM-429] API 8: DELETE /api/v1/loans/:id/counterparty ──────────────
   async removeCounterparty(
     userId: string,
     id: string,
@@ -556,7 +535,6 @@ export class LoansService {
     };
   }
 
-  // ── [SCRUM-430] API 9: POST /api/v1/loans/:id/payments ────────────────────
   async recordPayment(
     userId: string,
     loanId: string,
@@ -569,103 +547,98 @@ export class LoansService {
     );
 
     // 2. Mở ACID Transaction kèm SELECT FOR UPDATE
-    const savedPayment = await this.dataSource.transaction(
-      async (manager) => {
-        const loan = await this.loanRepo.findByIdWithLock(loanId, manager);
-        if (!loan || loan.deletedAt) {
-          throw new LoanNotFoundException(loanId);
-        }
+    const savedPayment = await this.dataSource.transaction(async (manager) => {
+      const loan = await this.loanRepo.findByIdWithLock(loanId, manager);
+      if (!loan || loan.deletedAt) {
+        throw new LoanNotFoundException(loanId);
+      }
 
-        await this.walletsService.assertWalletAccess(
-          loan.walletId,
-          userId,
-          'write',
+      await this.walletsService.assertWalletAccess(
+        loan.walletId,
+        userId,
+        'write',
+      );
+
+      if (loan.status === LoanStatus.SETTLED || loan.remainingAmount <= 0) {
+        throw new LoanAlreadySettledException();
+      }
+
+      if (dto.amount > loan.remainingAmount) {
+        throw new PaymentAmountExceedsRemainingException(
+          dto.amount,
+          loan.remainingAmount,
+        );
+      }
+
+      // 2.1: Giảm trừ remainingAmount và cập nhật trạng thái nếu đã trả hết
+      const newRemaining = round2(loan.remainingAmount - dto.amount);
+      loan.remainingAmount = newRemaining;
+      if (newRemaining <= 0) {
+        loan.status = LoanStatus.SETTLED;
+        loan.remainingAmount = 0;
+      }
+      await this.loanRepo.save(loan, manager);
+
+      // 2.2: Tạo bản ghi loan_payments
+      const paymentDate = dto.paymentDate
+        ? new Date(dto.paymentDate)
+        : new Date();
+      const paymentEntity = this.loanPaymentRepo.create({
+        loanId,
+        accountId: dto.accountId,
+        amount: round2(dto.amount),
+        paymentDate,
+        affectsBalance: dto.affectsBalance ?? true,
+        note: dto.note ?? null,
+      });
+      const saved = await this.loanPaymentRepo.save(paymentEntity, manager);
+
+      // 2.3: Kế toán kép (Dual-Record): Cập nhật số dư & tạo Transaction
+      if (dto.affectsBalance !== false) {
+        const isLent = loan.type === LoanType.LENT;
+        // Cho vay: người khác trả mình -> Thu hồi nợ (INCOME)
+        // Đi vay hoặc Mua trả góp: mình trả người khác -> Trả nợ (EXPENSE)
+        const txType = isLent
+          ? TransactionType.INCOME
+          : TransactionType.EXPENSE;
+        const categoryName = isLent ? 'Thu hồi nợ' : 'Trả nợ';
+        const catType = isLent ? CategoryType.INCOME : CategoryType.EXPENSE;
+
+        await this.accountsService.executeTransactionBalance(
+          {
+            accountId: dto.accountId,
+            type: txType,
+            amount: dto.amount,
+          },
+          manager,
         );
 
-        if (loan.status === LoanStatus.SETTLED || loan.remainingAmount <= 0) {
-          throw new LoanAlreadySettledException();
-        }
-
-        if (dto.amount > loan.remainingAmount) {
-          throw new PaymentAmountExceedsRemainingException(
-            dto.amount,
-            loan.remainingAmount,
-          );
-        }
-
-        // 2.1: Giảm trừ remainingAmount và cập nhật trạng thái nếu đã trả hết
-        const newRemaining = round2(loan.remainingAmount - dto.amount);
-        loan.remainingAmount = newRemaining;
-        if (newRemaining <= 0) {
-          loan.status = LoanStatus.SETTLED;
-          loan.remainingAmount = 0;
-        }
-        await this.loanRepo.save(loan, manager);
-
-        // 2.2: Tạo bản ghi loan_payments
-        const paymentDate = dto.paymentDate
-          ? new Date(dto.paymentDate)
-          : new Date();
-        const paymentEntity = this.loanPaymentRepo.create({
-          loanId,
-          accountId: dto.accountId,
-          amount: round2(dto.amount),
-          paymentDate,
-          affectsBalance: dto.affectsBalance ?? true,
-          note: dto.note ?? null,
-        });
-        const saved = await this.loanPaymentRepo.save(paymentEntity, manager);
-
-        // 2.3: Kế toán kép (Dual-Record): Cập nhật số dư & tạo Transaction
-        if (dto.affectsBalance !== false) {
-          const isLent = loan.type === LoanType.LENT;
-          // Cho vay: người khác trả mình -> Thu hồi nợ (INCOME)
-          // Đi vay hoặc Mua trả góp: mình trả người khác -> Trả nợ (EXPENSE)
-          const txType = isLent
-            ? TransactionType.INCOME
-            : TransactionType.EXPENSE;
-          const categoryName = isLent ? 'Thu hồi nợ' : 'Trả nợ';
-          const catType = isLent
-            ? CategoryType.INCOME
-            : CategoryType.EXPENSE;
-
-          await this.accountsService.executeTransactionBalance(
-            {
-              accountId: dto.accountId,
-              type: txType,
-              amount: dto.amount,
-            },
+        const category =
+          await this.categoriesService.findOrCreateSystemCategory(
+            categoryName,
+            catType,
             manager,
           );
 
-          const category =
-            await this.categoriesService.findOrCreateSystemCategory(
-              categoryName,
-              catType,
-              manager,
-            );
+        await this.transactionsService.createSyncTransaction(
+          {
+            userId,
+            accountId: dto.accountId,
+            categoryId: category.id,
+            type: txType,
+            amount: dto.amount,
+            currency: account.currency,
+            name: `${categoryName}: ${loan.contactName}`,
+            note:
+              dto.note ?? `${categoryName} cho khoản vay: ${loan.contactName}`,
+            transactionDate: paymentDate,
+          },
+          manager,
+        );
+      }
 
-          await this.transactionsService.createSyncTransaction(
-            {
-              userId,
-              accountId: dto.accountId,
-              categoryId: category.id,
-              type: txType,
-              amount: dto.amount,
-              currency: account.currency,
-              name: `${categoryName}: ${loan.contactName}`,
-              note:
-                dto.note ??
-                `${categoryName} cho khoản vay: ${loan.contactName}`,
-              transactionDate: paymentDate,
-            },
-            manager,
-          );
-        }
-
-        return saved;
-      },
-    );
+      return saved;
+    });
 
     // 3. Gửi thông báo Realtime nếu có liên kết bạn bè
     const loan = await this.loanRepo.findById(loanId);
@@ -690,7 +663,6 @@ export class LoansService {
     return this.loanMapper.toPaymentResponse(savedPayment, account.currency);
   }
 
-  // ── [SCRUM-431] API 10: GET /api/v1/loans/:id/payments ────────────────────
   async getPayments(
     userId: string,
     loanId: string,

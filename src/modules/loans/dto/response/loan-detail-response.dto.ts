@@ -72,7 +72,10 @@ export class LoanDetailResponseDto {
   @ApiProperty({ enum: LoanStatus, example: LoanStatus.ACTIVE })
   status: LoanStatus;
 
-  @ApiPropertyOptional({ example: 'Cho vay tiền mua xe máy mới', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Cho vay tiền mua xe máy mới',
+    nullable: true,
+  })
   note?: string | null;
 
   @ApiProperty({ example: false })

@@ -50,8 +50,6 @@ export class CreateLoanPaymentDto {
   })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   note?: string;
 }

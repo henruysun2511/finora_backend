@@ -33,7 +33,8 @@ export class CreateLoanDto {
   accountId: string;
 
   @ApiProperty({
-    description: 'Loại khoản nợ (LENT: cho vay, BORROWED: đi vay, INSTALLMENT: trả góp)',
+    description:
+      'Loại khoản nợ (LENT: cho vay, BORROWED: đi vay, INSTALLMENT: trả góp)',
     enum: LoanType,
     example: LoanType.LENT,
   })
@@ -48,9 +49,7 @@ export class CreateLoanDto {
   @IsString({ message: 'contactName phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Tên đối tác không được để trống' })
   @MaxLength(150, { message: 'Tên đối tác không được vượt quá 150 ký tự' })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   contactName: string;
 
   @ApiPropertyOptional({
@@ -60,9 +59,7 @@ export class CreateLoanDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   contactInfo?: string;
 
   @ApiPropertyOptional({
@@ -123,9 +120,7 @@ export class CreateLoanDto {
   })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   note?: string;
 
   @ApiPropertyOptional({

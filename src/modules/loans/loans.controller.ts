@@ -88,10 +88,7 @@ export class LoansController {
     status: HttpStatus.CREATED,
     bearerAuth: true,
   })
-  async create(
-    @CurrentUser('id') userId: string,
-    @Body() dto: CreateLoanDto,
-  ) {
+  async create(@CurrentUser('id') userId: string, @Body() dto: CreateLoanDto) {
     const data = await this.loansService.createLoan(userId, dto);
     return ApiResponse.created(data, 'Tạo khoản vay/nợ mới thành công');
   }

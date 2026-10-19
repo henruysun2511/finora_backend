@@ -28,12 +28,7 @@ import { UsersModule } from '../users/users.module';
     UsersModule,
   ],
   controllers: [LoansController],
-  providers: [
-    LoansService,
-    LoanRepository,
-    LoanPaymentRepository,
-    LoanMapper,
-  ],
+  providers: [LoansService, LoanRepository, LoanPaymentRepository, LoanMapper],
   exports: [LoansService],
 })
 export class LoansModule {}

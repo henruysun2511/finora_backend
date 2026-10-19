@@ -144,8 +144,6 @@ export class LoanMapper {
     payments: LoanPayment[],
     currencyFallback = 'VND',
   ): LoanPaymentResponseDto[] {
-    return payments.map((p) =>
-      this.toPaymentResponse(p, currencyFallback),
-    );
+    return payments.map((p) => this.toPaymentResponse(p, currencyFallback));
   }
 }

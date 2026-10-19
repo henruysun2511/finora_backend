@@ -16,9 +16,7 @@ export class UpdateLoanDto {
   @IsOptional()
   @IsString()
   @MaxLength(150)
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   contactName?: string;
 
   @ApiPropertyOptional({
@@ -28,9 +26,7 @@ export class UpdateLoanDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   contactInfo?: string;
 
   @ApiPropertyOptional({
@@ -46,9 +42,7 @@ export class UpdateLoanDto {
   })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   note?: string;
 
   @ApiPropertyOptional({
