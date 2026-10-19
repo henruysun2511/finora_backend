@@ -89,4 +89,23 @@ export class NotificationRepository {
     await this.repo.softDelete(id);
     return true;
   }
+
+  async findLatestByEntity(
+    userId: string,
+    type: string,
+    relatedEntityType: string,
+    relatedEntityId: string,
+  ): Promise<Notification | null> {
+    return this.repo.findOne({
+      where: {
+        userId,
+        type: type as any,
+        relatedEntityType,
+        relatedEntityId,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+  }
 }

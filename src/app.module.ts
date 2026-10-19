@@ -18,6 +18,7 @@ import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 import { SplitExpensesModule } from './modules/split-expenses/split-expenses.module';
 import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
+import { LoansModule } from './modules/loans/loans.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -36,6 +37,7 @@ import { RecurringTransactionsModule } from './modules/recurring-transactions/re
     BudgetsModule,
     SplitExpensesModule,
     RecurringTransactionsModule,
+    LoansModule,
   ],
 
   providers: [

@@ -1,5 +1,5 @@
 export enum LoanType {
-  LENT = 'lent',
-  BORROWED = 'borrowed',
-  INSTALLMENT = 'installment',
+  LENT = 'LENT',
+  BORROWED = 'BORROWED',
+  INSTALLMENT = 'INSTALLMENT',
 }

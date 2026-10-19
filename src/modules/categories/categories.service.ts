@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EntityManager } from 'typeorm';
 import { CategoryRepository } from './repositories/category.repository';
 import { CategoryMapper } from './mapper/category.mapper';
 import { CreateCategoryDto } from './dto/request/create-category.dto';
@@ -253,5 +254,34 @@ export class CategoriesService {
     }
 
     return category;
+  }
+
+  /**
+   * [CROSS-MODULE] Tìm hoặc tự động tạo danh mục hệ thống (dùng cho Loans, SplitExpenses, v.v.).
+   *
+   * @param name - Tên danh mục (ví dụ: 'Cho vay', 'Đi vay', 'Thu hồi nợ', 'Trả nợ')
+   * @param type - Loại danh mục (EXPENSE / INCOME / BOTH)
+   * @param manager - EntityManager tùy chọn cho transaction
+   */
+  async findOrCreateSystemCategory(
+    name: string,
+    type: CategoryType,
+    manager?: EntityManager,
+  ): Promise<CategoryEntity> {
+    const existing = await this.categoryRepo.findByNameAndType(name, type, '');
+    if (existing) {
+      return existing;
+    }
+
+    const cat = this.categoryRepo.create({
+      name,
+      type,
+      isDefault: true,
+      displayOrder: 99,
+      color: '#4F46E5',
+      icon: 'receipt',
+    });
+
+    return this.categoryRepo.save(cat, manager);
   }
 }
