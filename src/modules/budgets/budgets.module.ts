@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CategoriesModule } from '../categories/categories.module';
+import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WalletsModule } from '../wallets/wallets.module';
 import { BudgetPeriod } from './entities/budget-period.entity';
@@ -18,6 +19,7 @@ import { BudgetPeriodScheduler } from './schedulers/budget-period.scheduler';
     WalletsModule,
     CategoriesModule,
     NotificationsModule,
+    ExchangeRatesModule,
   ],
   controllers: [BudgetsController],
   providers: [
