@@ -10,6 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import { TransactionType } from '../../../../common/enums/transaction-type.enum';
+import { TransactionVisibility } from '../../../../common/enums/transaction-visibility.enum';
 
 export class DailyTransactionGridQueryDto {
   @ApiPropertyOptional({
@@ -85,4 +86,14 @@ export class DailyTransactionGridQueryDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsEnum(TransactionType, { message: 'type phải là EXPENSE hoặc INCOME' })
   type?: TransactionType;
+
+  @ApiPropertyOptional({
+    enum: TransactionVisibility,
+    description: 'Lọc theo mức độ hiển thị (PRIVATE hoặc FRIENDS)',
+    example: TransactionVisibility.PRIVATE,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @IsEnum(TransactionVisibility, { message: 'visibility phải là PRIVATE hoặc FRIENDS' })
+  visibility?: TransactionVisibility;
 }
