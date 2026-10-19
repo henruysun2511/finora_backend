@@ -48,7 +48,9 @@ export class CreateRecurringTransactionDto {
   @ApiPropertyOptional({ example: 'VND', default: 'VND' })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   currency?: string;
 
   @ApiProperty({ enum: RecurrencePeriod, example: RecurrencePeriod.MONTHLY })

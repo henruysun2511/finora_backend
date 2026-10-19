@@ -11,10 +11,16 @@ describe('RecurringTransactionsController', () => {
 
   const mockRecurringService = {
     listRules: jest.fn().mockResolvedValue({ items: [], total: 0 }),
-    createRule: jest.fn().mockImplementation((userId, dto) => Promise.resolve({ id: 'rule-1', ...dto })),
+    createRule: jest
+      .fn()
+      .mockImplementation((userId, dto) =>
+        Promise.resolve({ id: 'rule-1', ...dto }),
+      ),
     executeNow: jest.fn().mockResolvedValue({ id: 'tx-1', amount: 100 }),
     getRuleDetail: jest.fn().mockResolvedValue({ id: 'rule-1', history: [] }),
-    updateRule: jest.fn().mockImplementation((userId, id, dto) => Promise.resolve({ id, ...dto })),
+    updateRule: jest
+      .fn()
+      .mockImplementation((userId, id, dto) => Promise.resolve({ id, ...dto })),
     togglePause: jest.fn().mockResolvedValue({ isPaused: true }),
     deleteRule: jest.fn().mockResolvedValue(undefined),
   };
@@ -30,8 +36,12 @@ describe('RecurringTransactionsController', () => {
       ],
     }).compile();
 
-    controller = module.get<RecurringTransactionsController>(RecurringTransactionsController);
-    service = module.get<RecurringTransactionsService>(RecurringTransactionsService);
+    controller = module.get<RecurringTransactionsController>(
+      RecurringTransactionsController,
+    );
+    service = module.get<RecurringTransactionsService>(
+      RecurringTransactionsService,
+    );
   });
 
   it('should be defined', () => {
@@ -42,9 +52,9 @@ describe('RecurringTransactionsController', () => {
     it('should call recurringService.listRules with userId and query', async () => {
       const userId = 'user-1';
       const query: RecurringTransactionQueryDto = { page: 1, limit: 10 };
-      
+
       const result = await controller.listRules(userId, query);
-      
+
       expect(service.listRules).toHaveBeenCalledWith(userId, query);
       expect(result).toBeDefined();
     });

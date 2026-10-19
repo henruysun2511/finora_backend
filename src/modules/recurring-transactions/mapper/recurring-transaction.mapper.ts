@@ -1,32 +1,34 @@
 import { Injectable } from '@nestjs/common';
 import { RecurringTransaction } from '../entities/recurring-transaction.entity';
 import { RecurringTransactionResponseDto } from '../dto/response/recurring-transaction-response.dto';
-import { RecurringTransactionDetailResponseDto, ExecutionHistoryItemDto } from '../dto/response/recurring-transaction-detail-response.dto';
+import {
+  RecurringTransactionDetailResponseDto,
+  ExecutionHistoryItemDto,
+} from '../dto/response/recurring-transaction-detail-response.dto';
 import { CreateRecurringTransactionDto } from '../dto/request/create-recurring-transaction.dto';
-import { RecurrencePeriod } from '../enums/recurrence-period.enum';
 
 @Injectable()
 export class RecurringTransactionMapper {
   toResponse(entity: RecurringTransaction): RecurringTransactionResponseDto {
     return {
       id: entity.id,
-      name: (entity as any).name ?? '', // Ánh xạ nếu entity có thuộc tính name
+      name: entity.name,
       type: entity.type,
       amount: Number(entity.amount),
-      currency: (entity as any).currency ?? 'VND',
-      frequency: entity.frequency.toLowerCase() as RecurrencePeriod,
+      currency: entity.currency ?? 'VND',
+      frequency: entity.frequency,
       accountName: entity.account?.name,
       category: entity.category
         ? {
             id: entity.category.id,
             name: entity.category.name,
-            icon: (entity.category as any).icon,
+            icon: entity.category.icon,
           }
         : undefined,
-        nextRunDate: new Date(entity.nextRunDate),
-        endDate: (entity as any).endDate ?? null,
-        isPaused: !entity.isActive, // Đảo ngược isActive thành isPaused cho phù hợp với API response tiêu chuẩn
-        createdAt: entity.createdAt,
+      nextRunDate: new Date(entity.nextRunDate),
+      endDate: entity.endDate ? new Date(entity.endDate) : null,
+      isPaused: entity.isPaused,
+      createdAt: entity.createdAt,
     };
   }
 
@@ -35,17 +37,19 @@ export class RecurringTransactionMapper {
     historyTransactions: any[] = [],
   ): RecurringTransactionDetailResponseDto {
     const base = this.toResponse(entity);
-    
+
     let totalAmountSpent = 0;
-    const executionHistory: ExecutionHistoryItemDto[] = historyTransactions.map((tx) => {
-      const amt = Number(tx.amount);
-      totalAmountSpent += amt;
-      return {
-        transactionId: tx.id,
-        amount: amt,
-        date: tx.transactionDate ?? tx.createdAt,
-      };
-    });
+    const executionHistory: ExecutionHistoryItemDto[] = historyTransactions.map(
+      (tx) => {
+        const amt = Number(tx.amount);
+        totalAmountSpent += amt;
+        return {
+          transactionId: tx.id,
+          amount: amt,
+          date: tx.transactionDate ?? tx.createdAt,
+        };
+      },
+    );
 
     return {
       ...base,
@@ -55,23 +59,25 @@ export class RecurringTransactionMapper {
     };
   }
 
-  toEntity(dto: CreateRecurringTransactionDto, nextRunDate: Date): Partial<RecurringTransaction> {
+  toEntity(
+    dto: CreateRecurringTransactionDto,
+    nextRunDate: Date,
+    userId: string,
+  ): Partial<RecurringTransaction> {
     return {
+      walletId: dto.walletId,
       accountId: dto.accountId,
       categoryId: dto.categoryId,
-      type: dto.type,
+      createdBy: userId,
+      name: dto.name,
       amount: dto.amount,
+      currency: dto.currency ?? 'VND',
+      type: dto.type,
       frequency: dto.frequency,
-      // Chuyển Date object sang định dạng chuỗi YYYY-MM-DD phù hợp với cột type: 'date' trong Entity
-      nextRunDate: nextRunDate.toISOString().split('T')[0],
-      isActive: true,
-      // Các thuộc tính mở rộng nếu cần lưu kèm
-      ...( {
-        name: dto.name,
-        currency: dto.currency ?? 'VND',
-        walletId: dto.walletId,
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
-      } as any ),
+      startDate: new Date(dto.startDate),
+      endDate: dto.endDate ? new Date(dto.endDate) : null,
+      nextRunDate,
+      isPaused: false,
     };
   }
 }

@@ -5,7 +5,10 @@ export class RecurrenceDateCalculator {
    * Tính toán ngày thực thi tiếp theo dựa trên ngày hiện tại và tần suất lặp.
    * Xử lý chuẩn xác các trường hợp ngoại lệ ngày cuối tháng (End-of-Month).
    */
-  static calculateNextRunDate(currentDate: Date, frequency: RecurrencePeriod): Date {
+  static calculateNextRunDate(
+    currentDate: Date,
+    frequency: RecurrencePeriod,
+  ): Date {
     const nextDate = new Date(currentDate);
     const originalDay = nextDate.getUTCDate();
 
@@ -25,7 +28,7 @@ export class RecurrenceDateCalculator {
       case RecurrencePeriod.MONTHLY: {
         const targetMonth = nextDate.getUTCMonth() + 1;
         nextDate.setUTCMonth(targetMonth);
-        
+
         // Kiểm tra xem có bị tràn ngày cuối tháng không (VD: 31/01 sang tháng 2)
         const currentDayInNewMonth = nextDate.getUTCDate();
         if (currentDayInNewMonth !== originalDay) {

@@ -35,7 +35,9 @@ import { TransactionResponseDto } from '../transactions/dto/response/transaction
 @Controller({ path: 'recurring-transactions', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class RecurringTransactionsController {
-  constructor(private readonly recurringService: RecurringTransactionsService) {}
+  constructor(
+    private readonly recurringService: RecurringTransactionsService,
+  ) {}
 
   @Get()
   @Permissions(SYSTEM_PERMISSIONS.TRANSACTIONS_READ)
@@ -85,7 +87,10 @@ export class RecurringTransactionsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ApiResponseDto<TransactionResponseDto>> {
     const data = await this.recurringService.executeNow(userId, id);
-    return ApiResponseDto.created(data, 'Thực thi giao dịch định kỳ thành công');
+    return ApiResponseDto.created(
+      data,
+      'Thực thi giao dịch định kỳ thành công',
+    );
   }
 
   @Get(':id')
@@ -134,7 +139,10 @@ export class RecurringTransactionsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ApiResponseDto<{ isPaused: boolean }>> {
     const data = await this.recurringService.togglePause(userId, id);
-    return ApiResponseDto.success(data, 'Cập nhật trạng thái quy tắc định kỳ thành công');
+    return ApiResponseDto.success(
+      data,
+      'Cập nhật trạng thái quy tắc định kỳ thành công',
+    );
   }
 
   @Delete(':id')

@@ -6,9 +6,9 @@ import { CreateRecurringTransactionDto } from './dto/request/create-recurring-tr
 import { UpdateRecurringTransactionDto } from './dto/request/update-recurring-transaction.dto';
 import { RecurringTransactionQueryDto } from './dto/request/recurring-transaction-query.dto';
 import { RecurrenceDateCalculator } from './utils/recurrence-date-calculator.util';
-import { 
-  RecurringTransactionNotFoundException, 
-  InvalidRecurrenceDateException 
+import {
+  RecurringTransactionNotFoundException,
+  InvalidRecurrenceDateException,
 } from './exceptions/recurring-transaction.exception';
 import { WalletsService } from '../wallets/wallets.service';
 import { TransactionsService } from '../transactions/transactions.service';
@@ -32,7 +32,10 @@ export class RecurringTransactionsService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  private async assertWalletAccess(walletId: string, userId: string): Promise<void> {
+  private async assertWalletAccess(
+    walletId: string,
+    userId: string,
+  ): Promise<void> {
     const userWalletIds = await this.walletsService.getUserWalletIds(userId);
     if (!userWalletIds.includes(walletId)) {
       throw new RecurringTransactionNotFoundException();
@@ -40,7 +43,10 @@ export class RecurringTransactionsService {
   }
 
   // API 1: Lấy danh sách lịch định kỳ
-  async listRules(userId: string, query: RecurringTransactionQueryDto): Promise<PaginatedResponse<RecurringTransactionResponseDto>> {
+  async listRules(
+    userId: string,
+    query: RecurringTransactionQueryDto,
+  ): Promise<PaginatedResponse<RecurringTransactionResponseDto>> {
     let walletIds = await this.walletsService.getUserWalletIds(userId);
     if (query.walletId) {
       if (!walletIds.includes(query.walletId)) {
@@ -59,19 +65,24 @@ export class RecurringTransactionsService {
   }
 
   // API 2: Tạo quy tắc định kỳ mới
-  async createRule(userId: string, dto: CreateRecurringTransactionDto): Promise<RecurringTransactionResponseDto> {
+  async createRule(
+    userId: string,
+    dto: CreateRecurringTransactionDto,
+  ): Promise<RecurringTransactionResponseDto> {
     await this.assertWalletAccess(dto.walletId, userId);
 
     const startDate = new Date(dto.startDate);
     const endDate = dto.endDate ? new Date(dto.endDate) : null;
     if (endDate && endDate <= startDate) {
-      throw new InvalidRecurrenceDateException('Ngày kết thúc phải lớn hơn ngày bắt đầu');
+      throw new InvalidRecurrenceDateException(
+        'Ngày kết thúc phải lớn hơn ngày bắt đầu',
+      );
     }
 
     let nextRunDate = new Date(startDate);
 
     return this.dataSource.transaction(async (manager) => {
-      const entityData = this.mapper.toEntity(dto, nextRunDate);
+      const entityData = this.mapper.toEntity(dto, nextRunDate, userId);
       const entity = this.recurringRepo.create(entityData);
       const saved = await this.recurringRepo.saveRule(entity, manager);
 
@@ -89,8 +100,11 @@ export class RecurringTransactionsService {
           manager,
           saved.id,
         );
-        nextRunDate = RecurrenceDateCalculator.calculateNextRunDate(startDate, dto.frequency);
-        saved.nextRunDate = nextRunDate.toISOString().split('T')[0];
+        nextRunDate = RecurrenceDateCalculator.calculateNextRunDate(
+          startDate,
+          dto.frequency,
+        );
+        saved.nextRunDate = nextRunDate;
         await this.recurringRepo.saveRule(saved, manager);
       }
 
@@ -99,11 +113,17 @@ export class RecurringTransactionsService {
   }
 
   // API 3: Thực thi ngay hôm nay (Execute Now)
-  async executeNow(userId: string, id: string): Promise<TransactionResponseDto> {
+  async executeNow(
+    userId: string,
+    id: string,
+  ): Promise<TransactionResponseDto> {
     return this.dataSource.transaction(async (manager) => {
       const rule = await this.recurringRepo.findById(id, manager);
       if (!rule) throw new RecurringTransactionNotFoundException(id);
-      await this.assertWalletAccess(rule.account.walletId, userId);
+      await this.assertWalletAccess(
+        rule.walletId ?? rule.account?.walletId,
+        userId,
+      );
 
       const tx = await this.transactionsService.createTransaction(
         userId,
@@ -112,7 +132,7 @@ export class RecurringTransactionsService {
           categoryId: rule.categoryId,
           type: rule.type,
           amount: Number(rule.amount),
-          note: `[Định kỳ] ${(rule as any).name}`,
+          note: `[Định kỳ] ${rule.name}`,
           transactionDate: new Date(),
         },
         manager,
@@ -120,23 +140,23 @@ export class RecurringTransactionsService {
       );
 
       const currentNextRun = new Date(rule.nextRunDate);
-      let nextRun = RecurrenceDateCalculator.calculateNextRunDate(
+      const nextRun = RecurrenceDateCalculator.calculateNextRunDate(
         currentNextRun,
-        rule.frequency.toUpperCase() as Parameters<typeof RecurrenceDateCalculator.calculateNextRunDate>[1],
+        rule.frequency,
       );
-      
-      const ruleEndDate = (rule as any).endDate ? new Date((rule as any).endDate) : null;
+
+      const ruleEndDate = rule.endDate ? new Date(rule.endDate) : null;
       if (ruleEndDate && nextRun > ruleEndDate) {
-        rule.isActive = false; // Tự động dừng nếu vượt quá ngày kết thúc
+        rule.isPaused = true; // Tự động dừng nếu vượt quá ngày kết thúc
       }
-      rule.nextRunDate = nextRun.toISOString().split('T')[0];
+      rule.nextRunDate = nextRun;
       await this.recurringRepo.saveRule(rule, manager);
 
       await this.notificationsService.createNotification({
         userId,
         type: NotificationType.RECURRING_EXECUTED,
         title: 'Giao dịch định kỳ đã thực thi',
-        body: `Đã tự động ghi nhận giao dịch "${(rule as any).name}" số tiền ${rule.amount}`,
+        body: `Đã tự động ghi nhận giao dịch "${rule.name}" số tiền ${rule.amount}`,
         relatedEntityType: 'TRANSACTION',
         relatedEntityId: tx.id,
       });
@@ -146,56 +166,79 @@ export class RecurringTransactionsService {
   }
 
   // API 4: Chi tiết quy tắc & Lịch sử con
-  async getRuleDetail(userId: string, id: string): Promise<RecurringTransactionDetailResponseDto> {
+  async getRuleDetail(
+    userId: string,
+    id: string,
+  ): Promise<RecurringTransactionDetailResponseDto> {
     const rule = await this.recurringRepo.findById(id);
     if (!rule) throw new RecurringTransactionNotFoundException(id);
-    await this.assertWalletAccess(rule.account.walletId, userId);
+    await this.assertWalletAccess(
+      rule.walletId ?? rule.account?.walletId,
+      userId,
+    );
 
     const history = await this.transactionsService.findByRecurringId(rule.id);
     return this.mapper.toDetailResponse(rule, history);
   }
 
   // API 5: Sửa quy tắc định kỳ
-  async updateRule(userId: string, id: string, dto: UpdateRecurringTransactionDto): Promise<RecurringTransactionResponseDto> {
+  async updateRule(
+    userId: string,
+    id: string,
+    dto: UpdateRecurringTransactionDto,
+  ): Promise<RecurringTransactionResponseDto> {
     const rule = await this.recurringRepo.findById(id);
     if (!rule) throw new RecurringTransactionNotFoundException(id);
-    await this.assertWalletAccess(dto.walletId ?? rule.account.walletId, userId);
+    await this.assertWalletAccess(
+      dto.walletId ?? rule.walletId ?? rule.account?.walletId,
+      userId,
+    );
 
-    if (dto.name !== undefined) (rule as any).name = dto.name;
+    if (dto.name !== undefined) rule.name = dto.name;
     if (dto.amount !== undefined) rule.amount = dto.amount;
-    if (dto.frequency !== undefined) {
-      rule.frequency = dto.frequency.toLowerCase() as typeof rule.frequency;
-    }
+    if (dto.frequency !== undefined) rule.frequency = dto.frequency;
     if (dto.accountId !== undefined) rule.accountId = dto.accountId;
     if (dto.categoryId !== undefined) rule.categoryId = dto.categoryId;
+    if (dto.walletId !== undefined) rule.walletId = dto.walletId;
+    if (dto.currency !== undefined) rule.currency = dto.currency;
+    if (dto.startDate !== undefined) rule.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) {
-      (rule as any).endDate = dto.endDate ? new Date(dto.endDate) : null;
+      rule.endDate = dto.endDate ? new Date(dto.endDate) : null;
     }
 
     const saved = await this.recurringRepo.saveRule(rule);
     return this.mapper.toResponse(saved);
   }
 
-  // API 6: Tạm dừng / Tiếp tục (Toggle isActive)
-  async togglePause(userId: string, id: string): Promise<{ isPaused: boolean }> {
+  // API 6: Tạm dừng / Tiếp tục (Toggle isPaused)
+  async togglePause(
+    userId: string,
+    id: string,
+  ): Promise<{ isPaused: boolean }> {
     const rule = await this.recurringRepo.findById(id);
     if (!rule) throw new RecurringTransactionNotFoundException(id);
-    await this.assertWalletAccess(rule.account.walletId, userId);
+    await this.assertWalletAccess(
+      rule.walletId ?? rule.account?.walletId,
+      userId,
+    );
 
-    rule.isActive = !rule.isActive;
-    if (rule.isActive && new Date(rule.nextRunDate) < new Date()) {
-      rule.nextRunDate = new Date().toISOString().split('T')[0];
+    rule.isPaused = !rule.isPaused;
+    if (!rule.isPaused && new Date(rule.nextRunDate) < new Date()) {
+      rule.nextRunDate = new Date();
     }
 
     await this.recurringRepo.saveRule(rule);
-    return { isPaused: !rule.isActive };
+    return { isPaused: rule.isPaused };
   }
 
   // API 7: Xóa quy tắc định kỳ
   async deleteRule(userId: string, id: string): Promise<void> {
     const rule = await this.recurringRepo.findById(id);
     if (!rule) throw new RecurringTransactionNotFoundException(id);
-    await this.assertWalletAccess(rule.account.walletId, userId);
+    await this.assertWalletAccess(
+      rule.walletId ?? rule.account?.walletId,
+      userId,
+    );
 
     await this.recurringRepo.softDelete(rule.id);
   }
@@ -209,19 +252,19 @@ export class RecurringTransactionsService {
     for (const rule of dueRules) {
       try {
         await this.dataSource.transaction(async (manager) => {
-          const userId = rule.account.createdBy;
+          const userId = rule.createdBy || rule.account?.createdBy;
           if (!userId) {
-            throw new Error(`Không tìm thấy người tạo tài khoản cho quy tắc ${rule.id}`);
+            throw new Error(`Không tìm thấy người tạo cho quy tắc ${rule.id}`);
           }
 
-          await this.transactionsService.createTransaction(
+          const tx = await this.transactionsService.createTransaction(
             userId,
             {
               accountId: rule.accountId,
               categoryId: rule.categoryId,
               type: rule.type,
               amount: Number(rule.amount),
-              note: `[Định kỳ] ${(rule as any).name}`,
+              note: `[Định kỳ] ${rule.name}`,
               transactionDate: new Date(),
             },
             manager,
@@ -229,23 +272,36 @@ export class RecurringTransactionsService {
           );
 
           const currentNextRun = new Date(rule.nextRunDate);
-          let nextRun = RecurrenceDateCalculator.calculateNextRunDate(
+          const nextRun = RecurrenceDateCalculator.calculateNextRunDate(
             currentNextRun,
-            rule.frequency.toUpperCase() as Parameters<typeof RecurrenceDateCalculator.calculateNextRunDate>[1],
+            rule.frequency,
           );
-          
-          const ruleEndDate = (rule as any).endDate ? new Date((rule as any).endDate) : null;
+
+          const ruleEndDate = rule.endDate ? new Date(rule.endDate) : null;
           if (ruleEndDate && nextRun > ruleEndDate) {
-            rule.isActive = false;
+            rule.isPaused = true;
           }
-          rule.nextRunDate = nextRun.toISOString().split('T')[0];
+          rule.nextRunDate = nextRun;
           await this.recurringRepo.saveRule(rule, manager);
+
+          await this.notificationsService.createNotification({
+            userId,
+            type: NotificationType.RECURRING_EXECUTED,
+            title: 'Giao dịch định kỳ đã thực thi tự động',
+            body: `Đã tự động ghi nhận giao dịch "${rule.name}" số tiền ${rule.amount}`,
+            relatedEntityType: 'TRANSACTION',
+            relatedEntityId: tx.id,
+          });
         });
 
-        this.logger.log(`Đã thực thi thành công quy tắc định kỳ ID: ${rule.id}`);
+        this.logger.log(
+          `Đã thực thi thành công quy tắc định kỳ ID: ${rule.id}`,
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Lỗi thực thi quy tắc định kỳ ID ${rule.id}: ${message}`);
+        this.logger.error(
+          `Lỗi thực thi quy tắc định kỳ ID ${rule.id}: ${message}`,
+        );
       }
     }
   }

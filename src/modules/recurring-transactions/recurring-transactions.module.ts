@@ -5,7 +5,7 @@ import { RecurringTransactionsController } from './recurring-transactions.contro
 import { RecurringTransactionsService } from './recurring-transactions.service';
 import { RecurringTransactionRepository } from './repositories/recurring-transaction.repository';
 import { RecurringTransactionMapper } from './mapper/recurring-transaction.mapper';
-import { RecurringTransactionsScheduler } from './recurring-transactions.scheduler';
+import { RecurringTransactionsScheduler } from './schedulers/recurring-transactions.scheduler';
 import { WalletsModule } from '../wallets/wallets.module';
 import { AccountsModule } from '../accounts/accounts.module';
 import { TransactionsModule } from '../transactions/transactions.module';

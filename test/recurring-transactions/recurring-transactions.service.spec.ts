@@ -62,7 +62,9 @@ describe('RecurringTransactionsService', () => {
       ],
     }).compile();
 
-    service = module.get<RecurringTransactionsService>(RecurringTransactionsService);
+    service = module.get<RecurringTransactionsService>(
+      RecurringTransactionsService,
+    );
   });
 
   it('should be defined', () => {
@@ -81,7 +83,7 @@ describe('RecurringTransactionsService', () => {
         frequency: 'MONTHLY',
         startDate: '2026-11-01',
       };
-      
+
       mockRepo.create.mockReturnValue(dto);
       mockRepo.saveRule.mockResolvedValue({ id: 'rule-1', ...dto });
       mockMapper.toResponse.mockReturnValue({ id: 'rule-1', ...dto });
@@ -106,7 +108,9 @@ describe('RecurringTransactionsService', () => {
     it('Edge case / Exception: nên ném RecurringTransactionNotFoundException khi không tìm thấy quy tắc', async () => {
       mockRepo.findById.mockResolvedValue(null);
 
-      await expect(service.executeNow('user-1', 'invalid-id')).rejects.toThrow();
+      await expect(
+        service.executeNow('user-1', 'invalid-id'),
+      ).rejects.toThrow();
     });
   });
 });
