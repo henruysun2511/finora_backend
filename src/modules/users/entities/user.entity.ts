@@ -6,7 +6,6 @@ import { UserRole } from './user-role.entity';
 import type { Wallet } from '../../wallets/entities/wallet.entity';
 import type { WalletMember } from '../../wallets/entities/wallet-member.entity';
 import type { UserSetting } from './user-setting.entity';
-import type { AiPersona } from './ai-persona.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -54,9 +53,6 @@ export class User extends BaseEntity {
 
   @OneToOne('UserSetting', 'user', { cascade: true })
   setting?: UserSetting;
-
-  @OneToOne('AiPersona', 'user', { cascade: true })
-  persona?: AiPersona;
 
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles: UserRole[];

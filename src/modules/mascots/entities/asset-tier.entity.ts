@@ -36,4 +36,13 @@ export class AssetTier extends BaseEntity {
 
   @Column({ name: 'display_order', type: 'int', default: 0 })
   displayOrder: number;
+
+  @Column({ name: 'html_content', type: 'text', nullable: true })
+  htmlContent?: string;
+
+  @Column({ name: 'system_prompt', type: 'text', nullable: true })
+  systemPrompt?: string;
+
+  @Column({ name: 'quotes', type: 'jsonb', default: '[]' })
+  quotes?: string[];
 }

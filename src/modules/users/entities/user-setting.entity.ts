@@ -33,6 +33,9 @@ export class UserSetting extends BaseEntity {
   @Column({ name: 'show_mascot', default: true })
   showMascot: boolean;
 
+  @Column({ name: 'current_mascot_tier_id', type: 'uuid', nullable: true })
+  currentMascotTierId?: string;
+
   @Column({ name: 'biometric_enabled', default: false })
   biometricEnabled: boolean;
 

@@ -20,6 +20,7 @@ import { SplitExpensesModule } from './modules/split-expenses/split-expenses.mod
 import { MessagesModule } from './modules/messages/messages.module';
 import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
 import { LoansModule } from './modules/loans/loans.module';
+import { MascotsModule } from './modules/mascots/mascots.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -40,6 +41,7 @@ import { LoansModule } from './modules/loans/loans.module';
     MessagesModule,
     RecurringTransactionsModule,
     LoansModule,
+    MascotsModule,
   ],
 
   providers: [

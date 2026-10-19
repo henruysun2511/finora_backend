@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction } from './entities/transaction.entity';
 import { CategoriesService } from '../categories/categories.service';
 import { BudgetsService, TransactionBudgetImpact } from '../budgets/budgets.service';
+import { MascotsService } from '../mascots/mascots.service';
 import { TransactionMapper } from './mapper/transaction.mapper';
 import { CreateTransactionDto } from './dto/request/create-transaction.dto';
 import { TransactionQueryDto } from './dto/request/transaction-query.dto';
@@ -36,6 +37,7 @@ export class TransactionsService {
     private readonly categoriesService: CategoriesService,
     private readonly mapper: TransactionMapper,
     private readonly budgetsService: BudgetsService,
+    @Optional() private readonly mascotsService?: MascotsService,
   ) {}
 
   /**
@@ -122,6 +124,9 @@ export class TransactionsService {
       ? await execute(manager)
       : await this.dataSource.transaction(execute);
     await this.budgetsService.notifyBudgetAlerts(result.alerts);
+    if (this.mascotsService) {
+      this.mascotsService.checkMascotEvolution(userId).catch(() => {});
+    }
     return result.response;
   }
 

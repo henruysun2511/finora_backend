@@ -8,6 +8,7 @@ import { TransactionsController } from './transactions.controller';
 import { AccountsModule } from '../accounts/accounts.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { BudgetsModule } from '../budgets/budgets.module';
+import { MascotsModule } from '../mascots/mascots.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { BudgetsModule } from '../budgets/budgets.module';
     AccountsModule,
     CategoriesModule,
     BudgetsModule,
+    MascotsModule,
   ],
   controllers: [TransactionsController],
   providers: [
