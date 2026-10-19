@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction } from './entities/transaction.entity';
@@ -17,6 +17,9 @@ import {
 } from './dto/response/daily-transaction-grid-response.dto';
 import { PaginatedResponse } from '../../common/response/api-response';
 import { TransactionType } from '../../common/enums/transaction-type.enum';
+import { TransactionVisibility } from '../../common/enums/transaction-visibility.enum';
+import { TransactionStatus } from './enums/transaction-status.enum';
+import { TransactionSource } from './enums/transaction-source.enum';
 import {
   TransactionAccessDeniedException,
   TransactionNotFoundException,
@@ -46,6 +49,8 @@ export class TransactionsService {
   async createTransaction(
     userId: string,
     dto: CreateTransactionDto,
+    manager?: EntityManager,
+    recurringTransactionId?: string,
   ): Promise<TransactionResponseDto> {
     // 1. Xác thực tài khoản: tồn tại, chưa lưu trữ và user có quyền ghi (OWNER / EDITOR)
     const account = await this.accountsService.validateAccountForTransaction(
@@ -67,7 +72,7 @@ export class TransactionsService {
         : category.name || (dto.type === TransactionType.INCOME ? 'Khoản thu' : 'Khoản chi');
 
     // 4. Mở DB transaction: khóa tài khoản, cập nhật số dư & lưu giao dịch
-    const result = await this.dataSource.transaction(async (manager) => {
+    const execute = async (transactionManager: EntityManager) => {
       // 4.1. Cập nhật số dư tài khoản (chặn âm tiền nếu là EXPENSE)
       const { balanceAfter } = await this.accountsService.executeTransactionBalance(
         {
@@ -75,16 +80,22 @@ export class TransactionsService {
           type: dto.type,
           amount: dto.amount,
         },
-        manager,
+        transactionManager,
       );
 
       // 4.2. Khởi tạo & Lưu entity Transaction
       const transactionEntity = this.transactionRepo.create(
-        this.mapper.toEntity(dto, userId, account.currency, fallbackName),
+        this.mapper.toEntity(
+          dto,
+          userId,
+          account.currency,
+          fallbackName,
+          recurringTransactionId,
+        ),
       );
       const savedTransaction = await this.transactionRepo.save(
         transactionEntity,
-        manager,
+        transactionManager,
       );
 
       savedTransaction.account = account;
@@ -100,13 +111,16 @@ export class TransactionsService {
           type: savedTransaction.type,
           transactionDate: savedTransaction.transactionDate,
         },
-        manager,
+        transactionManager,
       );
       return {
         response: this.mapper.toResponse(savedTransaction, balanceAfter),
         alerts,
       };
-    });
+    };
+    const result = manager
+      ? await execute(manager)
+      : await this.dataSource.transaction(execute);
     await this.budgetsService.notifyBudgetAlerts(result.alerts);
     return result.response;
   }
@@ -486,11 +500,53 @@ export class TransactionsService {
     return this.transactionRepo.findById(id);
   }
 
+  async findByRecurringId(recurringTransactionId: string): Promise<Transaction[]> {
+    return this.transactionRepo.findByRecurringId(recurringTransactionId);
+  }
+
   /**
    * [CROSS-MODULE] Lưu entity Transaction đã chỉnh sửa các trường hiển thị
    * (visibility, amountHidden, note). Dùng cho FeedService.updatePost.
    */
   async saveEntity(transaction: Transaction): Promise<Transaction> {
     return this.transactionRepo.save(transaction);
+  }
+
+  /**
+   * [CROSS-MODULE] Tạo giao dịch đồng bộ từ các nghiệp vụ khác (như Loans, SplitExpenses) trong transaction.
+   */
+  async createSyncTransaction(
+    params: {
+      userId: string;
+      accountId: string;
+      categoryId: string;
+      type: TransactionType;
+      amount: number;
+      currency?: string;
+      name: string;
+      note?: string;
+      transactionDate?: Date;
+    },
+    manager: EntityManager,
+  ): Promise<Transaction> {
+    const tx = this.transactionRepo.create({
+      createdBy: params.userId,
+      accountId: params.accountId,
+      categoryId: params.categoryId,
+      type: params.type,
+      amount: params.amount,
+      currency: params.currency ?? 'VND',
+      name: params.name,
+      note: params.note,
+      transactionDate: params.transactionDate ?? new Date(),
+      status: TransactionStatus.CONFIRMED,
+      visibility: TransactionVisibility.PRIVATE,
+      source: TransactionSource.MANUAL,
+      amountHidden: false,
+      isRecurring: false,
+      fee: 0,
+      excludeFromReport: false,
+    });
+    return this.transactionRepo.save(tx, manager);
   }
 }

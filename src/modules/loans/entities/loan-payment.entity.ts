@@ -1,10 +1,4 @@
-import {
-  Entity,
-  Column,
-  Index,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Loan } from './loan.entity';
 import { Account } from '../../accounts/entities/account.entity';
@@ -24,7 +18,7 @@ export class LoanPayment extends BaseEntity {
   @Index('idx_loan_payments_account_id')
   accountId: string;
 
-  @ManyToOne(() => Account, (account) => account.loanPayments, {
+  @ManyToOne(() => Account, {
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'account_id' })
@@ -38,10 +32,13 @@ export class LoanPayment extends BaseEntity {
   })
   amount: number;
 
-  @Column({ type: 'date' })
+  @Column({ name: 'payment_date', type: 'timestamptz' })
   @Index('idx_loan_payments_date')
-  date: string;
+  paymentDate: Date;
+
+  @Column({ name: 'affects_balance', default: true })
+  affectsBalance: boolean;
 
   @Column({ type: 'text', nullable: true })
-  note?: string;
+  note?: string | null;
 }

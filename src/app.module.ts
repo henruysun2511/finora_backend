@@ -18,6 +18,8 @@ import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 import { SplitExpensesModule } from './modules/split-expenses/split-expenses.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
+import { LoansModule } from './modules/loans/loans.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -36,6 +38,8 @@ import { MessagesModule } from './modules/messages/messages.module';
     BudgetsModule,
     SplitExpensesModule,
     MessagesModule,
+    RecurringTransactionsModule,
+    LoansModule,
   ],
 
   providers: [

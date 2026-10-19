@@ -36,7 +36,7 @@ import {
 } from './exceptions/split-expense.exception';
 import { Loan } from '../loans/entities/loan.entity';
 import { LoanType } from '../loans/enums/loan-type.enum';
-import { LifecycleStatus } from '../loans/enums/lifecycle-status.enum';
+import { LoanStatus } from '../loans/enums/loan-status.enum';
 import { NotificationType } from '../notifications/enums/notification-type.enum';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -542,12 +542,16 @@ export class SplitExpensesService {
         // Tạo bản ghi nợ phải thu (LENT)
         const loanEntity = manager.create(Loan, {
           walletId: split.walletId,
+          accountId: split.transaction?.accountId ?? split.walletId,
+          createdBy: split.createdById,
           counterpartyUserId: p.userId,
-          counterpartyName,
+          contactName: counterpartyName,
           type: LoanType.LENT,
           principalAmount: p.assignedAmount,
-          startDate: todayStr,
-          status: LifecycleStatus.ACTIVE,
+          remainingAmount: p.assignedAmount,
+          loanDate: new Date(),
+          status: LoanStatus.ACTIVE,
+          affectsBalance: false,
           note: `Chia tiền từ hóa đơn #${split.transactionId.slice(0, 8)}`,
         });
 
