@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction } from './entities/transaction.entity';
@@ -17,6 +17,9 @@ import {
 } from './dto/response/daily-transaction-grid-response.dto';
 import { PaginatedResponse } from '../../common/response/api-response';
 import { TransactionType } from '../../common/enums/transaction-type.enum';
+import { TransactionVisibility } from '../../common/enums/transaction-visibility.enum';
+import { TransactionStatus } from './enums/transaction-status.enum';
+import { TransactionSource } from './enums/transaction-source.enum';
 import {
   TransactionAccessDeniedException,
   TransactionNotFoundException,
@@ -492,5 +495,43 @@ export class TransactionsService {
    */
   async saveEntity(transaction: Transaction): Promise<Transaction> {
     return this.transactionRepo.save(transaction);
+  }
+
+  /**
+   * [CROSS-MODULE] Tạo giao dịch đồng bộ từ các nghiệp vụ khác (như Loans, SplitExpenses) trong transaction.
+   */
+  async createSyncTransaction(
+    params: {
+      userId: string;
+      accountId: string;
+      categoryId: string;
+      type: TransactionType;
+      amount: number;
+      currency?: string;
+      name: string;
+      note?: string;
+      transactionDate?: Date;
+    },
+    manager: EntityManager,
+  ): Promise<Transaction> {
+    const tx = this.transactionRepo.create({
+      createdBy: params.userId,
+      accountId: params.accountId,
+      categoryId: params.categoryId,
+      type: params.type,
+      amount: params.amount,
+      currency: params.currency ?? 'VND',
+      name: params.name,
+      note: params.note,
+      transactionDate: params.transactionDate ?? new Date(),
+      status: TransactionStatus.CONFIRMED,
+      visibility: TransactionVisibility.PRIVATE,
+      source: TransactionSource.MANUAL,
+      amountHidden: false,
+      isRecurring: false,
+      fee: 0,
+      excludeFromReport: false,
+    });
+    return this.transactionRepo.save(tx, manager);
   }
 }

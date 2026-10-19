@@ -8,6 +8,7 @@ import { NotificationResponseDto } from './dto/response/notification-response.dt
 import { UnreadCountResponseDto } from './dto/response/unread-count-response.dto';
 import { PaginatedResponse } from '../../common/response/api-response';
 import { NotificationNotFoundException } from './exceptions/notification.exception';
+import { NotificationType } from './enums/notification-type.enum';
 
 @Injectable()
 export class NotificationsService {
@@ -107,5 +108,22 @@ export class NotificationsService {
     // Cập nhật lại số unread qua Socket
     const unreadCount = await this.notifRepo.countUnread(userId);
     this.gateway.sendUnreadCountToUser(userId, unreadCount);
+  }
+
+  /**
+   * [CROSS-MODULE] Lấy thời gian gửi nhắc nợ (LOAN_DUE) gần nhất cho một khoản vay cụ thể.
+   * Dùng cho LoansService để kiểm tra giới hạn tần suất 6 tiếng/lần.
+   */
+  async findLatestLoanReminder(
+    loanId: string,
+    recipientUserId: string,
+  ): Promise<Date | null> {
+    const notif = await this.notifRepo.findLatestByEntity(
+      recipientUserId,
+      NotificationType.LOAN_DUE,
+      'LOAN',
+      loanId,
+    );
+    return notif ? notif.createdAt : null;
   }
 }
