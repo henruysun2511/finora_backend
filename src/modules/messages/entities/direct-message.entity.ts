@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
 import type { MessageReaction } from './message-reaction.entity';
 
 @Entity('direct_messages')
@@ -42,6 +43,10 @@ export class DirectMessage extends BaseEntity {
   @Column({ name: 'related_transaction_id', type: 'uuid', nullable: true })
   @Index('idx_direct_messages_related_transaction_id')
   relatedTransactionId?: string;
+
+  @ManyToOne(() => Transaction, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'related_transaction_id' })
+  relatedTransaction?: Transaction;
 
   @Column({ name: 'is_read', default: false })
   isRead: boolean;
