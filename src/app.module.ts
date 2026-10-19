@@ -17,6 +17,7 @@ import { PermissionsGuard } from './modules/authorization/guards/permissions.gua
 import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 import { SplitExpensesModule } from './modules/split-expenses/split-expenses.module';
+import { MessagesModule } from './modules/messages/messages.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -34,6 +35,7 @@ import { SplitExpensesModule } from './modules/split-expenses/split-expenses.mod
     FeedModule,
     BudgetsModule,
     SplitExpensesModule,
+    MessagesModule,
   ],
 
   providers: [
@@ -51,4 +53,4 @@ import { SplitExpensesModule } from './modules/split-expenses/split-expenses.mod
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

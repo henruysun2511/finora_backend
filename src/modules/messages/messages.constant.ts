@@ -1,0 +1,9 @@
+export const MESSAGE_ERROR_CODE = {
+  NOT_FOUND: 'MESSAGE_NOT_FOUND',
+  CANNOT_MESSAGE_NON_FRIEND: 'CANNOT_MESSAGE_NON_FRIEND',
+  RECALL_TIMEOUT: 'MESSAGE_RECALL_TIMEOUT',
+  USER_BLOCKED: 'MESSAGE_USER_BLOCKED',
+} as const;
+
+/** Thời gian tối đa cho phép thu hồi tin nhắn (15 phút) */
+export const MESSAGE_RECALL_LIMIT_MINUTES = 15;
