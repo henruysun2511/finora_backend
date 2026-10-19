@@ -1,6 +1,5 @@
 import { Module, ClassSerializerInterceptor } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ScheduleModule } from '@nestjs/schedule';
 import { InfrastructuresModule } from './infrastructures/infrastructures.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
@@ -19,7 +18,6 @@ import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
     InfrastructuresModule,
     UsersModule,
     AuthorizationModule,
