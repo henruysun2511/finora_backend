@@ -4,6 +4,7 @@ import { TransactionRepository } from './repositories/transaction.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction } from './entities/transaction.entity';
 import { CategoriesService } from '../categories/categories.service';
+import { BudgetsService, TransactionBudgetImpact } from '../budgets/budgets.service';
 import { TransactionMapper } from './mapper/transaction.mapper';
 import { CreateTransactionDto } from './dto/request/create-transaction.dto';
 import { TransactionQueryDto } from './dto/request/transaction-query.dto';
@@ -31,6 +32,7 @@ export class TransactionsService {
     private readonly accountsService: AccountsService,
     private readonly categoriesService: CategoriesService,
     private readonly mapper: TransactionMapper,
+    private readonly budgetsService: BudgetsService,
   ) {}
 
   /**
@@ -65,7 +67,7 @@ export class TransactionsService {
         : category.name || (dto.type === TransactionType.INCOME ? 'Khoản thu' : 'Khoản chi');
 
     // 4. Mở DB transaction: khóa tài khoản, cập nhật số dư & lưu giao dịch
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       // 4.1. Cập nhật số dư tài khoản (chặn âm tiền nếu là EXPENSE)
       const { balanceAfter } = await this.accountsService.executeTransactionBalance(
         {
@@ -88,8 +90,24 @@ export class TransactionsService {
       savedTransaction.account = account;
       savedTransaction.category = category;
 
-      return this.mapper.toResponse(savedTransaction, balanceAfter);
+      const alerts = await this.budgetsService.syncTransactionChange(
+        null,
+        {
+          walletId: account.walletId,
+          categoryId: savedTransaction.categoryId,
+          amount: savedTransaction.amount,
+          type: savedTransaction.type,
+          transactionDate: savedTransaction.transactionDate,
+        },
+        manager,
+      );
+      return {
+        response: this.mapper.toResponse(savedTransaction, balanceAfter),
+        alerts,
+      };
     });
+    await this.budgetsService.notifyBudgetAlerts(result.alerts);
+    return result.response;
   }
 
   /**
@@ -178,13 +196,20 @@ export class TransactionsService {
 
     // 4. Kiểm tra xem các trường tác động số dư có thay đổi không
     const targetAmount = dto.amount !== undefined ? dto.amount : transaction.amount;
+    const previousImpact: TransactionBudgetImpact = {
+      walletId: currentAccount.walletId,
+      categoryId: transaction.categoryId,
+      amount: transaction.amount,
+      type: transaction.type,
+      transactionDate: new Date(transaction.transactionDate),
+    };
     const isBalanceAffected =
       targetAmount !== transaction.amount ||
       targetType !== transaction.type ||
       targetAccountId !== transaction.accountId;
 
     // 5. Mở DB Transaction
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       let balanceAfter: number | undefined;
 
       if (isBalanceAffected) {
@@ -230,8 +255,24 @@ export class TransactionsService {
       savedTransaction.account = targetAccount;
       savedTransaction.category = targetCategory;
 
-      return this.mapper.toResponse(savedTransaction, balanceAfter);
+      const alerts = await this.budgetsService.syncTransactionChange(
+        previousImpact,
+        {
+          walletId: targetAccount.walletId,
+          categoryId: targetCategoryId,
+          amount: targetAmount,
+          type: targetType,
+          transactionDate: new Date(savedTransaction.transactionDate),
+        },
+        manager,
+      );
+      return {
+        response: this.mapper.toResponse(savedTransaction, balanceAfter),
+        alerts,
+      };
     });
+    await this.budgetsService.notifyBudgetAlerts(result.alerts);
+    return result.response;
   }
 
   /**
@@ -248,9 +289,12 @@ export class TransactionsService {
     if (!transaction) throw new TransactionNotFoundException(id);
 
     // Xác thực quyền ghi trên tài khoản chứa giao dịch
-    await this.accountsService.validateAccountForTransaction(userId, transaction.accountId);
+    const account = await this.accountsService.validateAccountForTransaction(
+      userId,
+      transaction.accountId,
+    );
 
-    await this.dataSource.transaction(async (manager) => {
+    const alerts = await this.dataSource.transaction(async (manager) => {
       // 1. Hoàn tác số dư tài khoản
       await this.accountsService.revertTransactionBalance(
         {
@@ -261,9 +305,23 @@ export class TransactionsService {
         manager,
       );
 
+      const budgetAlerts = await this.budgetsService.syncTransactionChange(
+        {
+          walletId: account.walletId,
+          categoryId: transaction.categoryId,
+          amount: transaction.amount,
+          type: transaction.type,
+          transactionDate: new Date(transaction.transactionDate),
+        },
+        null,
+        manager,
+      );
+
       // 2. Soft delete bản ghi giao dịch
       await this.transactionRepo.softDelete(transaction.id, manager);
+      return budgetAlerts;
     });
+    await this.budgetsService.notifyBudgetAlerts(alerts);
   }
 
   /**

@@ -5,7 +5,6 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-  Unique,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { RecurrencePeriod } from '../../../common/enums/recurrence-period.enum';
@@ -15,7 +14,14 @@ import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 import type { BudgetPeriod } from './budget-period.entity';
 
 @Entity('budgets')
-@Unique(['walletId', 'categoryId', 'period'])
+@Index(
+  'uq_budgets_wallet_category_period_active',
+  ['walletId', 'categoryId', 'period'],
+  {
+    unique: true,
+    where: '"deleted_at" IS NULL',
+  },
+)
 export class Budget extends BaseEntity {
   @Column({ name: 'wallet_id', type: 'uuid' })
   @Index('idx_budgets_wallet_id')

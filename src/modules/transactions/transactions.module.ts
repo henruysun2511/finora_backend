@@ -7,12 +7,14 @@ import { TransactionsService } from './transactions.service';
 import { TransactionsController } from './transactions.controller';
 import { AccountsModule } from '../accounts/accounts.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { BudgetsModule } from '../budgets/budgets.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Transaction]),
     AccountsModule,
     CategoriesModule,
+    BudgetsModule,
   ],
   controllers: [TransactionsController],
   providers: [

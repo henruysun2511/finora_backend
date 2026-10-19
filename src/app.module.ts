@@ -15,6 +15,7 @@ import { FriendsModule } from './modules/friends/friends.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 import { FeedModule } from './modules/feeds/feed.module';
+import { BudgetsModule } from './modules/budgets/budgets.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -29,7 +30,8 @@ import { FeedModule } from './modules/feeds/feed.module';
     TransactionsModule,
     NotificationsModule,
     FriendsModule,
-    FeedModule
+    FeedModule,
+    BudgetsModule,
   ],
 
   providers: [
@@ -47,4 +49,4 @@ import { FeedModule } from './modules/feeds/feed.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
