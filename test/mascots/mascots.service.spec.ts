@@ -381,4 +381,24 @@ describe('MascotsService', () => {
       expect(prompt).toBe('Prompt for Nora');
     });
   });
+
+  describe('handleNetWorthChanged', () => {
+    it('should call checkMascotEvolution when NetWorthChangedEvent is received', async () => {
+      const checkSpy = jest
+        .spyOn(service, 'checkMascotEvolution')
+        .mockResolvedValue({
+          evolved: false,
+          netWorth: 5000000,
+          currentMascot: mockTiers[0] as any,
+          message: 'OK',
+        });
+
+      await service.handleNetWorthChanged({
+        userId: 'user-123',
+        source: 'account.adjust_balance',
+      });
+
+      expect(checkSpy).toHaveBeenCalledWith('user-123');
+    });
+  });
 });

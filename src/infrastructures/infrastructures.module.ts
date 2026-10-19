@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtConfig } from '../config/jwt.config';
@@ -11,12 +12,13 @@ import { RedisModule } from './redis/redis.module';
 /**
  * InfrastructuresModule — Module hạ tầng dùng chung toàn hệ thống (@Global).
  * Tự động cung cấp kết nối Cơ sở dữ liệu (PostgreSQL TypeORM), Scheduler (Cron Job Engine),
- * JWT (Global Token Service), Cloudinary (Media storage), Mailer (Email SMTP), Redis (Cache & Token)
- * và Logger (Winston) cho toàn bộ ứng dụng FINORA.
+ * Event Emitter (Event-driven Architecture), JWT (Global Token Service), Cloudinary (Media storage),
+ * Mailer (Email SMTP), Redis (Cache & Token) và Logger (Winston) cho toàn bộ ứng dụng FINORA.
  */
 @Global()
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     DatabaseModule,
     JwtModule.register({
@@ -30,6 +32,7 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
   ],
   exports: [
+    EventEmitterModule,
     ScheduleModule,
     DatabaseModule,
     JwtModule,

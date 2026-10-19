@@ -1,4 +1,5 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 
 import { LoanRepository } from './repositories/loan.repository';
@@ -44,6 +45,10 @@ import { TransactionType } from '../../common/enums/transaction-type.enum';
 import { NotificationType } from '../notifications/enums/notification-type.enum';
 import { PaginatedResponse } from '../../common/response/api-response';
 import { AppError } from '../../common/errors/app.error';
+import {
+  EVENT_NET_WORTH_CHANGED,
+  NetWorthChangedEvent,
+} from '../../common/events/net-worth-changed.event';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -60,7 +65,8 @@ export class LoansService {
     private readonly transactionsService: TransactionsService,
     private readonly notificationsService: NotificationsService,
     private readonly usersService: UsersService,
-  ) { }
+    @Optional() private readonly eventEmitter?: EventEmitter2,
+  ) {}
 
   /**
    * Xác định walletId hợp lệ: nếu không truyền từ query, tự động lấy ví cá nhân của người dùng.
@@ -265,6 +271,13 @@ export class LoansService {
       }
     }
 
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'loan.create'),
+      );
+    }
+
     return this.loanMapper.toResponse(savedLoan);
   }
 
@@ -430,6 +443,13 @@ export class LoansService {
 
       await this.loanRepo.softDelete(id, manager);
     });
+
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'loan.delete'),
+      );
+    }
   }
 
   async remindLoan(
@@ -658,6 +678,13 @@ export class LoansService {
       } catch {
         // Bỏ qua lỗi socket/push
       }
+    }
+
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'loan.payment'),
+      );
     }
 
     return this.loanMapper.toPaymentResponse(savedPayment, account.currency);

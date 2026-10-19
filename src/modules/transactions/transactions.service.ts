@@ -1,11 +1,11 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, EntityManager } from 'typeorm';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction } from './entities/transaction.entity';
 import { CategoriesService } from '../categories/categories.service';
 import { BudgetsService, TransactionBudgetImpact } from '../budgets/budgets.service';
-import { MascotsService } from '../mascots/mascots.service';
 import { TransactionMapper } from './mapper/transaction.mapper';
 import { CreateTransactionDto } from './dto/request/create-transaction.dto';
 import { TransactionQueryDto } from './dto/request/transaction-query.dto';
@@ -25,6 +25,10 @@ import {
   TransactionAccessDeniedException,
   TransactionNotFoundException,
 } from './exceptions/transaction.exception';
+import {
+  EVENT_NET_WORTH_CHANGED,
+  NetWorthChangedEvent,
+} from '../../common/events/net-worth-changed.event';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -37,7 +41,7 @@ export class TransactionsService {
     private readonly categoriesService: CategoriesService,
     private readonly mapper: TransactionMapper,
     private readonly budgetsService: BudgetsService,
-    @Optional() private readonly mascotsService?: MascotsService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   /**
@@ -124,8 +128,11 @@ export class TransactionsService {
       ? await execute(manager)
       : await this.dataSource.transaction(execute);
     await this.budgetsService.notifyBudgetAlerts(result.alerts);
-    if (this.mascotsService) {
-      this.mascotsService.checkMascotEvolution(userId).catch(() => {});
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'transaction.create'),
+      );
     }
     return result.response;
   }
@@ -294,6 +301,12 @@ export class TransactionsService {
       };
     });
     await this.budgetsService.notifyBudgetAlerts(result.alerts);
+    if (this.eventEmitter && isBalanceAffected) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'transaction.update'),
+      );
+    }
     return result.response;
   }
 
@@ -345,6 +358,12 @@ export class TransactionsService {
       return budgetAlerts;
     });
     await this.budgetsService.notifyBudgetAlerts(alerts);
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'transaction.delete'),
+      );
+    }
   }
 
   /**
@@ -552,6 +571,13 @@ export class TransactionsService {
       fee: 0,
       excludeFromReport: false,
     });
-    return this.transactionRepo.save(tx, manager);
+    const saved = await this.transactionRepo.save(tx, manager);
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(params.userId, 'transaction.sync'),
+      );
+    }
+    return saved;
   }
 }

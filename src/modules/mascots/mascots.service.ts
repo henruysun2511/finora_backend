@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { MascotRepository } from './repositories/mascot.repository';
 import { MascotMapper } from './mapper/mascot.mapper';
 import { CreateMascotDto } from './dto/request/create-mascot.dto';
@@ -15,6 +16,10 @@ import {
   MascotCannotDeleteException,
 } from './exceptions/mascot.exception';
 import { DEFAULT_FALLBACK_MASCOT_KEY } from './mascots.constant';
+import {
+  EVENT_NET_WORTH_CHANGED,
+  NetWorthChangedEvent,
+} from '../../common/events/net-worth-changed.event';
 
 @Injectable()
 export class MascotsService {
@@ -303,5 +308,24 @@ export class MascotsService {
       currentMascot.mascot.systemPrompt ||
       `Bạn là ${currentMascot.mascot.displayName}, trợ lý tài chính thông minh của Finora.`
     );
+  }
+
+  /**
+   * Lắng nghe sự kiện thay đổi tài sản ròng (Net Worth Changed)
+   * Tự động kiểm tra và thông báo tiến hóa / thoái hóa linh vật cho người dùng
+   */
+  @OnEvent(EVENT_NET_WORTH_CHANGED, { async: true })
+  async handleNetWorthChanged(event: NetWorthChangedEvent): Promise<void> {
+    try {
+      this.logger.debug(
+        `Received ${EVENT_NET_WORTH_CHANGED} for user ${event.userId} (source: ${event.source || 'unknown'})`,
+      );
+      await this.checkMascotEvolution(event.userId);
+    } catch (error) {
+      this.logger.error(
+        `Error checking mascot evolution for user ${event.userId}:`,
+        error,
+      );
+    }
   }
 }

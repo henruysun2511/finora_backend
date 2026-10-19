@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, EntityManager } from 'typeorm';
 import { AccountRepository } from './repositories/account.repository';
 import { AccountBalanceAdjustmentRepository } from './repositories/account-balance-adjustment.repository';
@@ -28,6 +29,10 @@ import {
 import { BalanceDirection } from '../../modules/accounts/enums/balance-direction.enum';
 import { TransactionType } from '../../common/enums/transaction-type.enum';
 import { Account } from './entities/account.entity';
+import {
+  EVENT_NET_WORTH_CHANGED,
+  NetWorthChangedEvent,
+} from '../../common/events/net-worth-changed.event';
 
 type AccessMode = 'read' | 'write';
 
@@ -41,6 +46,7 @@ export class AccountsService {
     private readonly adjustmentRepo: AccountBalanceAdjustmentRepository,
     private readonly walletsService: WalletsService,
     private readonly accountMapper: AccountMapper,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   // ---------------------------------------------------------------- helpers
@@ -93,13 +99,22 @@ export class AccountsService {
     if (duplicated) throw new AccountNameAlreadyExistsException(dto.name);
 
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      const result = await this.dataSource.transaction(async (manager) => {
         const account = this.accountRepo.create(
           this.accountMapper.toEntity(dto, userId, idempotencyKey, resolvedCurrency),
         );
         const saved = await this.accountRepo.save(account, manager);
         return this.accountMapper.toDetail(saved);
       });
+
+      if (this.eventEmitter && result.balance > 0) {
+        this.eventEmitter.emit(
+          EVENT_NET_WORTH_CHANGED,
+          new NetWorthChangedEvent(userId, 'account.create'),
+        );
+      }
+
+      return result;
     } catch (error: any) {
       // Gửi lặp song song: unique index idempotency chặn bản ghi thứ 2 -> trả bản đã tạo
       if (error?.code === '23505' && idempotencyKey) {
@@ -242,7 +257,7 @@ export class AccountsService {
   ) {
     if (!idempotencyKey) throw new IdempotencyKeyRequiredException();
 
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
       if (!account) throw new AccountNotFoundException(accountId);
       await this.assertWalletAccess(account.walletId, userId, 'write');
@@ -279,6 +294,15 @@ export class AccountsService {
 
       return this.accountMapper.toAdjustmentResponse(saved, account.currency);
     });
+
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'account.adjust_balance'),
+      );
+    }
+
+    return result;
   }
 
   // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────

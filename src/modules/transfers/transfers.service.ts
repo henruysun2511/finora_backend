@@ -1,5 +1,6 @@
 // src/modules/transfers/transfers.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import { TransferRepository } from './repositories/transfer.repository';
 import { AccountsService } from '../accounts/accounts.service';
@@ -15,6 +16,10 @@ import {
   TransferAccessDeniedException,
   TransferNotFoundException,
 } from './exceptions/transfer.exception';
+import {
+  EVENT_NET_WORTH_CHANGED,
+  NetWorthChangedEvent,
+} from '../../common/events/net-worth-changed.event';
 
 @Injectable()
 export class TransfersService {
@@ -24,6 +29,7 @@ export class TransfersService {
     private readonly accountsService: AccountsService,
     private readonly exchangeRatesService: ExchangeRatesService,
     private readonly mapper: TransferMapper,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   /**
@@ -56,7 +62,7 @@ export class TransfersService {
     }
 
     // 3. Thực thi cập nhật số dư và lưu giao dịch trong 1 database transaction ACID
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       await this.accountsService.executeTransferBalances(
         {
           fromAccountId: dto.fromAccountId,
@@ -90,6 +96,15 @@ export class TransfersService {
 
       return this.mapper.toResponse(saved);
     });
+
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'transfer.create'),
+      );
+    }
+
+    return result;
   }
 
   /**
