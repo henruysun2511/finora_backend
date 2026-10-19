@@ -15,7 +15,7 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 import { FriendsModule } from './modules/friends/friends.module';
 // trong @Module({ imports: [ ..., NotificationsModule, FriendsModule, FeedModule ] })
-import { FeedModule } from './modules/feed/feed.module';
+import { FeedModule } from './modules/feeds/feed.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -30,7 +30,7 @@ import { FeedModule } from './modules/feed/feed.module';
     TransactionsModule,
     NotificationsModule,
     FriendsModule,   // thêm
-      FeedModule,
+    FeedModule,
   ],
 
   providers: [
@@ -48,4 +48,4 @@ import { FeedModule } from './modules/feed/feed.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

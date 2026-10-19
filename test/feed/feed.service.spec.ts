@@ -1,11 +1,11 @@
-import { FeedService } from '../../src/modules/feed/feed.service';
-import { FeedMapper } from '../../src/modules/feed/mapper/feed.mapper';
+import { FeedService } from '../../src/modules/feeds/feed.service';
+import { FeedMapper } from '../../src/modules/feeds/mapper/feed.mapper';
 import {
   NotFriendException,
   PostAccessDeniedException,
   PostNotFoundException,
   ReactionNotFoundException,
-} from '../../src/modules/feed/exceptions/feed.exception';
+} from '../../src/modules/feeds/exceptions/feed.exception';
 import {
   TransactionAccessDeniedException,
   TransactionNotFoundException,

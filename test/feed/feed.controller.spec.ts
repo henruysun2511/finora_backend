@@ -1,4 +1,4 @@
-import { FeedController } from '../../src/modules/feed/feed.controller';
+import { FeedController } from '../../src/modules/feeds/feed.controller';
 import { ReactionEmoji } from '../../src/common/enums/reaction-emoji.enum';
 import { TransactionVisibility } from '../../src/common/enums/transaction-visibility.enum';
 
