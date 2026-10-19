@@ -11,6 +11,7 @@ import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.mod
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { FriendsModule } from './modules/friends/friends.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 import { FriendsModule } from './modules/friends/friends.module';
@@ -29,8 +30,7 @@ import { FeedModule } from './modules/feeds/feed.module';
     TransfersModule,
     TransactionsModule,
     NotificationsModule,
-    FriendsModule,   // thêm
-    FeedModule,
+    FriendsModule,
   ],
 
   providers: [
