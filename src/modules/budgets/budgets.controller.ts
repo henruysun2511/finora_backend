@@ -12,16 +12,11 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiResponse as SwaggerResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 import { ApiResponse } from '../../common/response/api-response';
+import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { Permissions } from '../authorization/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BudgetQueryDto } from './dto/request/budget-query.dto';
@@ -32,7 +27,6 @@ import { BudgetStatusResponseDto } from './dto/response/budget-status-response.d
 import { BudgetsService } from './budgets.service';
 
 @ApiTags('Budgets')
-@ApiBearerAuth('access-token')
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
 export class BudgetsController {
@@ -41,8 +35,13 @@ export class BudgetsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Permissions(SYSTEM_PERMISSIONS.BUDGETS_CREATE)
-  @ApiOperation({ summary: 'Tạo ngân sách cho danh mục chi tiêu' })
-  @SwaggerResponse({ status: 201, type: BudgetResponseDto })
+  @SwaggerDoc({
+    summary: 'Tạo ngân sách cho danh mục chi tiêu',
+    bodyType: CreateBudgetDto,
+    responseType: BudgetResponseDto,
+    status: HttpStatus.CREATED,
+    bearerAuth: true,
+  })
   async create(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateBudgetDto,
@@ -55,7 +54,11 @@ export class BudgetsController {
 
   @Get()
   @Permissions(SYSTEM_PERMISSIONS.BUDGETS_READ)
-  @ApiOperation({ summary: 'Lấy danh sách ngân sách của các ví được truy cập' })
+  @SwaggerDoc({
+    summary: 'Lấy danh sách ngân sách của các ví được truy cập',
+    description: 'Trả về danh sách ngân sách có phân trang.',
+    bearerAuth: true,
+  })
   async list(
     @CurrentUser('id') userId: string,
     @Query() query: BudgetQueryDto,
@@ -65,9 +68,12 @@ export class BudgetsController {
 
   @Get(':id/status')
   @Permissions(SYSTEM_PERMISSIONS.BUDGETS_READ)
-  @ApiOperation({ summary: 'Lấy tiến độ chi tiêu ngân sách hiện tại' })
+  @SwaggerDoc({
+    summary: 'Lấy tiến độ chi tiêu ngân sách hiện tại',
+    responseType: BudgetStatusResponseDto,
+    bearerAuth: true,
+  })
   @ApiParam({ name: 'id', description: 'UUID của ngân sách' })
-  @SwaggerResponse({ status: 200, type: BudgetStatusResponseDto })
   async status(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -80,9 +86,12 @@ export class BudgetsController {
 
   @Get(':id')
   @Permissions(SYSTEM_PERMISSIONS.BUDGETS_READ)
-  @ApiOperation({ summary: 'Xem chi tiết ngân sách và lịch sử chu kỳ' })
+  @SwaggerDoc({
+    summary: 'Xem chi tiết ngân sách và lịch sử chu kỳ',
+    responseType: BudgetResponseDto,
+    bearerAuth: true,
+  })
   @ApiParam({ name: 'id', description: 'UUID của ngân sách' })
-  @SwaggerResponse({ status: 200, type: BudgetResponseDto })
   async detail(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -95,7 +104,12 @@ export class BudgetsController {
 
   @Put(':id')
   @Permissions(SYSTEM_PERMISSIONS.BUDGETS_UPDATE)
-  @ApiOperation({ summary: 'Cập nhật hạn mức, chu kỳ hoặc rollover' })
+  @SwaggerDoc({
+    summary: 'Cập nhật hạn mức, chu kỳ hoặc rollover',
+    bodyType: UpdateBudgetDto,
+    responseType: BudgetResponseDto,
+    bearerAuth: true,
+  })
   @ApiParam({ name: 'id', description: 'UUID của ngân sách' })
   async update(
     @CurrentUser('id') userId: string,
@@ -110,7 +124,11 @@ export class BudgetsController {
 
   @Post(':id/reset-period')
   @Permissions(SYSTEM_PERMISSIONS.BUDGETS_UPDATE)
-  @ApiOperation({ summary: 'Chủ động chuyển ngân sách sang chu kỳ mới' })
+  @SwaggerDoc({
+    summary: 'Chủ động chuyển ngân sách sang chu kỳ mới',
+    responseType: BudgetResponseDto,
+    bearerAuth: true,
+  })
   @ApiParam({ name: 'id', description: 'UUID của ngân sách' })
   async resetPeriod(
     @CurrentUser('id') userId: string,
@@ -124,7 +142,10 @@ export class BudgetsController {
 
   @Delete(':id')
   @Permissions(SYSTEM_PERMISSIONS.BUDGETS_DELETE)
-  @ApiOperation({ summary: 'Xóa mềm ngân sách' })
+  @SwaggerDoc({
+    summary: 'Xóa mềm ngân sách',
+    bearerAuth: true,
+  })
   @ApiParam({ name: 'id', description: 'UUID của ngân sách' })
   @HttpCode(HttpStatus.OK)
   async delete(
