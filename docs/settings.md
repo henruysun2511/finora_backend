@@ -29,6 +29,7 @@ Bản ghi cài đặt được quản lý độc lập tại bảng `user_settin
 | `user_id` | `uuid` (FK, Unique, Indexed) | Không | Liên kết đến `users.id` |
 | `default_currency` | `varchar(3)` | `'VND'` | Tiền tệ mặc định (VND, USD, EUR, JPY, ...) |
 | `language` | `enum('vi', 'en')` | `'vi'` | Ngôn ngữ giao diện người dùng |
+| `theme` | `enum('LIGHT', 'DARK', 'SYSTEM')` | `'SYSTEM'` | Chế độ giao diện (Sáng, Tối, Theo thiết bị) |
 | `app_lock_enabled` | `boolean` | `false` | Trạng thái kích hoạt khóa ứng dụng |
 | `pin_hash` | `varchar(255)` (Nullable, `select: false`) | `null` | Mã hash bcrypt của mã PIN (ẩn khỏi câu query mặc định) |
 | `show_mascot` | `boolean` | `true` | Hiển thị linh vật AI trên trang chủ và màn hình tính năng |
@@ -90,7 +91,7 @@ Cung cấp lớp bảo vệ thứ 2 trên thiết bị để bảo vệ dữ li�
 ### 3.3. Tùy chọn Thông Báo & Cài Đặt Chung
 
 * **Cài đặt chung (`PUT /api/v1/settings/general`)**:
-  - Hỗ trợ cập nhật: `defaultCurrency`, `language`, `defaultAmountHidden`, `defaultTransactionVisibility`.
+  - Hỗ trợ cập nhật: `defaultCurrency`, `language` (`vi`, `en`), `theme` (`LIGHT`, `DARK`, `SYSTEM`), `defaultAmountHidden`, `defaultTransactionVisibility`.
 * **Cài đặt thông báo (`PUT /api/v1/settings/notifications`)**:
   - Lưu trữ dưới dạng `jsonb` giúp frontend dễ dàng mở rộng danh sách các loại thông báo (thông báo ngân sách, biến động số dư, nhắc nhở định kỳ, tin nhắn bạn bè, nhắc nợ) mà không cần thay đổi schema database.
 
@@ -121,6 +122,7 @@ Tất cả các endpoint đều yêu cầu xác thực JWT (`Bearer Token`).
 {
   "defaultCurrency": "VND",
   "language": "vi",
+  "theme": "SYSTEM",
   "appLockEnabled": true,
   "hasPin": true,
   "showMascot": true,

@@ -104,6 +104,9 @@ export class SettingsService {
     if (dto.language !== undefined) {
       setting.language = dto.language;
     }
+    if (dto.theme !== undefined) {
+      setting.theme = dto.theme;
+    }
     if (dto.defaultTransactionVisibility !== undefined) {
       setting.defaultTransactionVisibility = dto.defaultTransactionVisibility;
     }

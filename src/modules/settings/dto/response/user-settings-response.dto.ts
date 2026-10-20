@@ -4,6 +4,7 @@ import { Language } from '../../../users/enums/language.enum';
 import { TransactionVisibility } from '../../../../common/enums/transaction-visibility.enum';
 import { MascotTone } from '../../../mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../../mascots/enums/mascot-sensitivity.enum';
+import { ThemeMode } from '../../enums/theme-mode.enum';
 
 export class UserSettingsResponseDto {
   @ApiProperty({ example: 'VND', description: 'Đơn vị tiền tệ mặc định' })
@@ -11,6 +12,9 @@ export class UserSettingsResponseDto {
 
   @ApiProperty({ enum: Language, example: Language.VI, description: 'Ngôn ngữ giao diện' })
   language: Language;
+
+  @ApiProperty({ enum: ThemeMode, example: ThemeMode.SYSTEM, description: 'Chế độ giao diện / theme màu' })
+  theme: ThemeMode;
 
   @ApiProperty({ example: false, description: 'Trạng thái khóa ứng dụng bằng mã PIN' })
   appLockEnabled: boolean;

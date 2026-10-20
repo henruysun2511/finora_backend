@@ -9,6 +9,7 @@ import { Language } from '../../src/modules/users/enums/language.enum';
 import { TransactionVisibility } from '../../src/common/enums/transaction-visibility.enum';
 import { MascotTone } from '../../src/modules/mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../src/modules/mascots/enums/mascot-sensitivity.enum';
+import { ThemeMode } from '../../src/modules/settings/enums/theme-mode.enum';
 
 describe('SettingsController', () => {
   let controller: SettingsController;
@@ -16,6 +17,7 @@ describe('SettingsController', () => {
   const mockSettingsResponse: UserSettingsResponseDto = {
     defaultCurrency: 'VND',
     language: Language.VI,
+    theme: ThemeMode.SYSTEM,
     appLockEnabled: false,
     hasPin: false,
     showMascot: true,

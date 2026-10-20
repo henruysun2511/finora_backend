@@ -10,6 +10,7 @@ import { Language } from '../../src/modules/users/enums/language.enum';
 import { TransactionVisibility } from '../../src/common/enums/transaction-visibility.enum';
 import { MascotTone } from '../../src/modules/mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../src/modules/mascots/enums/mascot-sensitivity.enum';
+import { ThemeMode } from '../../src/modules/settings/enums/theme-mode.enum';
 import {
   PinMismatchException,
   PinAlreadySetException,
@@ -28,6 +29,7 @@ describe('SettingsService', () => {
       id: 'setting-1',
       defaultCurrency: 'VND',
       language: Language.VI,
+      theme: ThemeMode.SYSTEM,
       appLockEnabled: false,
       showMascot: true,
       mascotTone: MascotTone.BALANCED,
@@ -55,6 +57,7 @@ describe('SettingsService', () => {
       userId: 'user-1',
       defaultCurrency: 'VND',
       language: Language.VI,
+      theme: ThemeMode.SYSTEM,
       appLockEnabled: false,
       pinHash: undefined,
       showMascot: true,
@@ -93,6 +96,7 @@ describe('SettingsService', () => {
       id: 'setting-1',
       defaultCurrency: 'VND',
       language: Language.VI,
+      theme: ThemeMode.SYSTEM,
       appLockEnabled: false,
       showMascot: true,
       mascotTone: MascotTone.BALANCED,
@@ -151,11 +155,13 @@ describe('SettingsService', () => {
       const result = await service.updateGeneralSettings('user-1', {
         defaultCurrency: 'usd',
         language: Language.EN,
+        theme: ThemeMode.DARK,
         defaultAmountHidden: false,
       });
 
       expect(result.defaultCurrency).toBe('USD');
       expect(result.language).toBe(Language.EN);
+      expect(result.theme).toBe(ThemeMode.DARK);
       expect(result.defaultAmountHidden).toBe(false);
     });
   });

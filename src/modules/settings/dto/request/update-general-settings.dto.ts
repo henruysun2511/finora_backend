@@ -3,6 +3,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsOptional, IsString, Length } from 'class-validator';
 import { Language } from '../../../users/enums/language.enum';
 import { TransactionVisibility } from '../../../../common/enums/transaction-visibility.enum';
+import { ThemeMode } from '../../enums/theme-mode.enum';
 
 export class UpdateGeneralSettingsDto {
   @ApiPropertyOptional({
@@ -22,6 +23,15 @@ export class UpdateGeneralSettingsDto {
   @IsOptional()
   @IsEnum(Language)
   language?: Language;
+
+  @ApiPropertyOptional({
+    enum: ThemeMode,
+    description: 'Chế độ giao diện / theme màu (LIGHT, DARK, SYSTEM)',
+    example: ThemeMode.SYSTEM,
+  })
+  @IsOptional()
+  @IsEnum(ThemeMode)
+  theme?: ThemeMode;
 
   @ApiPropertyOptional({
     enum: TransactionVisibility,

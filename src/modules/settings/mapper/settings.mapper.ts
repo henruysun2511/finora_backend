@@ -9,6 +9,7 @@ export class SettingsMapper {
     return {
       defaultCurrency: setting.defaultCurrency,
       language: setting.language,
+      theme: setting.theme,
       appLockEnabled: setting.appLockEnabled,
       hasPin: hasPinOverride !== undefined ? hasPinOverride : !!setting.pinHash,
       showMascot: setting.showMascot,

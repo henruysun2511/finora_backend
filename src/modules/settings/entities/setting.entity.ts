@@ -5,6 +5,7 @@ import { Language } from '../../users/enums/language.enum';
 import { TransactionVisibility } from '../../../common/enums/transaction-visibility.enum';
 import { MascotTone } from '../../mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../mascots/enums/mascot-sensitivity.enum';
+import { ThemeMode } from '../enums/theme-mode.enum';
 
 @Entity('user_settings')
 export class Setting extends BaseEntity {
@@ -25,6 +26,13 @@ export class Setting extends BaseEntity {
     default: Language.VI,
   })
   language: Language;
+
+  @Column({
+    type: 'enum',
+    enum: ThemeMode,
+    default: ThemeMode.SYSTEM,
+  })
+  theme: ThemeMode;
 
   @Column({ name: 'app_lock_enabled', default: false })
   appLockEnabled: boolean;
