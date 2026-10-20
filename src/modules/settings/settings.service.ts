@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { SettingsRepository } from './repositories/settings.repository';
 import { SettingsMapper } from './mapper/settings.mapper';
 import { RedisService } from '../../infrastructures/redis/redis.service';
-import { UserSetting } from '../users/entities/user-setting.entity';
+import { Setting } from './entities/setting.entity';
 import { UpdateMascotSettingsDto } from './dto/request/update-mascot-settings.dto';
 import { UpdateGeneralSettingsDto } from './dto/request/update-general-settings.dto';
 import { UpdateNotificationPreferencesDto } from './dto/request/update-notification-preferences.dto';
@@ -43,7 +43,7 @@ export class SettingsService {
   /**
    * Lấy hoặc khởi tạo bản ghi cài đặt mặc định cho người dùng
    */
-  async getOrCreateSettings(userId: string): Promise<UserSetting> {
+  async getOrCreateSettings(userId: string): Promise<Setting> {
     let setting = await this.settingsRepo.findByUserId(userId);
     if (!setting) {
       setting = this.settingsRepo.create({

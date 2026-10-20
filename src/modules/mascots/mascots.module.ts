@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AssetTier } from './entities/asset-tier.entity';
-import { UserSetting } from '../users/entities/user-setting.entity';
+import { Setting } from '../settings/entities/setting.entity';
 import { MascotRepository } from './repositories/mascot.repository';
 import { MascotMapper } from './mapper/mascot.mapper';
 import { MascotsService } from './mascots.service';
@@ -10,7 +10,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AssetTier, UserSetting]),
+    TypeOrmModule.forFeature([AssetTier, Setting]),
     NotificationsModule,
   ],
   controllers: [MascotsController],

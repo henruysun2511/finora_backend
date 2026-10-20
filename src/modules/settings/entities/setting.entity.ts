@@ -1,13 +1,13 @@
 import { Entity, Column, OneToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { User } from './user.entity';
-import { Language } from '../enums/language.enum';
+import { User } from '../../users/entities/user.entity';
+import { Language } from '../../users/enums/language.enum';
 import { TransactionVisibility } from '../../../common/enums/transaction-visibility.enum';
 import { MascotTone } from '../../mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../mascots/enums/mascot-sensitivity.enum';
 
 @Entity('user_settings')
-export class UserSetting extends BaseEntity {
+export class Setting extends BaseEntity {
   @Column({ name: 'user_id', type: 'uuid', unique: true })
   @Index('idx_user_settings_user_id')
   userId: string;
@@ -71,3 +71,5 @@ export class UserSetting extends BaseEntity {
   @Column({ name: 'notification_preferences', type: 'jsonb', nullable: true })
   notificationPreferences?: Record<string, unknown>;
 }
+
+export { Setting as UserSetting };

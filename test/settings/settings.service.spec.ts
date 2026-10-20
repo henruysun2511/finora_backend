@@ -5,7 +5,7 @@ import { SettingsService } from '../../src/modules/settings/settings.service';
 import { SettingsRepository } from '../../src/modules/settings/repositories/settings.repository';
 import { SettingsMapper } from '../../src/modules/settings/mapper/settings.mapper';
 import { RedisService } from '../../src/infrastructures/redis/redis.service';
-import { UserSetting } from '../../src/modules/users/entities/user-setting.entity';
+import { Setting } from '../../src/modules/settings/entities/setting.entity';
 import { Language } from '../../src/modules/users/enums/language.enum';
 import { TransactionVisibility } from '../../src/common/enums/transaction-visibility.enum';
 import { MascotTone } from '../../src/modules/mascots/enums/mascot-tone.enum';
@@ -21,7 +21,7 @@ import {
 
 describe('SettingsService', () => {
   let service: SettingsService;
-  let mockSetting: UserSetting;
+  let mockSetting: Setting;
 
   const mockSettingsRepo = {
     create: jest.fn().mockImplementation((dto) => ({

@@ -2,30 +2,30 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UserSetting } from '../../users/entities/user-setting.entity';
+import { Setting } from '../entities/setting.entity';
 
 @Injectable()
 export class SettingsRepository {
   constructor(
-    @InjectRepository(UserSetting)
-    private readonly repo: Repository<UserSetting>,
+    @InjectRepository(Setting)
+    private readonly repo: Repository<Setting>,
   ) {}
 
-  create(entityLike: Partial<UserSetting>): UserSetting {
+  create(entityLike: Partial<Setting>): Setting {
     return this.repo.create(entityLike);
   }
 
-  async save(entity: UserSetting): Promise<UserSetting> {
+  async save(entity: Setting): Promise<Setting> {
     return this.repo.save(entity);
   }
 
-  async findByUserId(userId: string): Promise<UserSetting | null> {
+  async findByUserId(userId: string): Promise<Setting | null> {
     return this.repo.findOne({
       where: { userId },
     });
   }
 
-  async findByUserIdWithPin(userId: string): Promise<UserSetting | null> {
+  async findByUserIdWithPin(userId: string): Promise<Setting | null> {
     return this.repo
       .createQueryBuilder('setting')
       .addSelect('setting.pinHash')
@@ -35,7 +35,7 @@ export class SettingsRepository {
 
   async updateByUserId(
     userId: string,
-    partial: Partial<UserSetting>,
+    partial: Partial<Setting>,
   ): Promise<void> {
     await this.repo.update({ userId }, partial);
   }

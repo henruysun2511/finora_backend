@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, DataSource } from 'typeorm';
 import { AssetTier } from '../entities/asset-tier.entity';
-import { UserSetting } from '../../users/entities/user-setting.entity';
+import { Setting } from '../../settings/entities/setting.entity';
 import { MascotTone } from '../enums/mascot-tone.enum';
 import { MascotSensitivity } from '../enums/mascot-sensitivity.enum';
 
@@ -11,8 +11,8 @@ export class MascotRepository {
   constructor(
     @InjectRepository(AssetTier)
     private readonly repo: Repository<AssetTier>,
-    @InjectRepository(UserSetting)
-    private readonly userSettingRepo: Repository<UserSetting>,
+    @InjectRepository(Setting)
+    private readonly userSettingRepo: Repository<Setting>,
     private readonly dataSource: DataSource,
   ) {}
 
