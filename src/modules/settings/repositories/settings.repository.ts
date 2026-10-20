@@ -33,6 +33,14 @@ export class SettingsRepository {
       .getOne();
   }
 
+  async findByUserIdWithAiKey(userId: string): Promise<Setting | null> {
+    return this.repo
+      .createQueryBuilder('setting')
+      .addSelect('setting.aiApiKey')
+      .where('setting.userId = :userId', { userId })
+      .getOne();
+  }
+
   async updateByUserId(
     userId: string,
     partial: Partial<Setting>,

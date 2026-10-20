@@ -10,10 +10,11 @@
 ## 1. Tổng quan Module
 
 Module **Settings & Security** chịu trách nhiệm quản lý toàn bộ các tùy chọn cấu hình cá nhân của người dùng trên hệ thống Finora, bao gồm:
-1. **Cài đặt chung (General Preferences)**: Tiền tệ mặc định, ngôn ngữ hiển thị, chế độ che/ẩn số dư nhạy cảm, quyền riêng tư giao dịch.
+1. **Cài đặt chung (General Preferences)**: Tiền tệ mặc định, ngôn ngữ hiển thị, chế độ màu giao diện (Sáng/Tối/Hệ thống), chế độ che/ẩn số dư nhạy cảm, quyền riêng tư giao dịch.
 2. **Cá nhân hóa AI Mascot (Mascot Personalization)**: Bật/tắt Mascot, tùy biến giọng điệu phản hồi của AI (Gentle / Balanced / Roast), và mức độ nhạy cảnh báo chi tiêu (All / Anomalies Only / Silent).
-3. **Bảo mật ứng dụng (App Lock & PIN Security)**: Khóa ứng dụng bằng mã PIN 4-6 số được mã hóa bcrypt và cơ chế chống dò mã PIN (Rate-limiting Brute-Force lockout).
-4. **Tùy chọn thông báo (Notification Preferences)**: Bật/tắt từng kênh thông báo đẩy qua cấu trúc JSONB linh hoạt.
+3. **Mô hình AI & API Key cá nhân (AI Model & BYOK - Bring Your Own Key)**: Tùy chọn nhà cung cấp AI (Google Gemini / OpenAI), model cụ thể (`gemini-1.5-flash`, `gpt-4o-mini`, v.v.), và cho phép người dùng nhập API Key cá nhân để không bị giới hạn quota. **Nếu người dùng không tự cài đặt, hệ thống tự động fallback dùng API Key mặc định của Finora trong `.env`**.
+4. **Bảo mật ứng dụng (App Lock & PIN Security)**: Khóa ứng dụng bằng mã PIN 4-6 số được mã hóa bcrypt và cơ chế chống dò mã PIN (Rate-limiting Brute-Force lockout).
+5. **Tùy chọn thông báo (Notification Preferences)**: Bật/tắt từng kênh thông báo đẩy qua cấu trúc JSONB linh hoạt.
 
 ---
 
@@ -36,6 +37,9 @@ Bản ghi cài đặt được quản lý độc lập tại bảng `user_settin
 | `current_mascot_tier_id`| `uuid` (Nullable) | `null` | Cấp độ linh vật hiện tại theo Net Worth |
 | `mascot_tone` | `enum('GENTLE', 'BALANCED', 'ROAST')` | `'BALANCED'` | Giọng điệu của AI Mascot |
 | `mascot_sensitivity` | `enum('ALL', 'ANOMALIES_ONLY', 'SILENT')` | `'ANOMALIES_ONLY'` | Độ nhạy cảnh báo chi tiêu của AI |
+| `ai_provider` | `enum('GEMINI', 'OPENAI')` | `'GEMINI'` | Nhà cung cấp AI đang chọn |
+| `ai_api_key` | `varchar(255)` (Nullable, `select: false`) | `null` | API Key riêng của người dùng (ẩn khỏi câu query mặc định) |
+| `ai_model` | `varchar(100)` (Nullable) | `null` | Tên model AI tùy chỉnh (null = dùng model mặc định của hệ thống) |
 | `default_transaction_visibility` | `enum('PUBLIC', 'FRIENDS', 'PRIVATE')` | `'PRIVATE'` | Quyền hiển thị giao dịch mặc định |
 | `default_amount_hidden`| `boolean` | `true` | Ẩn số tiền trên dashboard khi mở app |
 | `notification_preferences` | `jsonb` (Nullable) | `{}` | Cấu hình bật/tắt các loại thông báo |
@@ -59,7 +63,26 @@ Cho phép người dùng tùy biến phong cách trò chuyện và mức độ c
   * `SILENT`: Không tự động cảnh báo, chỉ tương tác khi người dùng chủ động mở màn hình chat hoặc tap vào linh vật.
 * **Cơ chế tích hợp LLM**: Giá trị `mascot_tone` và `mascot_sensitivity` được nạp trực tiếp vào System Prompt của `MascotsService` khi sinh lời khuyên tài chính qua AI.
 
-### 3.2. Bảo mật Khóa Ứng Dụng (App Lock & PIN)
+### 3.2. Mô hình AI & Cơ chế BYOK (Bring Your Own Key)
+
+Hệ thống cho phép người dùng tùy biến linh hoạt việc cấp quyền truy cập AI:
+
+1. **Nhà cung cấp hỗ trợ (`AiProvider`)**:
+   - `GEMINI`: Google Gemini AI (nhà cung cấp mặc định).
+   - `OPENAI`: OpenAI (GPT-4o, GPT-4o-mini, v.v.).
+
+2. **Cơ chế Fallback thông minh**:
+   - Khi người dùng **tự nhập API Key** (`aiApiKey` khác rỗng): Mọi tác vụ AI của người dùng đó sẽ gọi bằng chính Key của họ và model họ đã chọn.
+   - Khi người dùng **không tự cài đặt API Key** (`aiApiKey` là `null` hoặc chuỗi rỗng): Hệ thống tự động **fallback sang API Key mặc định của Finora** được cấu hình trong file môi trường `.env` (`GEMINI_API_KEY` hoặc `OPENAI_API_KEY`).
+   - `SettingsService.getEffectiveAiConfig(userId)` là phương thức dùng chung giúp bất kỳ service nào gọi AI đều tự động nhận đúng Provider, Model và API Key hợp lệ mà không cần kiểm tra thủ công.
+
+3. **Bảo mật API Key**:
+   - Cột `ai_api_key` được thiết lập `select: false` trong TypeORM để chống rò rỉ dữ liệu qua các câu query thông thường.
+   - Khi trả về client qua API, key sẽ **không bao giờ trả về nguyên vẹn**, mà chỉ trả về:
+     - `hasCustomApiKey: boolean` (báo hiệu người dùng có đang dùng key riêng hay không).
+     - `maskedApiKey`: Dạng che sao bảo mật (ví dụ: `AIzaSy...****XyZ`).
+
+### 3.3. Bảo mật Khóa Ứng Dụng (App Lock & PIN)
 
 Cung cấp lớp bảo vệ thứ 2 trên thiết bị để bảo vệ dữ liệu tài chính nhạy cảm:
 
@@ -88,7 +111,7 @@ Cung cấp lớp bảo vệ thứ 2 trên thiết bị để bảo vệ dữ li�
 5. **Tắt Khóa Ứng Dụng (`PUT /api/v1/settings/security/app-lock/disable`)**:
    - Để tắt `appLockEnabled`, người dùng bắt buộc phải gửi kèm mã PIN hiện tại để xác minh danh tính.
 
-### 3.3. Tùy chọn Thông Báo & Cài Đặt Chung
+### 3.4. Tùy chọn Thông Báo & Cài Đặt Chung
 
 * **Cài đặt chung (`PUT /api/v1/settings/general`)**:
   - Hỗ trợ cập nhật: `defaultCurrency`, `language` (`vi`, `en`), `theme` (`LIGHT`, `DARK`, `SYSTEM`), `defaultAmountHidden`, `defaultTransactionVisibility`.
@@ -104,8 +127,10 @@ Tất cả các endpoint đều yêu cầu xác thực JWT (`Bearer Token`).
 | Method | Endpoint | Mô tả | Request Body | Response chính |
 | :--- | :--- | :--- | :--- | :--- |
 | **GET** | `/api/v1/settings` | Lấy toàn bộ cài đặt hiện tại của người dùng | Không | `UserSettingsResponseDto` |
-| **PUT** | `/api/v1/settings/general` | Cập nhật tùy chọn hiển thị & ngôn ngữ | `UpdateGeneralSettingsDto` | `UserSettingsResponseDto` |
+| **PUT** | `/api/v1/settings/general` | Cập nhật tùy chọn hiển thị, ngôn ngữ & theme | `UpdateGeneralSettingsDto` | `UserSettingsResponseDto` |
 | **PUT** | `/api/v1/settings/mascot` | Cập nhật hiển thị, tone & độ nhạy Mascot | `UpdateMascotSettingsDto` | `UserSettingsResponseDto` |
+| **PATCH** | `/api/v1/settings/ai` | Cập nhật AI Provider, Model và API Key riêng | `UpdateAiSettingsDto` | `UserSettingsResponseDto` |
+| **DELETE** | `/api/v1/settings/ai/api-key` | Xóa API Key riêng, quay lại dùng key hệ thống | Không | `UserSettingsResponseDto` |
 | **POST** | `/api/v1/settings/security/pin/setup` | Thiết lập mã PIN lần đầu & bật App Lock | `SetupPinDto` (`pin`) | `UserSettingsResponseDto` |
 | **POST** | `/api/v1/settings/security/pin/verify`| Xác thực mã PIN (mở khóa app) | `VerifyPinDto` (`pin`) | `VerifyPinResponseDto` |
 | **PUT** | `/api/v1/settings/security/pin/change`| Thay đổi mã PIN bảo mật | `ChangePinDto` (`oldPin`, `newPin`) | `UserSettingsResponseDto` |
@@ -129,6 +154,10 @@ Tất cả các endpoint đều yêu cầu xác thực JWT (`Bearer Token`).
   "mascotTone": "ROAST",
   "mascotSensitivity": "ANOMALIES_ONLY",
   "currentMascotTierId": "a1b2c3d4-0000-0000-0000-000000000001",
+  "aiProvider": "GEMINI",
+  "aiModel": "gemini-1.5-flash",
+  "hasCustomApiKey": true,
+  "maskedApiKey": "AIzaSy...****1234",
   "defaultTransactionVisibility": "PRIVATE",
   "defaultAmountHidden": true,
   "notificationPreferences": {
@@ -139,7 +168,7 @@ Tất cả các endpoint đều yêu cầu xác thực JWT (`Bearer Token`).
 }
 ```
 
-> **Lưu ý bảo mật**: `pinHash` được cấu hình `select: false` trong TypeORM và tuyệt đối **không** bao giờ được trả về client. Frontend chỉ nhận cờ `hasPin: boolean` để xác định giao diện hiển thị phù hợp.
+> **Lưu ý bảo mật**: `pinHash` và `aiApiKey` được cấu hình `select: false` trong TypeORM và tuyệt đối **không** bao giờ được trả về client dạng raw. Client chỉ nhận các cờ `hasPin: boolean`, `hasCustomApiKey: boolean`, và `maskedApiKey: string` để hiển thị trên giao diện an toàn.
 
 ---
 

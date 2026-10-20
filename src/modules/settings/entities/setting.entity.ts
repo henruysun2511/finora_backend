@@ -6,6 +6,7 @@ import { TransactionVisibility } from '../../../common/enums/transaction-visibil
 import { MascotTone } from '../../mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../mascots/enums/mascot-sensitivity.enum';
 import { ThemeMode } from '../enums/theme-mode.enum';
+import { AiProvider } from '../enums/ai-provider.enum';
 
 @Entity('user_settings')
 export class Setting extends BaseEntity {
@@ -61,6 +62,20 @@ export class Setting extends BaseEntity {
     default: MascotSensitivity.ANOMALIES_ONLY,
   })
   mascotSensitivity: MascotSensitivity;
+
+  @Column({
+    name: 'ai_provider',
+    type: 'enum',
+    enum: AiProvider,
+    default: AiProvider.GEMINI,
+  })
+  aiProvider: AiProvider;
+
+  @Column({ name: 'ai_api_key', length: 255, nullable: true, select: false })
+  aiApiKey?: string;
+
+  @Column({ name: 'ai_model', length: 100, nullable: true })
+  aiModel?: string;
 
   @Column({
     name: 'default_transaction_visibility',

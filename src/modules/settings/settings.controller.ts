@@ -4,6 +4,7 @@ import {
   Get,
   Patch,
   Post,
+  Delete,
   Body,
   HttpStatus,
   UseGuards,
@@ -16,6 +17,7 @@ import { ApiResponse } from '../../common/response/api-response';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateMascotSettingsDto } from './dto/request/update-mascot-settings.dto';
 import { UpdateGeneralSettingsDto } from './dto/request/update-general-settings.dto';
+import { UpdateAiSettingsDto } from './dto/request/update-ai-settings.dto';
 import { UpdateNotificationPreferencesDto } from './dto/request/update-notification-preferences.dto';
 import { SetupPinDto } from './dto/request/setup-pin.dto';
 import { VerifyPinDto } from './dto/request/verify-pin.dto';
@@ -171,6 +173,39 @@ export class SettingsController {
     return new ApiResponse({
       statusCode: HttpStatus.OK,
       message: 'Tắt khóa ứng dụng thành công',
+      data,
+    });
+  }
+
+  @Patch('ai')
+  @SwaggerDoc({
+    summary: 'Cập nhật cấu hình mô hình AI & API Key riêng (BYOK)',
+    description: 'Cho phép người dùng chọn provider (GEMINI, OPENAI), model tùy chỉnh và nhập API Key cá nhân. Nếu không nhập hoặc truyền rỗng, hệ thống tự động fallback về API Key của hệ thống.',
+    responseType: UserSettingsResponseDto,
+  })
+  async updateAiSettings(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateAiSettingsDto,
+  ) {
+    const data = await this.settingsService.updateAiSettings(userId, dto);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: 'Cập nhật cấu hình mô hình AI thành công',
+      data,
+    });
+  }
+
+  @Delete('ai/api-key')
+  @SwaggerDoc({
+    summary: 'Xóa API Key riêng để quay lại dùng API Key mặc định của hệ thống',
+    description: 'Xóa custom API Key của người dùng, khôi phục việc sử dụng API Key hệ thống trong .env',
+    responseType: UserSettingsResponseDto,
+  })
+  async deleteCustomApiKey(@CurrentUser('id') userId: string) {
+    const data = await this.settingsService.deleteCustomApiKey(userId);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: 'Đã xóa API Key cá nhân và chuyển về dùng API Key hệ thống',
       data,
     });
   }

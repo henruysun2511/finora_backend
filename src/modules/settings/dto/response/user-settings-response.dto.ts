@@ -5,6 +5,7 @@ import { TransactionVisibility } from '../../../../common/enums/transaction-visi
 import { MascotTone } from '../../../mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../../mascots/enums/mascot-sensitivity.enum';
 import { ThemeMode } from '../../enums/theme-mode.enum';
+import { AiProvider } from '../../enums/ai-provider.enum';
 
 export class UserSettingsResponseDto {
   @ApiProperty({ example: 'VND', description: 'Đơn vị tiền tệ mặc định' })
@@ -44,6 +45,31 @@ export class UserSettingsResponseDto {
     description: 'ID của mốc linh vật hiện tại',
   })
   currentMascotTierId?: string | null;
+
+  @ApiProperty({
+    enum: AiProvider,
+    example: AiProvider.GEMINI,
+    description: 'Nhà cung cấp mô hình AI đang chọn',
+  })
+  aiProvider: AiProvider;
+
+  @ApiPropertyOptional({
+    example: 'gemini-1.5-flash',
+    description: 'Tên model AI tùy chỉnh của người dùng (null nếu dùng mặc định)',
+  })
+  aiModel?: string | null;
+
+  @ApiProperty({
+    example: false,
+    description: 'Cờ cho biết người dùng có tự cấu hình API Key hay đang dùng key hệ thống',
+  })
+  hasCustomApiKey: boolean;
+
+  @ApiPropertyOptional({
+    example: 'AIzaSy...****1234',
+    description: 'API Key cá nhân đã được che sao để bảo mật',
+  })
+  maskedApiKey?: string | null;
 
   @ApiProperty({
     enum: TransactionVisibility,

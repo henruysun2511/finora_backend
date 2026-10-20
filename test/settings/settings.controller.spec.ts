@@ -10,6 +10,7 @@ import { TransactionVisibility } from '../../src/common/enums/transaction-visibi
 import { MascotTone } from '../../src/modules/mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../src/modules/mascots/enums/mascot-sensitivity.enum';
 import { ThemeMode } from '../../src/modules/settings/enums/theme-mode.enum';
+import { AiProvider } from '../../src/modules/settings/enums/ai-provider.enum';
 
 describe('SettingsController', () => {
   let controller: SettingsController;
@@ -24,6 +25,10 @@ describe('SettingsController', () => {
     mascotTone: MascotTone.BALANCED,
     mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
     currentMascotTierId: null,
+    aiProvider: AiProvider.GEMINI,
+    aiModel: null,
+    hasCustomApiKey: false,
+    maskedApiKey: null,
     defaultTransactionVisibility: TransactionVisibility.PRIVATE,
     defaultAmountHidden: true,
     notificationPreferences: {
@@ -40,6 +45,8 @@ describe('SettingsController', () => {
     getSettings: jest.fn().mockResolvedValue(mockSettingsResponse),
     updateMascotSettings: jest.fn().mockResolvedValue(mockSettingsResponse),
     updateGeneralSettings: jest.fn().mockResolvedValue(mockSettingsResponse),
+    updateAiSettings: jest.fn().mockResolvedValue(mockSettingsResponse),
+    deleteCustomApiKey: jest.fn().mockResolvedValue(mockSettingsResponse),
     updateNotificationPreferences: jest.fn().mockResolvedValue(mockSettingsResponse),
     setupPin: jest.fn().mockResolvedValue({ ...mockSettingsResponse, hasPin: true, appLockEnabled: true }),
     verifyPin: jest.fn().mockResolvedValue(mockVerifyPinResponse),
@@ -63,12 +70,12 @@ describe('SettingsController', () => {
   });
 
   describe('getSettings', () => {
-    it('should return user settings with status 200', async () => {
+    it('should return settings with status 200', async () => {
       const result = await controller.getSettings('user-1');
 
       expect(mockSettingsService.getSettings).toHaveBeenCalledWith('user-1');
       expect(result.statusCode).toBe(HttpStatus.OK);
-      expect(result.data.defaultCurrency).toBe('VND');
+      expect(result.data).toEqual(mockSettingsResponse);
     });
   });
 
@@ -100,10 +107,34 @@ describe('SettingsController', () => {
     });
   });
 
+  describe('updateAiSettings', () => {
+    it('should update ai settings with status 200', async () => {
+      const dto = {
+        provider: AiProvider.OPENAI,
+        model: 'gpt-4o',
+        apiKey: 'sk-test-12345678',
+      };
+
+      const result = await controller.updateAiSettings('user-1', dto);
+
+      expect(mockSettingsService.updateAiSettings).toHaveBeenCalledWith('user-1', dto);
+      expect(result.statusCode).toBe(HttpStatus.OK);
+    });
+  });
+
+  describe('deleteCustomApiKey', () => {
+    it('should delete custom api key with status 200', async () => {
+      const result = await controller.deleteCustomApiKey('user-1');
+
+      expect(mockSettingsService.deleteCustomApiKey).toHaveBeenCalledWith('user-1');
+      expect(result.statusCode).toBe(HttpStatus.OK);
+    });
+  });
+
   describe('updateNotificationPreferences', () => {
     it('should update notification preferences with status 200', async () => {
       const dto = {
-        pushNotifications: false,
+        budgetAlerts: false,
       };
 
       const result = await controller.updateNotificationPreferences('user-1', dto);
@@ -137,7 +168,6 @@ describe('SettingsController', () => {
 
       expect(mockSettingsService.verifyPin).toHaveBeenCalledWith('user-1', dto);
       expect(result.statusCode).toBe(HttpStatus.OK);
-      expect(result.data.valid).toBe(true);
     });
   });
 

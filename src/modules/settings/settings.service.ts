@@ -7,7 +7,10 @@ import { RedisService } from '../../infrastructures/redis/redis.service';
 import { Setting } from './entities/setting.entity';
 import { UpdateMascotSettingsDto } from './dto/request/update-mascot-settings.dto';
 import { UpdateGeneralSettingsDto } from './dto/request/update-general-settings.dto';
+import { UpdateAiSettingsDto } from './dto/request/update-ai-settings.dto';
 import { UpdateNotificationPreferencesDto } from './dto/request/update-notification-preferences.dto';
+import { AiProvider } from './enums/ai-provider.enum';
+import { AiConfig } from '../../config/ai.config';
 import { SetupPinDto } from './dto/request/setup-pin.dto';
 import { VerifyPinDto } from './dto/request/verify-pin.dto';
 import { ChangePinDto } from './dto/request/change-pin.dto';
@@ -135,6 +138,95 @@ export class SettingsService {
 
     const saved = await this.settingsRepo.save(setting);
     return this.mapper.toResponse(saved);
+  }
+
+  /**
+   * Cập nhật cấu hình mô hình AI & API Key riêng (BYOK)
+   */
+  async updateAiSettings(
+    userId: string,
+    dto: UpdateAiSettingsDto,
+  ): Promise<UserSettingsResponseDto> {
+    let setting = await this.settingsRepo.findByUserIdWithAiKey(userId);
+    if (!setting) {
+      setting = await this.getOrCreateSettings(userId);
+    }
+
+    if (dto.provider !== undefined) {
+      setting.aiProvider = dto.provider;
+    }
+    if (dto.model !== undefined) {
+      const trimmedModel = dto.model?.trim();
+      setting.aiModel = trimmedModel && trimmedModel.length > 0 ? trimmedModel : undefined;
+    }
+    if (dto.apiKey !== undefined) {
+      const trimmedKey = dto.apiKey?.trim();
+      setting.aiApiKey = trimmedKey && trimmedKey.length > 0 ? trimmedKey : undefined;
+    }
+
+    const saved = await this.settingsRepo.save(setting);
+    return this.mapper.toResponse(saved);
+  }
+
+  /**
+   * Xóa API Key cá nhân để chuyển về sử dụng API Key mặc định của hệ thống
+   */
+  async deleteCustomApiKey(userId: string): Promise<UserSettingsResponseDto> {
+    let setting = await this.settingsRepo.findByUserIdWithAiKey(userId);
+    if (!setting) {
+      setting = await this.getOrCreateSettings(userId);
+    }
+
+    setting.aiApiKey = undefined;
+    const saved = await this.settingsRepo.save(setting);
+    return this.mapper.toResponse(saved);
+  }
+
+  /**
+   * Lấy cấu hình AI hiệu lực để thực hiện gọi LLM:
+   * Ưu tiên dùng API Key riêng của người dùng nếu có,
+   * ngược lại tự động fallback về API Key hệ thống trong .env
+   */
+  async getEffectiveAiConfig(userId: string): Promise<{
+    provider: AiProvider;
+    model: string;
+    apiKey: string;
+    isCustomKey: boolean;
+  }> {
+    const setting = await this.settingsRepo.findByUserIdWithAiKey(userId);
+    const provider = setting?.aiProvider ?? AiProvider.GEMINI;
+    const hasCustomKey = Boolean(setting?.aiApiKey && setting.aiApiKey.trim().length > 0);
+
+    if (hasCustomKey && setting?.aiApiKey) {
+      const defaultModel =
+        provider === AiProvider.OPENAI
+          ? AiConfig.DEFAULT_OPENAI_MODEL
+          : AiConfig.DEFAULT_GEMINI_MODEL;
+      return {
+        provider,
+        model: setting.aiModel?.trim() || defaultModel,
+        apiKey: setting.aiApiKey.trim(),
+        isCustomKey: true,
+      };
+    }
+
+    // Fallback to system keys from environment
+    const systemApiKey =
+      provider === AiProvider.OPENAI
+        ? AiConfig.OPENAI_API_KEY
+        : AiConfig.GEMINI_API_KEY;
+
+    const defaultModel =
+      provider === AiProvider.OPENAI
+        ? AiConfig.DEFAULT_OPENAI_MODEL
+        : AiConfig.DEFAULT_GEMINI_MODEL;
+
+    return {
+      provider,
+      model: setting?.aiModel?.trim() || defaultModel,
+      apiKey: systemApiKey,
+      isCustomKey: false,
+    };
   }
 
   /**

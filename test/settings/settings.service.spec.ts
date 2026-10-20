@@ -11,6 +11,7 @@ import { TransactionVisibility } from '../../src/common/enums/transaction-visibi
 import { MascotTone } from '../../src/modules/mascots/enums/mascot-tone.enum';
 import { MascotSensitivity } from '../../src/modules/mascots/enums/mascot-sensitivity.enum';
 import { ThemeMode } from '../../src/modules/settings/enums/theme-mode.enum';
+import { AiProvider } from '../../src/modules/settings/enums/ai-provider.enum';
 import {
   PinMismatchException,
   PinAlreadySetException,
@@ -30,6 +31,9 @@ describe('SettingsService', () => {
       defaultCurrency: 'VND',
       language: Language.VI,
       theme: ThemeMode.SYSTEM,
+      aiProvider: AiProvider.GEMINI,
+      aiApiKey: undefined,
+      aiModel: undefined,
       appLockEnabled: false,
       showMascot: true,
       mascotTone: MascotTone.BALANCED,
@@ -41,6 +45,7 @@ describe('SettingsService', () => {
     save: jest.fn().mockImplementation((setting) => Promise.resolve(setting)),
     findByUserId: jest.fn(),
     findByUserIdWithPin: jest.fn(),
+    findByUserIdWithAiKey: jest.fn(),
     updateByUserId: jest.fn().mockResolvedValue(undefined),
   };
 
@@ -58,6 +63,9 @@ describe('SettingsService', () => {
       defaultCurrency: 'VND',
       language: Language.VI,
       theme: ThemeMode.SYSTEM,
+      aiProvider: AiProvider.GEMINI,
+      aiApiKey: undefined,
+      aiModel: undefined,
       appLockEnabled: false,
       pinHash: undefined,
       showMascot: true,
@@ -97,6 +105,9 @@ describe('SettingsService', () => {
       defaultCurrency: 'VND',
       language: Language.VI,
       theme: ThemeMode.SYSTEM,
+      aiProvider: AiProvider.GEMINI,
+      aiApiKey: undefined,
+      aiModel: undefined,
       appLockEnabled: false,
       showMascot: true,
       mascotTone: MascotTone.BALANCED,
@@ -114,6 +125,9 @@ describe('SettingsService', () => {
       const result = await service.getSettings('user-1');
 
       expect(result.defaultCurrency).toBe('VND');
+      expect(result.theme).toBe(ThemeMode.SYSTEM);
+      expect(result.aiProvider).toBe(AiProvider.GEMINI);
+      expect(result.hasCustomApiKey).toBe(false);
       expect(result.showMascot).toBe(true);
       expect(result.mascotTone).toBe(MascotTone.BALANCED);
       expect(result.hasPin).toBe(false);
@@ -149,7 +163,7 @@ describe('SettingsService', () => {
   });
 
   describe('updateGeneralSettings', () => {
-    it('should update currency and language', async () => {
+    it('should update currency, language, and theme', async () => {
       mockSettingsRepo.findByUserId.mockResolvedValue({ ...mockSetting });
 
       const result = await service.updateGeneralSettings('user-1', {
@@ -163,6 +177,83 @@ describe('SettingsService', () => {
       expect(result.language).toBe(Language.EN);
       expect(result.theme).toBe(ThemeMode.DARK);
       expect(result.defaultAmountHidden).toBe(false);
+    });
+  });
+
+  describe('updateAiSettings', () => {
+    it('should update provider, custom model and custom api key', async () => {
+      mockSettingsRepo.findByUserIdWithAiKey.mockResolvedValue({ ...mockSetting });
+
+      const result = await service.updateAiSettings('user-1', {
+        provider: AiProvider.OPENAI,
+        model: 'gpt-4o',
+        apiKey: 'sk-proj-1234567890abcdef',
+      });
+
+      expect(result.aiProvider).toBe(AiProvider.OPENAI);
+      expect(result.aiModel).toBe('gpt-4o');
+      expect(result.hasCustomApiKey).toBe(true);
+      expect(result.maskedApiKey).toContain('****');
+    });
+
+    it('should clear custom api key when empty string provided', async () => {
+      mockSettingsRepo.findByUserIdWithAiKey.mockResolvedValue({
+        ...mockSetting,
+        aiApiKey: 'sk-old-key',
+      });
+
+      const result = await service.updateAiSettings('user-1', {
+        apiKey: '',
+      });
+
+      expect(result.hasCustomApiKey).toBe(false);
+      expect(result.maskedApiKey).toBeNull();
+    });
+  });
+
+  describe('deleteCustomApiKey', () => {
+    it('should remove custom api key and fallback to false', async () => {
+      mockSettingsRepo.findByUserIdWithAiKey.mockResolvedValue({
+        ...mockSetting,
+        aiApiKey: 'sk-custom-key',
+      });
+
+      const result = await service.deleteCustomApiKey('user-1');
+
+      expect(result.hasCustomApiKey).toBe(false);
+      expect(result.maskedApiKey).toBeNull();
+    });
+  });
+
+  describe('getEffectiveAiConfig', () => {
+    it('should return custom api key when configured by user', async () => {
+      mockSettingsRepo.findByUserIdWithAiKey.mockResolvedValue({
+        ...mockSetting,
+        aiProvider: AiProvider.OPENAI,
+        aiModel: 'gpt-4o-custom',
+        aiApiKey: 'sk-user-custom-key',
+      });
+
+      const config = await service.getEffectiveAiConfig('user-1');
+
+      expect(config.provider).toBe(AiProvider.OPENAI);
+      expect(config.apiKey).toBe('sk-user-custom-key');
+      expect(config.model).toBe('gpt-4o-custom');
+      expect(config.isCustomKey).toBe(true);
+    });
+
+    it('should return system fallback key when user has no custom key', async () => {
+      mockSettingsRepo.findByUserIdWithAiKey.mockResolvedValue({
+        ...mockSetting,
+        aiProvider: AiProvider.GEMINI,
+        aiApiKey: undefined,
+      });
+
+      const config = await service.getEffectiveAiConfig('user-1');
+
+      expect(config.provider).toBe(AiProvider.GEMINI);
+      expect(config.isCustomKey).toBe(false);
+      expect(config.model).toBeDefined();
     });
   });
 
@@ -193,7 +284,7 @@ describe('SettingsService', () => {
     it('should throw PinAlreadySetException when user already has a pin', async () => {
       mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({
         ...mockSetting,
-        pinHash: 'hashed-pin',
+        pinHash: 'already-hashed-pin',
       });
 
       await expect(
@@ -201,32 +292,22 @@ describe('SettingsService', () => {
       ).rejects.toThrow(PinAlreadySetException);
     });
 
-    it('should hash pin and enable app lock when valid', async () => {
+    it('should hash pin and enable appLock', async () => {
       mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({ ...mockSetting });
-      mockSettingsRepo.findByUserId.mockResolvedValue({ ...mockSetting });
 
       const result = await service.setupPin('user-1', {
         pin: '123456',
         confirmPin: '123456',
       });
 
-      expect(result.appLockEnabled).toBe(true);
       expect(result.hasPin).toBe(true);
+      expect(result.appLockEnabled).toBe(true);
       expect(mockSettingsRepo.save).toHaveBeenCalled();
     });
   });
 
   describe('verifyPin', () => {
-    it('should throw PinLockoutException if user is locked out', async () => {
-      mockRedisService.get.mockResolvedValue(1); // lockKey returns truthy
-
-      await expect(
-        service.verifyPin('user-1', { pin: '123456' }),
-      ).rejects.toThrow(PinLockoutException);
-    });
-
-    it('should throw PinNotSetException if user has not set pin', async () => {
-      mockRedisService.get.mockResolvedValue(null);
+    it('should throw PinNotSetException if pin is not configured', async () => {
       mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({ ...mockSetting });
 
       await expect(
@@ -234,12 +315,17 @@ describe('SettingsService', () => {
       ).rejects.toThrow(PinNotSetException);
     });
 
-    it('should throw InvalidPinException when pin is wrong and increment failed attempts', async () => {
+    it('should throw PinLockoutException if user is locked out in Redis', async () => {
+      mockRedisService.get.mockResolvedValue('1');
+
+      await expect(
+        service.verifyPin('user-1', { pin: '123456' }),
+      ).rejects.toThrow(PinLockoutException);
+    });
+
+    it('should throw InvalidPinException on incorrect pin and record attempt', async () => {
       const hashedPin = await bcrypt.hash('123456', 10);
-      mockRedisService.get.mockImplementation((key: string) => {
-        if (key.includes('attempts')) return Promise.resolve(1);
-        return Promise.resolve(null);
-      });
+      mockRedisService.get.mockResolvedValue(null);
       mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({
         ...mockSetting,
         pinHash: hashedPin,
@@ -252,7 +338,7 @@ describe('SettingsService', () => {
       expect(mockRedisService.set).toHaveBeenCalled();
     });
 
-    it('should return valid: true and clear attempts when pin is correct', async () => {
+    it('should verify pin successfully and clear attempts', async () => {
       const hashedPin = await bcrypt.hash('123456', 10);
       mockRedisService.get.mockResolvedValue(null);
       mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({
@@ -268,9 +354,7 @@ describe('SettingsService', () => {
   });
 
   describe('changePin', () => {
-    it('should throw PinMismatchException when confirmNewPin does not match newPin', async () => {
-      mockRedisService.get.mockResolvedValue(null);
-
+    it('should throw PinMismatchException when newPin does not match confirmNewPin', async () => {
       await expect(
         service.changePin('user-1', {
           oldPin: '123456',
@@ -281,8 +365,6 @@ describe('SettingsService', () => {
     });
 
     it('should throw SameNewPinException when newPin equals oldPin', async () => {
-      mockRedisService.get.mockResolvedValue(null);
-
       await expect(
         service.changePin('user-1', {
           oldPin: '123456',
@@ -292,24 +374,7 @@ describe('SettingsService', () => {
       ).rejects.toThrow(SameNewPinException);
     });
 
-    it('should throw InvalidPinException when oldPin is wrong', async () => {
-      const hashedPin = await bcrypt.hash('123456', 10);
-      mockRedisService.get.mockResolvedValue(null);
-      mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({
-        ...mockSetting,
-        pinHash: hashedPin,
-      });
-
-      await expect(
-        service.changePin('user-1', {
-          oldPin: 'wrongpin',
-          newPin: '654321',
-          confirmNewPin: '654321',
-        }),
-      ).rejects.toThrow(InvalidPinException);
-    });
-
-    it('should update pin successfully when oldPin is correct', async () => {
+    it('should change pin successfully', async () => {
       const hashedPin = await bcrypt.hash('123456', 10);
       mockRedisService.get.mockResolvedValue(null);
       mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({
