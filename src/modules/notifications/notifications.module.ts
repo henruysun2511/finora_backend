@@ -8,6 +8,7 @@ import { NotificationGateway } from './gateways/notification.gateway';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { JwtConfig } from '../../config/jwt.config';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { JwtConfig } from '../../config/jwt.config';
       secret: JwtConfig.SECRET,
       signOptions: { expiresIn: JwtConfig.EXPIRES_IN as any },
     }),
+    SettingsModule,
   ],
   controllers: [NotificationsController],
   providers: [
