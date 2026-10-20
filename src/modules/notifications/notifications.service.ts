@@ -9,7 +9,7 @@ import { UnreadCountResponseDto } from './dto/response/unread-count-response.dto
 import { PaginatedResponse } from '../../common/response/api-response';
 import { NotificationNotFoundException } from './exceptions/notification.exception';
 import { NotificationType } from './enums/notification-type.enum';
-import { SettingsRepository } from '../settings/repositories/settings.repository';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class NotificationsService {
@@ -19,7 +19,7 @@ export class NotificationsService {
     private readonly notifRepo: NotificationRepository,
     private readonly gateway: NotificationGateway,
     private readonly mapper: NotificationMapper,
-    @Optional() private readonly settingsRepo?: SettingsRepository,
+    @Optional() private readonly settingsService?: SettingsService,
   ) {}
 
   /**
@@ -67,7 +67,7 @@ export class NotificationsService {
     userId: string,
     type: NotificationType,
   ): Promise<boolean> {
-    if (!this.settingsRepo) {
+    if (!this.settingsService) {
       return true;
     }
 
@@ -79,12 +79,10 @@ export class NotificationsService {
       return true;
     }
 
-    const setting = await this.settingsRepo.findByUserId(userId);
-    if (!setting || !setting.notificationPreferences) {
+    const prefs = await this.settingsService.getNotificationPreferences(userId);
+    if (!prefs) {
       return true;
     }
-
-    const prefs = setting.notificationPreferences as Record<string, unknown>;
 
     // Master switch: Tắt toàn bộ thông báo đẩy
     if (prefs.pushNotifications === false) {

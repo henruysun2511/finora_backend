@@ -72,12 +72,9 @@ describe('NotificationsService', () => {
     });
 
     it('Bỏ qua thông báo khi người dùng tắt nhóm thông báo tương ứng trong settings', async () => {
-      const mockSettingsRepo = {
-        findByUserId: jest.fn().mockResolvedValue({
-          userId: USER_ID,
-          notificationPreferences: {
-            budgetAlerts: false,
-          },
+      const mockSettingsService = {
+        getNotificationPreferences: jest.fn().mockResolvedValue({
+          budgetAlerts: false,
         }),
       } as any;
 
@@ -85,7 +82,7 @@ describe('NotificationsService', () => {
         notifRepo,
         gateway,
         mapper,
-        mockSettingsRepo,
+        mockSettingsService,
       );
 
       const dto = {
@@ -103,12 +100,9 @@ describe('NotificationsService', () => {
     });
 
     it('Thông báo bảo mật SECURITY_ALERT luôn được gửi kể cả khi pushNotifications = false', async () => {
-      const mockSettingsRepo = {
-        findByUserId: jest.fn().mockResolvedValue({
-          userId: USER_ID,
-          notificationPreferences: {
-            pushNotifications: false,
-          },
+      const mockSettingsService = {
+        getNotificationPreferences: jest.fn().mockResolvedValue({
+          pushNotifications: false,
         }),
       } as any;
 
@@ -116,7 +110,7 @@ describe('NotificationsService', () => {
         notifRepo,
         gateway,
         mapper,
-        mockSettingsRepo,
+        mockSettingsService,
       );
 
       const dto = {

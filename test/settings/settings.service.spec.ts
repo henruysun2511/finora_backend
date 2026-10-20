@@ -274,6 +274,29 @@ describe('SettingsService', () => {
     });
   });
 
+  describe('getNotificationPreferences', () => {
+    it('should return notification preferences for user', async () => {
+      mockSettingsRepo.findByUserId.mockResolvedValue({
+        ...mockSetting,
+        notificationPreferences: {
+          budgetAlerts: false,
+        },
+      });
+
+      const prefs = await service.getNotificationPreferences('user-1');
+
+      expect(prefs).toEqual({ budgetAlerts: false });
+    });
+
+    it('should return null when user has no settings or no preferences', async () => {
+      mockSettingsRepo.findByUserId.mockResolvedValue(null);
+
+      const prefs = await service.getNotificationPreferences('user-1');
+
+      expect(prefs).toBeNull();
+    });
+  });
+
   describe('setupPin', () => {
     it('should throw PinMismatchException when pin and confirmPin do not match', async () => {
       await expect(

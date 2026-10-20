@@ -141,6 +141,16 @@ export class SettingsService {
   }
 
   /**
+   * [CROSS-MODULE] Lấy cấu hình thông báo của người dùng
+   */
+  async getNotificationPreferences(
+    userId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const setting = await this.settingsRepo.findByUserId(userId);
+    return setting?.notificationPreferences ?? null;
+  }
+
+  /**
    * Cập nhật cấu hình mô hình AI & API Key riêng (BYOK)
    */
   async updateAiSettings(

@@ -11,6 +11,6 @@ import { SettingsController } from './settings.controller';
   imports: [TypeOrmModule.forFeature([Setting])],
   controllers: [SettingsController],
   providers: [SettingsRepository, SettingsMapper, SettingsService],
-  exports: [SettingsService, SettingsRepository],
+  exports: [SettingsService],
 })
 export class SettingsModule {}
