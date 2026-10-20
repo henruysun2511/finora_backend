@@ -21,7 +21,6 @@ import { SetupPinDto } from './dto/request/setup-pin.dto';
 import { VerifyPinDto } from './dto/request/verify-pin.dto';
 import { ChangePinDto } from './dto/request/change-pin.dto';
 import { DisableAppLockDto } from './dto/request/disable-app-lock.dto';
-import { ToggleBiometricDto } from './dto/request/toggle-biometric.dto';
 import { UserSettingsResponseDto } from './dto/response/user-settings-response.dto';
 import { VerifyPinResponseDto } from './dto/response/verify-pin-response.dto';
 
@@ -172,26 +171,6 @@ export class SettingsController {
     return new ApiResponse({
       statusCode: HttpStatus.OK,
       message: 'Tắt khóa ứng dụng thành công',
-      data,
-    });
-  }
-
-  @Patch('security/biometric')
-  @SwaggerDoc({
-    summary: 'Bật / tắt đăng nhập sinh trắc học (vân tay / khuôn mặt)',
-    description: 'Yêu cầu tài khoản đã có mã PIN trước khi bật sinh trắc học',
-    responseType: UserSettingsResponseDto,
-  })
-  async toggleBiometric(
-    @CurrentUser('id') userId: string,
-    @Body() dto: ToggleBiometricDto,
-  ) {
-    const data = await this.settingsService.toggleBiometric(userId, dto.enabled);
-    return new ApiResponse({
-      statusCode: HttpStatus.OK,
-      message: dto.enabled
-        ? 'Bật xác thực sinh trắc học thành công'
-        : 'Tắt xác thực sinh trắc học thành công',
       data,
     });
   }

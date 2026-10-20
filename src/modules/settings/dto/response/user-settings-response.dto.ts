@@ -18,9 +18,6 @@ export class UserSettingsResponseDto {
   @ApiProperty({ example: false, description: 'Trạng thái đã thiết lập mã PIN hay chưa' })
   hasPin: boolean;
 
-  @ApiProperty({ example: false, description: 'Trạng thái bật sinh trắc học' })
-  biometricEnabled: boolean;
-
   @ApiProperty({ example: true, description: 'Cờ bật/tắt hiển thị linh vật' })
   showMascot: boolean;
 

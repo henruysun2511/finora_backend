@@ -11,7 +11,6 @@ export class SettingsMapper {
       language: setting.language,
       appLockEnabled: setting.appLockEnabled,
       hasPin: hasPinOverride !== undefined ? hasPinOverride : !!setting.pinHash,
-      biometricEnabled: setting.biometricEnabled,
       showMascot: setting.showMascot,
       mascotTone: setting.mascotTone,
       mascotSensitivity: setting.mascotSensitivity,

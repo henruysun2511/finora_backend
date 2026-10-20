@@ -54,9 +54,6 @@ export class Setting extends BaseEntity {
   })
   mascotSensitivity: MascotSensitivity;
 
-  @Column({ name: 'biometric_enabled', default: false })
-  biometricEnabled: boolean;
-
   @Column({
     name: 'default_transaction_visibility',
     type: 'enum',

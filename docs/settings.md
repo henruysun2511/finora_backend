@@ -12,7 +12,7 @@
 Module **Settings & Security** chịu trách nhiệm quản lý toàn bộ các tùy chọn cấu hình cá nhân của người dùng trên hệ thống Finora, bao gồm:
 1. **Cài đặt chung (General Preferences)**: Tiền tệ mặc định, ngôn ngữ hiển thị, chế độ che/ẩn số dư nhạy cảm, quyền riêng tư giao dịch.
 2. **Cá nhân hóa AI Mascot (Mascot Personalization)**: Bật/tắt Mascot, tùy biến giọng điệu phản hồi của AI (Gentle / Balanced / Roast), và mức độ nhạy cảnh báo chi tiêu (All / Anomalies Only / Silent).
-3. **Bảo mật ứng dụng (App Lock & PIN Security)**: Khóa ứng dụng bằng mã PIN 4-6 số được mã hóa bcrypt, bảo vệ sinh trắc học (FaceID/Fingerprint), và cơ chế chống dò mã PIN (Rate-limiting Brute-Force lockout).
+3. **Bảo mật ứng dụng (App Lock & PIN Security)**: Khóa ứng dụng bằng mã PIN 4-6 số được mã hóa bcrypt và cơ chế chống dò mã PIN (Rate-limiting Brute-Force lockout).
 4. **Tùy chọn thông báo (Notification Preferences)**: Bật/tắt từng kênh thông báo đẩy qua cấu trúc JSONB linh hoạt.
 
 ---
@@ -31,7 +31,6 @@ Bản ghi cài đặt được quản lý độc lập tại bảng `user_settin
 | `language` | `enum('vi', 'en')` | `'vi'` | Ngôn ngữ giao diện người dùng |
 | `app_lock_enabled` | `boolean` | `false` | Trạng thái kích hoạt khóa ứng dụng |
 | `pin_hash` | `varchar(255)` (Nullable, `select: false`) | `null` | Mã hash bcrypt của mã PIN (ẩn khỏi câu query mặc định) |
-| `biometric_enabled` | `boolean` | `false` | Cho phép đăng nhập/mở khóa bằng vân tay hoặc FaceID |
 | `show_mascot` | `boolean` | `true` | Hiển thị linh vật AI trên trang chủ và màn hình tính năng |
 | `current_mascot_tier_id`| `uuid` (Nullable) | `null` | Cấp độ linh vật hiện tại theo Net Worth |
 | `mascot_tone` | `enum('GENTLE', 'BALANCED', 'ROAST')` | `'BALANCED'` | Giọng điệu của AI Mascot |
@@ -88,9 +87,6 @@ Cung cấp lớp bảo vệ thứ 2 trên thiết bị để bảo vệ dữ li�
 5. **Tắt Khóa Ứng Dụng (`PUT /api/v1/settings/security/app-lock/disable`)**:
    - Để tắt `appLockEnabled`, người dùng bắt buộc phải gửi kèm mã PIN hiện tại để xác minh danh tính.
 
-6. **Bật/Tắt Sinh trắc học (`PUT /api/v1/settings/security/biometric`)**:
-   - Kích hoạt hoặc hủy kích hoạt tính năng mở khóa nhanh bằng vân tay/FaceID.
-
 ### 3.3. Tùy chọn Thông Báo & Cài Đặt Chung
 
 * **Cài đặt chung (`PUT /api/v1/settings/general`)**:
@@ -113,7 +109,6 @@ Tất cả các endpoint đều yêu cầu xác thực JWT (`Bearer Token`).
 | **POST** | `/api/v1/settings/security/pin/verify`| Xác thực mã PIN (mở khóa app) | `VerifyPinDto` (`pin`) | `VerifyPinResponseDto` |
 | **PUT** | `/api/v1/settings/security/pin/change`| Thay đổi mã PIN bảo mật | `ChangePinDto` (`oldPin`, `newPin`) | `UserSettingsResponseDto` |
 | **PUT** | `/api/v1/settings/security/app-lock/disable` | Tắt App Lock (cần cung cấp PIN) | `DisableAppLockDto` (`pin`) | `UserSettingsResponseDto` |
-| **PUT** | `/api/v1/settings/security/biometric` | Bật/tắt mở khóa sinh trắc học | `ToggleBiometricDto` (`enabled`) | `UserSettingsResponseDto` |
 | **PUT** | `/api/v1/settings/notifications` | Cập nhật cấu hình thông báo | `UpdateNotificationPreferencesDto` | `UserSettingsResponseDto` |
 
 ---
@@ -128,7 +123,6 @@ Tất cả các endpoint đều yêu cầu xác thực JWT (`Bearer Token`).
   "language": "vi",
   "appLockEnabled": true,
   "hasPin": true,
-  "biometricEnabled": false,
   "showMascot": true,
   "mascotTone": "ROAST",
   "mascotSensitivity": "ANOMALIES_ONLY",
@@ -151,5 +145,5 @@ Tất cả các endpoint đều yêu cầu xác thực JWT (`Bearer Token`).
 
 * **Repository Pattern**: Toàn bộ thao tác với CSDL đi qua `SettingsRepository`. Service không chứa raw SQL hoặc phụ thuộc trực tiếp vào query builder.
 * **Mapper Separation**: `SettingsMapper` chuyển đổi `Setting` Entity thành `UserSettingsResponseDto`, đảm bảo chuẩn hóa dữ liệu đầu ra và bóc tách dữ liệu nhạy cảm.
-* **Separation of Concerns**: Entity `Setting` đã được dời khỏi `users` module sang đúng vị trí nghiệp vụ tại `src/modules/settings/entities/setting.entity.ts`.
-* **Testing Coverage**: Đạt độ phủ kiểm thử 100% cho Controller & Service với 55 unit tests riêng cho Settings và Mascots, tổng cộng 39/39 test suites (436/436 tests) trên toàn hệ thống backend đều vượt qua.
+* **Separation of Concerns**: Entity `Setting` được đặt đúng vị trí nghiệp vụ tại `src/modules/settings/entities/setting.entity.ts`.
+* **Testing Coverage**: Đạt độ phủ kiểm thử 100% cho Controller & Service, tổng cộng 39/39 test suites trên toàn hệ thống backend đều vượt qua.

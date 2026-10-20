@@ -18,7 +18,6 @@ describe('SettingsController', () => {
     language: Language.VI,
     appLockEnabled: false,
     hasPin: false,
-    biometricEnabled: false,
     showMascot: true,
     mascotTone: MascotTone.BALANCED,
     mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
@@ -44,7 +43,6 @@ describe('SettingsController', () => {
     verifyPin: jest.fn().mockResolvedValue(mockVerifyPinResponse),
     changePin: jest.fn().mockResolvedValue({ ...mockSettingsResponse, hasPin: true }),
     disableAppLock: jest.fn().mockResolvedValue({ ...mockSettingsResponse, appLockEnabled: false }),
-    toggleBiometric: jest.fn().mockResolvedValue({ ...mockSettingsResponse, biometricEnabled: true }),
   };
 
   beforeEach(async () => {
@@ -165,19 +163,6 @@ describe('SettingsController', () => {
       const result = await controller.disableAppLock('user-1', dto);
 
       expect(mockSettingsService.disableAppLock).toHaveBeenCalledWith('user-1', dto);
-      expect(result.statusCode).toBe(HttpStatus.OK);
-    });
-  });
-
-  describe('toggleBiometric', () => {
-    it('should toggle biometric with status 200', async () => {
-      const dto = {
-        enabled: true,
-      };
-
-      const result = await controller.toggleBiometric('user-1', dto);
-
-      expect(mockSettingsService.toggleBiometric).toHaveBeenCalledWith('user-1', true);
       expect(result.statusCode).toBe(HttpStatus.OK);
     });
   });

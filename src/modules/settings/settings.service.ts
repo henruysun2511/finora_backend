@@ -248,31 +248,9 @@ export class SettingsService {
     await this.clearFailedAttempts(userId);
 
     setting.appLockEnabled = false;
-    setting.biometricEnabled = false;
     const saved = await this.settingsRepo.save(setting);
 
     this.logger.log(`User ${userId} đã tắt tính năng khóa ứng dụng`);
-    return this.mapper.toResponse(saved, true);
-  }
-
-  /**
-   * Bật/tắt xác thực sinh trắc học (vân tay / khuôn mặt)
-   */
-  async toggleBiometric(
-    userId: string,
-    enabled: boolean,
-  ): Promise<UserSettingsResponseDto> {
-    const setting = await this.settingsRepo.findByUserIdWithPin(userId);
-    if (!setting || !setting.pinHash) {
-      throw new PinNotSetException();
-    }
-
-    setting.biometricEnabled = enabled;
-    if (enabled) {
-      setting.appLockEnabled = true;
-    }
-
-    const saved = await this.settingsRepo.save(setting);
     return this.mapper.toResponse(saved, true);
   }
 

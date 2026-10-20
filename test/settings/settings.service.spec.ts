@@ -29,7 +29,6 @@ describe('SettingsService', () => {
       defaultCurrency: 'VND',
       language: Language.VI,
       appLockEnabled: false,
-      biometricEnabled: false,
       showMascot: true,
       mascotTone: MascotTone.BALANCED,
       mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
@@ -58,7 +57,6 @@ describe('SettingsService', () => {
       language: Language.VI,
       appLockEnabled: false,
       pinHash: undefined,
-      biometricEnabled: false,
       showMascot: true,
       mascotTone: MascotTone.BALANCED,
       mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
@@ -96,7 +94,6 @@ describe('SettingsService', () => {
       defaultCurrency: 'VND',
       language: Language.VI,
       appLockEnabled: false,
-      biometricEnabled: false,
       showMascot: true,
       mascotTone: MascotTone.BALANCED,
       mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
@@ -332,36 +329,12 @@ describe('SettingsService', () => {
       mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({
         ...mockSetting,
         appLockEnabled: true,
-        biometricEnabled: true,
         pinHash: hashedPin,
       });
 
       const result = await service.disableAppLock('user-1', { pin: '123456' });
 
       expect(result.appLockEnabled).toBe(false);
-      expect(result.biometricEnabled).toBe(false);
-    });
-  });
-
-  describe('toggleBiometric', () => {
-    it('should throw PinNotSetException if pin is not set', async () => {
-      mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({ ...mockSetting });
-
-      await expect(service.toggleBiometric('user-1', true)).rejects.toThrow(
-        PinNotSetException,
-      );
-    });
-
-    it('should toggle biometric when pin is set', async () => {
-      mockSettingsRepo.findByUserIdWithPin.mockResolvedValue({
-        ...mockSetting,
-        pinHash: 'hashed-pin',
-      });
-
-      const result = await service.toggleBiometric('user-1', true);
-
-      expect(result.biometricEnabled).toBe(true);
-      expect(result.appLockEnabled).toBe(true);
     });
   });
 });
