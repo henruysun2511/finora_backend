@@ -4,6 +4,8 @@ import { MascotsController } from 'modules/mascots/mascots.controller';
 import { MascotsService } from 'modules/mascots/mascots.service';
 import { MascotTierResponseDto } from 'modules/mascots/dto/response/mascot-tier-response.dto';
 import { CurrentMascotResponseDto } from 'modules/mascots/dto/response/current-mascot-response.dto';
+import { MascotTone } from 'modules/mascots/enums/mascot-tone.enum';
+import { MascotSensitivity } from 'modules/mascots/enums/mascot-sensitivity.enum';
 
 describe('MascotsController', () => {
   let controller: MascotsController;
@@ -27,6 +29,8 @@ describe('MascotsController', () => {
     totalWalletBalance: 12000000,
     totalDebt: 2000000,
     showMascot: true,
+    mascotTone: MascotTone.BALANCED,
+    mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
     greeting: 'Hello!',
     mascot: mockMascotTier,
   };

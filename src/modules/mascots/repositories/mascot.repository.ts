@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, DataSource } from 'typeorm';
 import { AssetTier } from '../entities/asset-tier.entity';
 import { UserSetting } from '../../users/entities/user-setting.entity';
+import { MascotTone } from '../enums/mascot-tone.enum';
+import { MascotSensitivity } from '../enums/mascot-sensitivity.enum';
 
 @Injectable()
 export class MascotRepository {
@@ -105,6 +107,33 @@ export class MascotRepository {
       select: ['showMascot'],
     });
     return setting?.showMascot ?? true;
+  }
+
+  /**
+   * Lấy cấu hình đầy đủ về linh vật (hiển thị, giọng điệu, độ nhạy) của người dùng
+   */
+  async getUserMascotSettings(userId: string): Promise<{
+    showMascot: boolean;
+    mascotTone: MascotTone;
+    mascotSensitivity: MascotSensitivity;
+    currentMascotTierId: string | null;
+  }> {
+    const setting = await this.userSettingRepo.findOne({
+      where: { userId },
+      select: [
+        'showMascot',
+        'mascotTone',
+        'mascotSensitivity',
+        'currentMascotTierId',
+      ],
+    });
+    return {
+      showMascot: setting?.showMascot ?? true,
+      mascotTone: setting?.mascotTone ?? MascotTone.BALANCED,
+      mascotSensitivity:
+        setting?.mascotSensitivity ?? MascotSensitivity.ANOMALIES_ONLY,
+      currentMascotTierId: setting?.currentMascotTierId || null,
+    };
   }
 
   /**

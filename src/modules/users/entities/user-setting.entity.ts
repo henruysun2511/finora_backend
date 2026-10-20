@@ -3,6 +3,8 @@ import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from './user.entity';
 import { Language } from '../enums/language.enum';
 import { TransactionVisibility } from '../../../common/enums/transaction-visibility.enum';
+import { MascotTone } from '../../mascots/enums/mascot-tone.enum';
+import { MascotSensitivity } from '../../mascots/enums/mascot-sensitivity.enum';
 
 @Entity('user_settings')
 export class UserSetting extends BaseEntity {
@@ -35,6 +37,22 @@ export class UserSetting extends BaseEntity {
 
   @Column({ name: 'current_mascot_tier_id', type: 'uuid', nullable: true })
   currentMascotTierId?: string;
+
+  @Column({
+    name: 'mascot_tone',
+    type: 'enum',
+    enum: MascotTone,
+    default: MascotTone.BALANCED,
+  })
+  mascotTone: MascotTone;
+
+  @Column({
+    name: 'mascot_sensitivity',
+    type: 'enum',
+    enum: MascotSensitivity,
+    default: MascotSensitivity.ANOMALIES_ONLY,
+  })
+  mascotSensitivity: MascotSensitivity;
 
   @Column({ name: 'biometric_enabled', default: false })
   biometricEnabled: boolean;

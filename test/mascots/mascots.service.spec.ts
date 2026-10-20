@@ -11,6 +11,8 @@ import {
   MascotInvalidNetWorthRangeException,
   MascotCannotDeleteException,
 } from 'modules/mascots/exceptions/mascot.exception';
+import { MascotTone } from 'modules/mascots/enums/mascot-tone.enum';
+import { MascotSensitivity } from 'modules/mascots/enums/mascot-sensitivity.enum';
 
 describe('MascotsService', () => {
   let service: MascotsService;
@@ -61,6 +63,12 @@ describe('MascotsService', () => {
     getUserTotalWalletBalance: jest.fn(),
     getUserTotalBorrowedDebt: jest.fn(),
     getUserShowMascotPreference: jest.fn(),
+    getUserMascotSettings: jest.fn().mockResolvedValue({
+      showMascot: true,
+      mascotTone: MascotTone.BALANCED,
+      mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
+      currentMascotTierId: null,
+    }),
     getUserCurrentMascotTierId: jest.fn(),
     updateUserCurrentMascotTierId: jest.fn().mockResolvedValue(undefined),
   };
@@ -225,7 +233,12 @@ describe('MascotsService', () => {
     it('should calculate net worth from repository methods and return matching mascot', async () => {
       mockMascotRepo.getUserTotalWalletBalance.mockResolvedValue(10000000);
       mockMascotRepo.getUserTotalBorrowedDebt.mockResolvedValue(2000000);
-      mockMascotRepo.getUserShowMascotPreference.mockResolvedValue(true);
+      mockMascotRepo.getUserMascotSettings.mockResolvedValue({
+        showMascot: true,
+        mascotTone: MascotTone.BALANCED,
+        mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
+        currentMascotTierId: null,
+      });
       mockMascotRepo.findTierByNetWorth.mockResolvedValue(mockTiers[1]);
 
       const result = await service.getCurrentUserMascot('user-id');
@@ -236,39 +249,45 @@ describe('MascotsService', () => {
       expect(mockMascotRepo.getUserTotalBorrowedDebt).toHaveBeenCalledWith(
         'user-id',
       );
-      expect(mockMascotRepo.getUserShowMascotPreference).toHaveBeenCalledWith(
+      expect(mockMascotRepo.getUserMascotSettings).toHaveBeenCalledWith(
         'user-id',
       );
       expect(result.totalWalletBalance).toBe(10000000);
       expect(result.totalDebt).toBe(2000000);
       expect(result.netWorth).toBe(8000000);
       expect(result.showMascot).toBe(true);
+      expect(result.mascotTone).toBe(MascotTone.BALANCED);
+      expect(result.mascotSensitivity).toBe(MascotSensitivity.ANOMALIES_ONLY);
       expect(result.mascot.tierName).toBe('nora');
       expect(result.greeting).toBe('Khoản chi hợp lý!');
     });
   });
 
   describe('checkMascotEvolution', () => {
+    const mockMascotResponse = {
+      netWorth: 8000000,
+      totalWalletBalance: 10000000,
+      totalDebt: 2000000,
+      showMascot: true,
+      mascotTone: MascotTone.BALANCED,
+      mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
+      greeting: 'Hello',
+      mascot: {
+        id: 'tier-2',
+        tierName: 'nora',
+        displayName: 'Huấn Luyện Viên Đời Sống',
+        minNetWorth: 5000000,
+        displayOrder: 4,
+        quotes: ['...'],
+        systemPrompt: 'Prompt for Nora',
+        htmlContent: '<div></div>',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    };
+
     it('should initialize current tier on first check when no lastTierId exists', async () => {
-      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({
-        netWorth: 8000000,
-        totalWalletBalance: 10000000,
-        totalDebt: 2000000,
-        showMascot: true,
-        greeting: 'Hello',
-        mascot: {
-          id: 'tier-2',
-          tierName: 'nora',
-          displayName: 'Huấn Luyện Viên Đời Sống',
-          minNetWorth: 5000000,
-          displayOrder: 4,
-          quotes: ['...'],
-          systemPrompt: 'Prompt',
-          htmlContent: '<div></div>',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({ ...mockMascotResponse });
       mockMascotRepo.getUserCurrentMascotTierId.mockResolvedValue(null);
 
       const result = await service.checkMascotEvolution('user-id');
@@ -282,25 +301,7 @@ describe('MascotsService', () => {
     });
 
     it('should return evolved: false when current tier matches lastTierId', async () => {
-      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({
-        netWorth: 8000000,
-        totalWalletBalance: 10000000,
-        totalDebt: 2000000,
-        showMascot: true,
-        greeting: 'Hello',
-        mascot: {
-          id: 'tier-2',
-          tierName: 'nora',
-          displayName: 'Huấn Luyện Viên Đời Sống',
-          minNetWorth: 5000000,
-          displayOrder: 4,
-          quotes: ['...'],
-          systemPrompt: 'Prompt',
-          htmlContent: '<div></div>',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({ ...mockMascotResponse });
       mockMascotRepo.getUserCurrentMascotTierId.mockResolvedValue('tier-2');
 
       const result = await service.checkMascotEvolution('user-id');
@@ -311,25 +312,7 @@ describe('MascotsService', () => {
 
     it('should trigger Level Up notification when transitioning to higher tier', async () => {
       // Transition from tier-1 (Ash, order 1) to tier-2 (Nora, order 4)
-      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({
-        netWorth: 8000000,
-        totalWalletBalance: 10000000,
-        totalDebt: 2000000,
-        showMascot: true,
-        greeting: 'Hello',
-        mascot: {
-          id: 'tier-2',
-          tierName: 'nora',
-          displayName: 'Huấn Luyện Viên Đời Sống',
-          minNetWorth: 5000000,
-          displayOrder: 4,
-          quotes: ['...'],
-          systemPrompt: 'Prompt',
-          htmlContent: '<div></div>',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({ ...mockMascotResponse });
       mockMascotRepo.getUserCurrentMascotTierId.mockResolvedValue('tier-1');
       mockMascotRepo.findById.mockResolvedValue(mockTiers[0]); // Ash
 
@@ -355,12 +338,14 @@ describe('MascotsService', () => {
   });
 
   describe('getSystemPromptForUser', () => {
-    it('should return system prompt for user active mascot', async () => {
+    it('should return system prompt with BALANCED tone directive by default', async () => {
       jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({
         netWorth: 8000000,
         totalWalletBalance: 10000000,
         totalDebt: 2000000,
         showMascot: true,
+        mascotTone: MascotTone.BALANCED,
+        mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
         greeting: 'Hello',
         mascot: {
           id: 'tier-2',
@@ -378,7 +363,68 @@ describe('MascotsService', () => {
 
       const prompt = await service.getSystemPromptForUser('user-id');
 
-      expect(prompt).toBe('Prompt for Nora');
+      expect(prompt).toContain('Prompt for Nora');
+      expect(prompt).toContain('BALANCED');
+    });
+
+    it('should append GENTLE tone directive when user configured GENTLE', async () => {
+      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({
+        netWorth: 8000000,
+        totalWalletBalance: 10000000,
+        totalDebt: 2000000,
+        showMascot: true,
+        mascotTone: MascotTone.GENTLE,
+        mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
+        greeting: 'Hello',
+        mascot: {
+          id: 'tier-2',
+          tierName: 'nora',
+          displayName: 'Huấn Luyện Viên Đời Sống',
+          minNetWorth: 5000000,
+          displayOrder: 4,
+          quotes: ['...'],
+          systemPrompt: 'Prompt for Nora',
+          htmlContent: '<div></div>',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      const prompt = await service.getSystemPromptForUser('user-id');
+
+      expect(prompt).toContain('Prompt for Nora');
+      expect(prompt).toContain('GENTLE');
+      expect(prompt).toContain('Tuyệt đối không dùng từ ngữ phán xét');
+    });
+
+    it('should append ROAST tone directive when user configured ROAST', async () => {
+      jest.spyOn(service, 'getCurrentUserMascot').mockResolvedValue({
+        netWorth: 8000000,
+        totalWalletBalance: 10000000,
+        totalDebt: 2000000,
+        showMascot: true,
+        mascotTone: MascotTone.ROAST,
+        mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,
+        greeting: 'Hello',
+        mascot: {
+          id: 'tier-2',
+          tierName: 'nora',
+          displayName: 'Huấn Luyện Viên Đời Sống',
+          minNetWorth: 5000000,
+          displayOrder: 4,
+          quotes: ['...'],
+          systemPrompt: 'Prompt for Nora',
+          htmlContent: '<div></div>',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      const prompt = await service.getSystemPromptForUser('user-id');
+
+      expect(prompt).toContain('Prompt for Nora');
+      expect(prompt).toContain('ROAST');
+      expect(prompt).toContain('Gen Z');
     });
   });
 

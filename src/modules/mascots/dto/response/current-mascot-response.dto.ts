@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { MascotTierResponseDto } from './mascot-tier-response.dto';
+import { MascotTone } from '../../enums/mascot-tone.enum';
+import { MascotSensitivity } from '../../enums/mascot-sensitivity.enum';
 
 export class CurrentMascotResponseDto {
   @ApiProperty({ example: 12500000, description: 'Tài sản ròng hiện tại (VND)' })
@@ -13,6 +15,20 @@ export class CurrentMascotResponseDto {
 
   @ApiProperty({ example: true, description: 'Cờ bật/tắt hiển thị mascot' })
   showMascot: boolean;
+
+  @ApiProperty({
+    enum: MascotTone,
+    example: MascotTone.BALANCED,
+    description: 'Phong cách phản hồi của linh vật',
+  })
+  mascotTone: MascotTone;
+
+  @ApiProperty({
+    enum: MascotSensitivity,
+    example: MascotSensitivity.ANOMALIES_ONLY,
+    description: 'Độ nhạy cảnh báo của linh vật',
+  })
+  mascotSensitivity: MascotSensitivity;
 
   @ApiProperty({
     example:

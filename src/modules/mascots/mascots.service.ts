@@ -20,6 +20,7 @@ import {
   EVENT_NET_WORTH_CHANGED,
   NetWorthChangedEvent,
 } from '../../common/events/net-worth-changed.event';
+import { MascotTone } from './enums/mascot-tone.enum';
 
 @Injectable()
 export class MascotsService {
@@ -177,9 +178,8 @@ export class MascotsService {
     // 2. Tính Net Worth
     const netWorth = totalWalletBalance - totalDebt;
 
-    // 3. Lấy cấu hình hiển thị mascot qua Repository
-    const showMascot =
-      await this.mascotRepo.getUserShowMascotPreference(userId);
+    // 3. Lấy cấu hình hiển thị, tone và độ nhạy mascot qua Repository
+    const settings = await this.mascotRepo.getUserMascotSettings(userId);
 
     // 4. Tìm linh vật tương ứng theo Net Worth qua Repository
     let matchedTier = await this.mascotRepo.findTierByNetWorth(netWorth);
@@ -205,7 +205,9 @@ export class MascotsService {
       netWorth,
       totalWalletBalance,
       totalDebt,
-      showMascot,
+      showMascot: settings.showMascot,
+      mascotTone: settings.mascotTone,
+      mascotSensitivity: settings.mascotSensitivity,
       greeting,
       mascot: matchedTier
         ? this.mascotMapper.toResponse(matchedTier)
@@ -300,14 +302,39 @@ export class MascotsService {
   }
 
   /**
-   * Cung cấp System Prompt tương ứng với linh vật cho AI Chatbot Engine
+   * Cung cấp System Prompt tương ứng với linh vật và phong cách phản hồi cho AI Chatbot Engine
    */
   async getSystemPromptForUser(userId: string): Promise<string> {
     const currentMascot = await this.getCurrentUserMascot(userId);
-    return (
+    const basePrompt =
       currentMascot.mascot.systemPrompt ||
-      `Bạn là ${currentMascot.mascot.displayName}, trợ lý tài chính thông minh của Finora.`
-    );
+      `Bạn là ${currentMascot.mascot.displayName}, trợ lý tài chính thông minh của Finora.`;
+
+    let toneDirective = '';
+    switch (currentMascot.mascotTone) {
+      case MascotTone.GENTLE:
+        toneDirective =
+          '\n\n[Phong cách phản hồi: GENTLE - Thấu cảm & Động viên]\n' +
+          '- Tuyệt đối không dùng từ ngữ phán xét, hoảng loạn hay chì chiết người dùng về tiền bạc.\n' +
+          '- Giữ giọng điệu ấm áp, đồng cảm, khích lệ người dùng rằng khó khăn tài chính chỉ là tạm thời.\n' +
+          '- Tập trung hướng dẫn các bước tiết kiệm nhỏ, khả thi và dễ thực hiện nhất.';
+        break;
+      case MascotTone.ROAST:
+        toneDirective =
+          '\n\n[Phong cách phản hồi: ROAST - Trào phúng & Nghiêm khắc]\n' +
+          '- Sử dụng phong cách nói thẳng, hài hước, châm biếm nhẹ nhàng kiểu Gen Z để người dùng tỉnh ngộ.\n' +
+          '- Nhấn mạnh hậu quả của việc chi tiêu bốc đồng nhưng vẫn giữ tính xây dựng và có ích.';
+        break;
+      case MascotTone.BALANCED:
+      default:
+        toneDirective =
+          '\n\n[Phong cách phản hồi: BALANCED - Cân bằng & Khách quan]\n' +
+          '- Đưa ra nhận xét thực tế, số liệu cụ thể và lời khuyên tài chính logic, khoa học.\n' +
+          '- Cân đối giữa việc nhắc nhở ngân sách và khen ngợi kỷ luật tài chính.';
+        break;
+    }
+
+    return `${basePrompt}${toneDirective}`;
   }
 
   /**
