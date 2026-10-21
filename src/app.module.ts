@@ -21,6 +21,7 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
 import { LoansModule } from './modules/loans/loans.module';
 import { MascotsModule } from './modules/mascots/mascots.module';
+import { DashboardModule } from './modules/dashboards/dashboards.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { AiChatModule } from './modules/ai-chat/ai-chat.module';
 @Module({
@@ -45,7 +46,7 @@ import { AiChatModule } from './modules/ai-chat/ai-chat.module';
     LoansModule,
     MascotsModule,
     SettingsModule,
-    AiChatModule,
+    AiChatModule
   ],
 
   providers: [
