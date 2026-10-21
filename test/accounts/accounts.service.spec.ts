@@ -31,6 +31,7 @@ describe('AccountsService', () => {
   let accountRepo: any;
   let adjustmentRepo: any;
   let walletsService: any;
+  let settingsService: any;
 
   const makeAccount = (override: Record<string, any> = {}) => ({
     id: 'a1',
@@ -73,12 +74,16 @@ describe('AccountsService', () => {
       getUserWallets: jest.fn().mockResolvedValue([WALLET]),
       findById: jest.fn().mockResolvedValue(WALLET),
     };
+    settingsService = {
+      verifyActionPin: jest.fn().mockResolvedValue(undefined),
+    };
     service = new AccountsService(
       dataSource,
       accountRepo,
       adjustmentRepo,
       walletsService,
       new AccountMapper(),
+      settingsService,
     );
   });
 

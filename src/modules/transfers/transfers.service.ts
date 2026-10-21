@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import { TransferRepository } from './repositories/transfer.repository';
 import { AccountsService } from '../accounts/accounts.service';
+import { SettingsService } from '../settings/settings.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { TransferMapper } from './mapper/transfer.mapper';
 import { CreateTransferDto } from './dto/request/create-transfer.dto';
@@ -28,6 +29,7 @@ export class TransfersService {
     private readonly transferRepo: TransferRepository,
     private readonly accountsService: AccountsService,
     private readonly exchangeRatesService: ExchangeRatesService,
+    private readonly settingsService: SettingsService,
     private readonly mapper: TransferMapper,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
@@ -40,6 +42,9 @@ export class TransfersService {
    * @returns TransferResponseDto
    */
   async createTransfer(userId: string, dto: CreateTransferDto): Promise<TransferResponseDto> {
+    // 0. Xác thực mã PIN bảo mật nếu người dùng bật cấu hình bảo vệ giao dịch
+    await this.settingsService.verifyActionPin(userId, dto.pin);
+
     // 1. Kiểm tra tính hợp lệ và quyền hạn của 2 tài khoản nguồn & đích
     const { fromAccount, toAccount } = await this.accountsService.validateTransferAccounts(
       userId,

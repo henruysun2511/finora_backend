@@ -70,3 +70,13 @@ export class SameNewPinException extends BadRequestException {
     });
   }
 }
+
+export class PinRequiredException extends BadRequestException {
+  constructor() {
+    super({
+      code: SETTINGS_ERROR_CODE.PIN_REQUIRED,
+      message: 'Giao dịch này yêu cầu xác thực mã PIN bảo mật. Vui lòng nhập mã PIN.',
+    });
+  }
+}
+

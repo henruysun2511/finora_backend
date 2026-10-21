@@ -13,6 +13,7 @@ export class SettingsMapper {
       language: setting.language,
       theme: setting.theme,
       appLockEnabled: setting.appLockEnabled,
+      requirePinForTransactions: setting.requirePinForTransactions ?? false,
       hasPin: hasPinOverride !== undefined ? hasPinOverride : !!setting.pinHash,
       showMascot: setting.showMascot,
       mascotTone: setting.mascotTone,

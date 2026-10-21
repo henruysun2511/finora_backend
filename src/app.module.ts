@@ -22,6 +22,7 @@ import { RecurringTransactionsModule } from './modules/recurring-transactions/re
 import { LoansModule } from './modules/loans/loans.module';
 import { MascotsModule } from './modules/mascots/mascots.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { AiChatModule } from './modules/ai-chat/ai-chat.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -44,6 +45,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     LoansModule,
     MascotsModule,
     SettingsModule,
+    AiChatModule,
   ],
 
   providers: [

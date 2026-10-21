@@ -37,11 +37,20 @@ export class PendingAction extends BaseEntity {
   @Column({ name: 'preview_payload', type: 'jsonb' })
   previewPayload: Record<string, any>;
 
+  @Column({ name: 'chat_message_id', type: 'uuid', nullable: true })
+  @Index('idx_pending_actions_chat_message_id')
+  chatMessageId?: string | null;
+
+  @Column({ name: 'transaction_id', type: 'uuid', nullable: true })
+  @Index('idx_pending_actions_transaction_id')
+  transactionId?: string | null;
+
   @Column({
     type: 'enum',
     enum: PendingActionStatus,
     default: PendingActionStatus.PENDING,
   })
+  @Index('idx_pending_actions_status')
   status: PendingActionStatus;
 
   @Column({

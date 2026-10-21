@@ -46,6 +46,12 @@ export class ChatMessage extends BaseEntity {
   @Column({ name: 'text_content', type: 'text' })
   textContent: string;
 
+  @Column({ length: 50, nullable: true })
+  intent?: string | null;
+
+  @Column({ length: 50, nullable: true })
+  mascot?: string | null;
+
   @Column({ name: 'payload_json', type: 'jsonb', nullable: true })
   payloadJson?: Record<string, any>;
 }

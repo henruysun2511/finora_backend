@@ -38,6 +38,9 @@ export class Setting extends BaseEntity {
   @Column({ name: 'app_lock_enabled', default: false })
   appLockEnabled: boolean;
 
+  @Column({ name: 'require_pin_for_transactions', default: false })
+  requirePinForTransactions: boolean;
+
   @Column({ name: 'pin_hash', length: 255, nullable: true, select: false })
   pinHash?: string;
 

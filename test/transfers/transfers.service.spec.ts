@@ -15,6 +15,7 @@ describe('TransfersService', () => {
   let transferRepo: any;
   let accountsService: any;
   let exchangeRatesService: any;
+  let settingsService: any;
 
   const fromAccVND = {
     id: 'acc-vnd-1',
@@ -74,11 +75,16 @@ describe('TransfersService', () => {
       getExchangeRate: jest.fn(),
     };
 
+    settingsService = {
+      verifyActionPin: jest.fn().mockResolvedValue(undefined),
+    };
+
     service = new TransfersService(
       dataSource,
       transferRepo,
       accountsService,
       exchangeRatesService,
+      settingsService,
       new TransferMapper(),
     );
   });

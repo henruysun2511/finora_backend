@@ -21,6 +21,7 @@ describe('SettingsController', () => {
     theme: ThemeMode.SYSTEM,
     appLockEnabled: false,
     hasPin: false,
+    requirePinForTransactions: false,
     showMascot: true,
     mascotTone: MascotTone.BALANCED,
     mascotSensitivity: MascotSensitivity.ANOMALIES_ONLY,

@@ -20,6 +20,9 @@ export class UserSettingsResponseDto {
   @ApiProperty({ example: false, description: 'Trạng thái khóa ứng dụng bằng mã PIN' })
   appLockEnabled: boolean;
 
+  @ApiProperty({ example: false, description: 'Yêu cầu mã PIN cho các giao dịch nhạy cảm (chuyển tiền, đổi số dư)' })
+  requirePinForTransactions: boolean;
+
   @ApiProperty({ example: false, description: 'Trạng thái đã thiết lập mã PIN hay chưa' })
   hasPin: boolean;
 

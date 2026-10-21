@@ -23,6 +23,7 @@ import { SetupPinDto } from './dto/request/setup-pin.dto';
 import { VerifyPinDto } from './dto/request/verify-pin.dto';
 import { ChangePinDto } from './dto/request/change-pin.dto';
 import { DisableAppLockDto } from './dto/request/disable-app-lock.dto';
+import { UpdateTransactionPinDto } from './dto/request/update-transaction-pin.dto';
 import { UserSettingsResponseDto } from './dto/response/user-settings-response.dto';
 import { VerifyPinResponseDto } from './dto/response/verify-pin-response.dto';
 
@@ -173,6 +174,42 @@ export class SettingsController {
     return new ApiResponse({
       statusCode: HttpStatus.OK,
       message: 'Tắt khóa ứng dụng thành công',
+      data,
+    });
+  }
+
+  @Post('security/enable-app-lock')
+  @SwaggerDoc({
+    summary: 'Bật lại tính năng khóa ứng dụng',
+    description: 'Yêu cầu xác thực mã PIN hiện tại trước khi bật lại khóa ứng dụng',
+    responseType: UserSettingsResponseDto,
+  })
+  async enableAppLock(
+    @CurrentUser('id') userId: string,
+    @Body() dto: VerifyPinDto,
+  ) {
+    const data = await this.settingsService.enableAppLock(userId, dto);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: 'Bật khóa ứng dụng thành công',
+      data,
+    });
+  }
+
+  @Patch('security/transaction-pin')
+  @SwaggerDoc({
+    summary: 'Bật hoặc tắt yêu cầu mã PIN cho giao dịch nhạy cảm (chuyển tiền, đổi số dư)',
+    description: 'Yêu cầu nhập đúng mã PIN hiện tại để thay đổi thiết lập xác thực giao dịch',
+    responseType: UserSettingsResponseDto,
+  })
+  async updateTransactionPin(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateTransactionPinDto,
+  ) {
+    const data = await this.settingsService.updateTransactionPin(userId, dto);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: `Đã ${dto.enabled ? 'bật' : 'tắt'} yêu cầu mã PIN khi giao dịch nhạy cảm thành công`,
       data,
     });
   }

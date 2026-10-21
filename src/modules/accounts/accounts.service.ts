@@ -4,6 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { AccountRepository } from './repositories/account.repository';
 import { AccountBalanceAdjustmentRepository } from './repositories/account-balance-adjustment.repository';
 import { WalletsService } from '../wallets/wallets.service';
+import { SettingsService } from '../settings/settings.service';
 import { Wallet } from '../wallets/entities/wallet.entity';
 import { AccountMapper } from './mapper/account.mapper';
 import { CreateAccountDto } from './dto/request/create-account.dto';
@@ -46,6 +47,7 @@ export class AccountsService {
     private readonly adjustmentRepo: AccountBalanceAdjustmentRepository,
     private readonly walletsService: WalletsService,
     private readonly accountMapper: AccountMapper,
+    private readonly settingsService: SettingsService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
@@ -256,6 +258,8 @@ export class AccountsService {
     idempotencyKey?: string,
   ) {
     if (!idempotencyKey) throw new IdempotencyKeyRequiredException();
+
+    await this.settingsService.verifyActionPin(userId, dto.pin);
 
     const result = await this.dataSource.transaction(async (manager) => {
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);

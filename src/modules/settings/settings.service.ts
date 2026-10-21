@@ -15,6 +15,7 @@ import { SetupPinDto } from './dto/request/setup-pin.dto';
 import { VerifyPinDto } from './dto/request/verify-pin.dto';
 import { ChangePinDto } from './dto/request/change-pin.dto';
 import { DisableAppLockDto } from './dto/request/disable-app-lock.dto';
+import { UpdateTransactionPinDto } from './dto/request/update-transaction-pin.dto';
 import { UserSettingsResponseDto } from './dto/response/user-settings-response.dto';
 import { VerifyPinResponseDto } from './dto/response/verify-pin-response.dto';
 import {
@@ -24,6 +25,7 @@ import {
   InvalidPinException,
   PinLockoutException,
   SameNewPinException,
+  PinRequiredException,
 } from './exceptions/settings.exception';
 import { SETTINGS_SECURITY_CONFIG } from './settings.constant';
 
@@ -357,6 +359,84 @@ export class SettingsService {
 
     this.logger.log(`User ${userId} đã tắt tính năng khóa ứng dụng`);
     return this.mapper.toResponse(saved, true);
+  }
+
+  /**
+   * Bật lại khóa ứng dụng (yêu cầu xác thực mã PIN)
+   */
+  async enableAppLock(
+    userId: string,
+    dto: VerifyPinDto,
+  ): Promise<UserSettingsResponseDto> {
+    await this.assertNotLockedOut(userId);
+
+    const setting = await this.settingsRepo.findByUserIdWithPin(userId);
+    if (!setting || !setting.pinHash) {
+      throw new PinNotSetException();
+    }
+
+    const isMatch = await bcrypt.compare(dto.pin, setting.pinHash);
+    if (!isMatch) {
+      const remaining = await this.recordFailedAttempt(userId);
+      throw new InvalidPinException(remaining);
+    }
+
+    await this.clearFailedAttempts(userId);
+
+    setting.appLockEnabled = true;
+    const saved = await this.settingsRepo.save(setting);
+
+    this.logger.log(`User ${userId} đã bật tính năng khóa ứng dụng`);
+    return this.mapper.toResponse(saved, true);
+  }
+
+  /**
+   * Bật / tắt yêu cầu mã PIN cho giao dịch nhạy cảm (yêu cầu xác thực mã PIN)
+   */
+  async updateTransactionPin(
+    userId: string,
+    dto: UpdateTransactionPinDto,
+  ): Promise<UserSettingsResponseDto> {
+    await this.assertNotLockedOut(userId);
+
+    const setting = await this.settingsRepo.findByUserIdWithPin(userId);
+    if (!setting || !setting.pinHash) {
+      throw new PinNotSetException();
+    }
+
+    const isMatch = await bcrypt.compare(dto.pin, setting.pinHash);
+    if (!isMatch) {
+      const remaining = await this.recordFailedAttempt(userId);
+      throw new InvalidPinException(remaining);
+    }
+
+    await this.clearFailedAttempts(userId);
+
+    setting.requirePinForTransactions = dto.enabled;
+    const saved = await this.settingsRepo.save(setting);
+
+    this.logger.log(
+      `User ${userId} đã ${dto.enabled ? 'bật' : 'tắt'} yêu cầu mã PIN khi giao dịch nhạy cảm`,
+    );
+    return this.mapper.toResponse(saved, true);
+  }
+
+  /**
+   * [CROSS-MODULE] Xác thực mã PIN cho các hành động giao dịch nhạy cảm (chuyển tiền, đổi số dư...)
+   * Nếu người dùng không bật requirePinForTransactions thì bỏ qua.
+   * Nếu bật nhưng không truyền PIN hoặc PIN sai thì ném ngoại lệ tương ứng.
+   */
+  async verifyActionPin(userId: string, pin?: string): Promise<void> {
+    const setting = await this.settingsRepo.findByUserIdWithPin(userId);
+    if (!setting || !setting.requirePinForTransactions || !setting.pinHash) {
+      return;
+    }
+
+    if (!pin || pin.trim().length === 0) {
+      throw new PinRequiredException();
+    }
+
+    await this.verifyPin(userId, { pin });
   }
 
   // ── [RATE LIMITING / LOCKOUT HELPERS] ────────────────────────────────────────
