@@ -13,10 +13,17 @@ describe('DashboardService', () => {
     mockDashboardRepo = {
       calculateNetWorth: jest.fn().mockResolvedValue(158500000),
       getMonthlyCashflow: jest.fn().mockResolvedValue({ income: 35000000, expense: 18200000 }),
+      getOverviewDetails: jest.fn().mockResolvedValue({
+        accounts: [],
+        recentTransactions: [],
+        budgetAlerts: [],
+        recurringAlerts: [],
+      }),
     };
 
     mockWalletsService = {
       getUserWalletIds: jest.fn().mockResolvedValue(['wallet-1', 'wallet-2']),
+      assertWalletAccess: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -57,6 +64,34 @@ describe('DashboardService', () => {
         DashboardWalletAccessDeniedException,
       );
       expect(mockWalletsService.getUserWalletIds).toHaveBeenCalledWith(userId);
+    });
+  });
+
+  describe('getSharedWalletDashboard', () => {
+    it('calculates settlements across all members, including members who paid nothing', async () => {
+      mockDashboardRepo.getSharedWallet = jest.fn().mockResolvedValue({
+        id: 'wallet-1',
+        name: 'Ví gia đình',
+        currency: 'VND',
+      });
+      mockDashboardRepo.getSharedWalletContributions = jest.fn().mockResolvedValue([
+        { userId: 'user-1', fullName: 'Minh', avatar: null, totalPaid: 900 },
+        { userId: 'user-2', fullName: 'Mai', avatar: null, totalPaid: 300 },
+      ]);
+      mockDashboardRepo.getSharedWalletMembers = jest.fn().mockResolvedValue([
+        { userId: 'user-1', fullName: 'Minh', avatar: null },
+        { userId: 'user-2', fullName: 'Mai', avatar: null },
+        { userId: 'user-3', fullName: 'An', avatar: null },
+      ]);
+
+      const result = await service.getSharedWalletDashboard('user-1', 'wallet-1');
+
+      expect(result.memberContributions).toHaveLength(3);
+      expect(result.settlementMatrix.isBalanced).toBe(false);
+      expect(result.settlementMatrix.suggestedSettlements).toEqual([
+        expect.objectContaining({ fromUserId: 'user-2', toUserId: 'user-1', amount: 100 }),
+        expect.objectContaining({ fromUserId: 'user-3', toUserId: 'user-1', amount: 400 }),
+      ]);
     });
   });
 });
