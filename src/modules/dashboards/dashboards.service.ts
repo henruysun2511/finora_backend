@@ -1,18 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { DashboardRepository } from './repositories/dashboards.repository';
 import { WalletsService } from '../wallets/wallets.service';
+import { DashboardMapper } from './mapper/dashboards.mapper';
 import { DashboardQueryDto } from './dto/request/dashboard-query.dto';
 import { CashFlowQueryDto } from './dto/request/cash-flow-query.dto';
 import { CategoryBreakdownQueryDto } from './dto/request/category-breakdown-query.dto';
 import { DashboardMonthQueryDto } from './dto/request/dashboard-month-query.dto';
 import { CashFlowPeriod, CategoryBreakdownType } from './dashboards.constant';
 import { DashboardWalletAccessDeniedException } from './exceptions/dashboards.exception';
+import { OverviewDashboardResponseDto } from './dto/response/overview-dashboard-response.dto';
+import { CashFlowResponseDto } from './dto/response/cash-flow-response.dto';
+import { CategoryBreakdownResponseDto, Rule503020EvaluationDto } from './dto/response/category-breakdown-response.dto';
+import { BudgetHealthResponseDto } from './dto/response/budget-health-response.dto';
+import { DebtsDashboardResponseDto } from './dto/response/debts-dashboard-response.dto';
+import { CalendarDashboardResponseDto } from './dto/response/calendar-dashboard-response.dto';
+import { SharedWalletDashboardResponseDto } from './dto/response/shared-wallet-dashboard-response.dto';
+import { OperationsDashboardResponseDto } from './dto/response/operations-dashboard-response.dto';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly dashboardRepo: DashboardRepository,
     private readonly walletsService: WalletsService,
+    private readonly mapper: DashboardMapper,
   ) {}
 
   private async validateWalletAccess(userId: string, walletId?: string): Promise<void> {
@@ -24,7 +34,7 @@ export class DashboardService {
     }
   }
 
-  async getExecutiveOverview(userId: string, query: DashboardQueryDto) {
+  async getExecutiveOverview(userId: string, query: DashboardQueryDto): Promise<OverviewDashboardResponseDto> {
     await this.validateWalletAccess(userId, query.walletId);
 
     const netWorth = await this.dashboardRepo.calculateNetWorth(userId, query.walletId);
@@ -57,7 +67,7 @@ export class DashboardService {
       })),
     ];
 
-    return {
+    return this.mapper.toOverviewResponse({
       netWorth,
       currency: 'VND',
       assetTier: {
@@ -84,11 +94,12 @@ export class DashboardService {
       recentTransactions: details.recentTransactions.map((transaction: any) => ({
         ...transaction,
         amount: Number(transaction.amount),
+        transactionDate: new Date(transaction.transactionDate).toISOString(),
       })),
-    };
+    });
   }
 
-  async getCashFlow(userId: string, query: CashFlowQueryDto) {
+  async getCashFlow(userId: string, query: CashFlowQueryDto): Promise<CashFlowResponseDto> {
     await this.validateWalletAccess(userId, query.walletId);
     const now = new Date();
     const endDate = query.endDate
@@ -135,14 +146,14 @@ export class DashboardService {
     );
     const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
 
-    return {
+    return this.mapper.toCashFlowResponse({
       period: query.period ?? CashFlowPeriod.MONTH,
       totalIncome,
       totalExpense,
       netSavings: totalIncome - totalExpense,
       timeline,
       dayOfWeekHeatmap: details.dayOfWeekHeatmap.map((row: any) => ({
-        dayOfWeek: dayNames[Number(row.dayOfWeek) - 1],
+        dayOfWeek: dayNames[Number(row.dayOfWeek) - 1] ?? `Thứ ${row.dayOfWeek}`,
         averageExpense: Number(row.averageExpense || 0),
       })),
       timeOfDayDistribution: Object.fromEntries(
@@ -162,19 +173,20 @@ export class DashboardService {
           }];
         }),
       ),
-    };
+    });
   }
 
-  async getCategoryBreakdown(userId: string, query: CategoryBreakdownQueryDto) {
+  async getCategoryBreakdown(userId: string, query: CategoryBreakdownQueryDto): Promise<CategoryBreakdownResponseDto> {
     await this.validateWalletAccess(userId, query.walletId);
     const month = query.month ?? new Date().toISOString().slice(0, 7);
+    const breakdownType = query.type ?? CategoryBreakdownType.EXPENSE;
     const rows = await this.dashboardRepo.getCategoryBreakdown(
       userId,
       query.walletId,
-      query.type ?? CategoryBreakdownType.EXPENSE,
+      breakdownType,
       month,
     );
-    const topSpendingItems = query.type === CategoryBreakdownType.INCOME
+    const topSpendingItems = breakdownType === CategoryBreakdownType.INCOME
       ? []
       : await this.dashboardRepo.getTopSpendingItems(userId, query.walletId, month);
     const totalAmount = rows.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
@@ -186,40 +198,115 @@ export class DashboardService {
         children.set(row.parentId, items);
       }
     }
-    return {
+
+    const categories = rows
+      .filter((row: any) => !row.parentId)
+      .map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        icon: row.icon,
+        color: row.color,
+        amount: Number(row.amount || 0),
+        percentage: totalAmount > 0
+          ? Number((Number(row.amount) / totalAmount * 100).toFixed(2))
+          : 0,
+        subCategories: (children.get(row.id) ?? []).map((child: any) => ({
+          id: child.id,
+          name: child.name,
+          amount: Number(child.amount || 0),
+          percentage: totalAmount > 0
+            ? Number((Number(child.amount) / totalAmount * 100).toFixed(2))
+            : 0,
+        })),
+      }));
+
+    const rule503020Evaluation = breakdownType === CategoryBreakdownType.EXPENSE
+      ? this.evaluateRule503020(categories, totalAmount)
+      : null;
+
+    return this.mapper.toCategoryBreakdownResponse({
       month,
-      type: query.type ?? CategoryBreakdownType.EXPENSE,
+      type: breakdownType,
       totalAmount,
       currency: 'VND',
-      rule503020Evaluation: null,
-      categories: rows
-        .filter((row: any) => !row.parentId)
-        .map((row: any) => ({
-          id: row.id,
-          name: row.name,
-          icon: row.icon,
-          color: row.color,
-          amount: Number(row.amount || 0),
-          percentage: totalAmount > 0
-            ? Number((Number(row.amount) / totalAmount * 100).toFixed(2))
-            : 0,
-          subCategories: (children.get(row.id) ?? []).map((child: any) => ({
-            id: child.id,
-            name: child.name,
-            amount: Number(child.amount || 0),
-            percentage: totalAmount > 0
-              ? Number((Number(child.amount) / totalAmount * 100).toFixed(2))
-              : 0,
-          })),
-        })),
+      rule503020Evaluation,
+      categories,
       topSpendingItems: topSpendingItems.map((item: any) => ({
         ...item,
         amount: Number(item.amount),
+        date: new Date(item.date).toISOString().slice(0, 10),
       })),
+    });
+  }
+
+  private evaluateRule503020(categories: any[], totalExpense: number): Rule503020EvaluationDto | null {
+    if (totalExpense <= 0) return null;
+
+    const needsKeywords = [
+      'ăn', 'uống', 'chợ', 'siêu thị', 'nhà', 'điện', 'nước', 'tiện ích',
+      'xăng', 'xe', 'học', 'y tế', 'thuốc', 'nhu cầu', 'thiết yếu',
+      'food', 'grocer', 'rent', 'utilit', 'health', 'medic', 'educat', 'transport',
+    ];
+    const savingsKeywords = [
+      'tiết kiệm', 'đầu tư', 'nợ', 'trả nợ', 'bảo hiểm',
+      'saving', 'invest', 'debt', 'loan', 'insur',
+    ];
+
+    let needsAmount = 0;
+    let savingsAmount = 0;
+    let wantsAmount = 0;
+
+    for (const cat of categories) {
+      const name = (cat.name || '').toLowerCase();
+      const amount = Number(cat.amount || 0);
+
+      if (savingsKeywords.some((kw) => name.includes(kw))) {
+        savingsAmount += amount;
+      } else if (needsKeywords.some((kw) => name.includes(kw))) {
+        needsAmount += amount;
+      } else {
+        wantsAmount += amount;
+      }
+    }
+
+    const needsPct = Number(((needsAmount / totalExpense) * 100).toFixed(1));
+    const wantsPct = Number(((wantsAmount / totalExpense) * 100).toFixed(1));
+    const savingsPct = Number(((savingsAmount / totalExpense) * 100).toFixed(1));
+
+    const getStatus = (actual: number, target: number, isMinTarget = false) => {
+      if (isMinTarget) {
+        if (actual >= target * 0.9) return 'OPTIMAL';
+        if (actual >= target * 0.5) return 'SLIGHT_OVER';
+        return 'NEEDS_IMPROVEMENT';
+      }
+      if (actual <= target * 1.05) return 'OPTIMAL';
+      if (actual <= target * 1.2) return 'SLIGHT_OVER';
+      return 'NEEDS_IMPROVEMENT';
+    };
+
+    return {
+      needs: {
+        amount: Math.round(needsAmount),
+        percentage: needsPct,
+        targetPercentage: 50.0,
+        status: getStatus(needsPct, 50.0),
+      },
+      wants: {
+        amount: Math.round(wantsAmount),
+        percentage: wantsPct,
+        targetPercentage: 30.0,
+        status: getStatus(wantsPct, 30.0),
+      },
+      savings: {
+        amount: Math.round(savingsAmount),
+        percentage: savingsPct,
+        targetPercentage: 20.0,
+        status: getStatus(savingsPct, 20.0, true),
+      },
     };
   }
 
-  async getBudgetHealth(userId: string, query: DashboardMonthQueryDto) {
+  async getBudgetHealth(userId: string, query: DashboardMonthQueryDto): Promise<BudgetHealthResponseDto> {
     await this.validateWalletAccess(userId, query.walletId);
     const month = query.month ?? new Date().toISOString().slice(0, 7);
     const rows = await this.dashboardRepo.getBudgetHealth(userId, query.walletId, month);
@@ -254,7 +341,8 @@ export class DashboardService {
     const projectedMonthEndExpense = actualDailyBurnRate * daysInMonth;
     const runwayDays = actualDailyBurnRate > 0 ? Math.ceil(Math.max(totalBudgetLimit - totalSpent, 0) / actualDailyBurnRate) : null;
     const runwayDate = runwayDays === null ? null : new Date(Date.UTC(year, monthNumber - 1, daysPassed + runwayDays)).toISOString().slice(0, 10);
-    return {
+
+    return this.mapper.toBudgetHealthResponse({
       month,
       daysPassed,
       daysRemaining,
@@ -271,10 +359,10 @@ export class DashboardService {
         estimatedOverspendAmount: Math.max(Math.round(projectedMonthEndExpense - totalBudgetLimit), 0),
       },
       categoryBudgets,
-    };
+    });
   }
 
-  async getDebts(userId: string, query: DashboardQueryDto) {
+  async getDebts(userId: string, query: DashboardQueryDto): Promise<DebtsDashboardResponseDto> {
     await this.validateWalletAccess(userId, query.walletId);
     const [loans, netWorth] = await Promise.all([
       this.dashboardRepo.getDebtSummary(userId, query.walletId),
@@ -292,7 +380,8 @@ export class DashboardService {
     const overduePayables = overdue.filter(
       (loan: any) => loan.type === 'BORROWED' || loan.type === 'INSTALLMENT',
     );
-    return {
+
+    return this.mapper.toDebtsResponse({
       totalReceivables,
       totalPayables,
       netDebtPosition: totalReceivables - totalPayables,
@@ -308,7 +397,7 @@ export class DashboardService {
         counterpartyUserId: loan.counterpartyUserId,
         type: loan.type,
         remainingAmount: Number(loan.remainingAmount),
-        dueDate: loan.dueDate,
+        dueDate: loan.dueDate ? new Date(loan.dueDate).toISOString().slice(0, 10) : null,
         isOverdue: Boolean(loan.dueDate && new Date(loan.dueDate) < now),
         daysOverdue: loan.dueDate && new Date(loan.dueDate) < now
           ? Math.floor((now.getTime() - new Date(loan.dueDate).getTime()) / 86400000)
@@ -325,12 +414,12 @@ export class DashboardService {
           progressPercentage: Number(loan.principalAmount) > 0
             ? Number(((Number(loan.principalAmount) - Number(loan.remainingAmount)) / Number(loan.principalAmount) * 100).toFixed(1))
             : 0,
-          nextDueDate: loan.dueDate,
+          nextDueDate: loan.dueDate ? new Date(loan.dueDate).toISOString().slice(0, 10) : null,
         })),
-    };
+    });
   }
 
-  async getCalendar(userId: string, query: DashboardMonthQueryDto) {
+  async getCalendar(userId: string, query: DashboardMonthQueryDto): Promise<CalendarDashboardResponseDto> {
     await this.validateWalletAccess(userId, query.walletId);
     const month = query.month ?? new Date().toISOString().slice(0, 7);
     const { days, upcomingBills, accountBalance } = await this.dashboardRepo.getCalendarData(
@@ -345,7 +434,8 @@ export class DashboardService {
       (sum: number, bill: any) => sum + Number(bill.amount || 0),
       0,
     );
-    return {
+
+    return this.mapper.toCalendarResponse({
       month,
       days: days.map((day: any) => ({
         ...day,
@@ -360,13 +450,14 @@ export class DashboardService {
         bills: upcomingBills.map((bill: any) => ({
           ...bill,
           amount: Number(bill.amount),
+          nextRunDate: new Date(bill.nextRunDate).toISOString().slice(0, 10),
           daysRemaining: Math.max(0, Math.ceil((new Date(bill.nextRunDate).getTime() - Date.now()) / 86400000)),
         })),
       },
-    };
+    });
   }
 
-  async getSharedWalletDashboard(userId: string, walletId: string) {
+  async getSharedWalletDashboard(userId: string, walletId: string): Promise<SharedWalletDashboardResponseDto> {
     await this.walletsService.assertWalletAccess(walletId, userId, 'read');
     const wallet = await this.dashboardRepo.getSharedWallet(walletId);
     if (!wallet) throw new DashboardWalletAccessDeniedException(walletId);
@@ -413,7 +504,8 @@ export class DashboardService {
       if (creditors[creditorIndex].balance <= 0.5) creditorIndex++;
       if (debtors[debtorIndex].balance <= 0.5) debtorIndex++;
     }
-    return {
+
+    return this.mapper.toSharedWalletResponse({
       walletId: wallet.id,
       walletName: wallet.name,
       totalSpent,
@@ -423,12 +515,12 @@ export class DashboardService {
         isBalanced: suggestedSettlements.length === 0,
         suggestedSettlements,
       },
-    };
+    });
   }
 
-  async getOperationsDashboard() {
+  async getOperationsDashboard(): Promise<OperationsDashboardResponseDto> {
     const metrics = await this.dashboardRepo.getOperationsMetrics();
-    return {
+    return this.mapper.toOperationsResponse({
       userGrowth: {
         totalUsers: metrics.totalUsers,
         dau: null,
@@ -442,7 +534,7 @@ export class DashboardService {
       },
       aiClassifierPerformance: null,
       systemHealth: null,
-    };
+    });
   }
 
   private getPeriodStart(period: CashFlowPeriod, now: Date): Date {

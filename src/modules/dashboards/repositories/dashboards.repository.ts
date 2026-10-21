@@ -25,7 +25,8 @@ export class DashboardRepository {
       .from('accounts', 'acc')
       .innerJoin('wallets', 'w', 'acc.wallet_id = w.id')
       .where('w.owner_id = :userId', { userId })
-      .andWhere('acc.deleted_at IS NULL');
+      .andWhere('acc.deleted_at IS NULL')
+      .andWhere('acc.is_archived = false');
 
     if (walletId) {
       query.andWhere('acc.wallet_id = :walletId', { walletId });
