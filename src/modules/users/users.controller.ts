@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/request/create-user.dto';
+import { UpdateProfileDto } from './dto/request/update-profile.dto';
 import { UpdateUserDto } from './dto/request/update-user.dto';
 import { UserQueryDto } from './dto/request/user-query.dto';
 import { AssignRoleDto } from './dto/request/assign-role.dto';
@@ -26,26 +26,40 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
-@Controller({ path: 'users', version: '1' })
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  @Permissions(SYSTEM_PERMISSIONS.USERS_CREATE)
+  @Get('me')
   @SwaggerDoc({
-    summary: 'Tạo tài khoản người dùng mới',
-    description: 'Tạo người dùng mới trong hệ thống bằng email và mật khẩu',
+    summary: 'Thông tin cá nhân (Profile)',
+    description:
+      'Lấy thông tin tài khoản đang đăng nhập kèm danh sách vai trò và quyền hạn',
     responseType: UserResponseDto,
-    status: 201,
   })
-  async create(
-    @Body() dto: CreateUserDto,
-    @CurrentUser('id') actorId?: string,
-  ) {
-    const user = await this.usersService.create(dto, actorId);
+  async getProfile(@CurrentUser() user: UserResponseDto) {
     return new ApiResponse({
-      statusCode: HttpStatus.CREATED,
-      message: 'Tạo tài khoản người dùng thành công',
+      statusCode: HttpStatus.OK,
+      message: 'Lấy thông tin tài khoản thành công',
+      data: user,
+    });
+  }
+
+  @Patch('profile')
+  @SwaggerDoc({
+    summary: 'Cập nhật thông tin cá nhân (Profile)',
+    description:
+      'Người dùng tự cập nhật họ tên, số điện thoại hoặc ảnh đại diện của chính mình',
+    responseType: UserResponseDto,
+  })
+  async updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    const user = await this.usersService.updateProfile(userId, dto);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: 'Cập nhật thông tin cá nhân thành công',
       data: user,
     });
   }

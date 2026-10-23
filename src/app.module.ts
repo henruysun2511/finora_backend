@@ -17,6 +17,14 @@ import { PermissionsGuard } from './modules/authorization/guards/permissions.gua
 import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
+import { SplitExpensesModule } from './modules/split-expenses/split-expenses.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
+import { LoansModule } from './modules/loans/loans.module';
+import { MascotsModule } from './modules/mascots/mascots.module';
+import { DashboardModule } from './modules/dashboards/dashboards.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { AiChatModule } from './modules/ai-chat/ai-chat.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -34,6 +42,13 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
     FeedModule,
     BudgetsModule,
     AuditLogsModule,
+    SplitExpensesModule,
+    MessagesModule,
+    RecurringTransactionsModule,
+    LoansModule,
+    MascotsModule,
+    SettingsModule,
+    AiChatModule
   ],
 
   providers: [
@@ -51,4 +66,4 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

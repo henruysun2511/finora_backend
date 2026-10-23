@@ -26,7 +26,7 @@ import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 
 @ApiTags('Authorization')
 @ApiBearerAuth('access-token')
-@Controller({ path: 'authorization', version: '1' })
+@Controller('authorization')
 export class AuthorizationController {
   constructor(private readonly authzService: AuthorizationService) {}
 

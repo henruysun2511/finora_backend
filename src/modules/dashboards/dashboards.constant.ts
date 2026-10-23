@@ -1,0 +1,17 @@
+export const DASHBOARD_ERROR_CODE = {
+  NOT_FOUND: 'DASHBOARD_NOT_FOUND',
+  INVALID_PERIOD: 'DASHBOARD_INVALID_PERIOD',
+  WALLET_ACCESS_DENIED: 'DASHBOARD_WALLET_ACCESS_DENIED',
+} as const;
+
+export enum CashFlowPeriod {
+  WEEK = 'WEEK',
+  MONTH = 'MONTH',
+  QUARTER = 'QUARTER',
+  YEAR = 'YEAR',
+}
+
+export enum CategoryBreakdownType {
+  EXPENSE = 'EXPENSE',
+  INCOME = 'INCOME',
+}

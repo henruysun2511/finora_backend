@@ -28,6 +28,13 @@ export class TransactionRepository {
     });
   }
 
+  findByRecurringId(recurringTransactionId: string): Promise<Transaction[]> {
+    return this.repo.find({
+      where: { recurringTransactionId },
+      order: { transactionDate: 'DESC' },
+    });
+  }
+
   async findPaged(
     query: TransactionQueryDto,
     accessibleAccountIds: string[],

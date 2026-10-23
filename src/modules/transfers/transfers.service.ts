@@ -1,8 +1,10 @@
 // src/modules/transfers/transfers.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import { TransferRepository } from './repositories/transfer.repository';
 import { AccountsService } from '../accounts/accounts.service';
+import { SettingsService } from '../settings/settings.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { TransferMapper } from './mapper/transfer.mapper';
 import { CreateTransferDto } from './dto/request/create-transfer.dto';
@@ -20,6 +22,10 @@ import {
   AUDIT_LOG_ACTION,
   AUDIT_LOG_ENTITY_TYPE,
 } from '../audit-logs/audit-logs.constant';
+import {
+  EVENT_NET_WORTH_CHANGED,
+  NetWorthChangedEvent,
+} from '../../common/events/net-worth-changed.event';
 
 @Injectable()
 export class TransfersService {
@@ -28,8 +34,10 @@ export class TransfersService {
     private readonly transferRepo: TransferRepository,
     private readonly accountsService: AccountsService,
     private readonly exchangeRatesService: ExchangeRatesService,
+    private readonly settingsService: SettingsService,
     private readonly mapper: TransferMapper,
     private readonly auditLogsService: AuditLogsService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   /**
@@ -40,6 +48,9 @@ export class TransfersService {
    * @returns TransferResponseDto
    */
   async createTransfer(userId: string, dto: CreateTransferDto): Promise<TransferResponseDto> {
+    // 0. Xác thực mã PIN bảo mật nếu người dùng bật cấu hình bảo vệ giao dịch
+    await this.settingsService.verifyActionPin(userId, dto.pin);
+
     // 1. Kiểm tra tính hợp lệ và quyền hạn của 2 tài khoản nguồn & đích
     const { fromAccount, toAccount } = await this.accountsService.validateTransferAccounts(
       userId,
@@ -116,6 +127,12 @@ export class TransfersService {
         transferDate: result.transferDate,
       },
     });
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'transfer.create'),
+      );
+    }
 
     return result;
   }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { CategoryEntity, CategoryType } from '../entities/category.entity';
 import { CategoryQueryDto } from '../dto/request/category-query.dto';
 
@@ -15,7 +15,13 @@ export class CategoryRepository {
     return this.repo.create(entityLike);
   }
 
-  async save(entity: CategoryEntity): Promise<CategoryEntity> {
+  async save(
+    entity: CategoryEntity,
+    manager?: EntityManager,
+  ): Promise<CategoryEntity> {
+    if (manager) {
+      return manager.save(CategoryEntity, entity);
+    }
     return this.repo.save(entity);
   }
 

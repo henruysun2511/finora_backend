@@ -9,6 +9,7 @@ import { TransfersController } from './transfers.controller';
 import { AccountsModule } from '../accounts/accounts.module';
 import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     AccountsModule,
     ExchangeRatesModule,
     AuditLogsModule,
+    SettingsModule,
   ],
   controllers: [TransfersController],
   providers: [

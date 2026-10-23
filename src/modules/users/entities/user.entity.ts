@@ -5,8 +5,7 @@ import { UserStatus } from '../../../modules/users/enums/user-status.enum';
 import { UserRole } from './user-role.entity';
 import type { Wallet } from '../../wallets/entities/wallet.entity';
 import type { WalletMember } from '../../wallets/entities/wallet-member.entity';
-import type { UserSetting } from './user-setting.entity';
-import type { AiPersona } from './ai-persona.entity';
+import type { Setting } from '../../settings/entities/setting.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -52,11 +51,8 @@ export class User extends BaseEntity {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
-  @OneToOne('UserSetting', 'user', { cascade: true })
-  setting?: UserSetting;
-
-  @OneToOne('AiPersona', 'user', { cascade: true })
-  persona?: AiPersona;
+  @OneToOne('Setting', 'user', { cascade: true })
+  setting?: Setting;
 
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles: UserRole[];

@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, EntityManager } from 'typeorm';
 import { AccountRepository } from './repositories/account.repository';
 import { AccountBalanceAdjustmentRepository } from './repositories/account-balance-adjustment.repository';
 import { WalletsService } from '../wallets/wallets.service';
+import { SettingsService } from '../settings/settings.service';
 import { Wallet } from '../wallets/entities/wallet.entity';
 import { AccountMapper } from './mapper/account.mapper';
 import { CreateAccountDto } from './dto/request/create-account.dto';
@@ -33,6 +35,10 @@ import {
   AUDIT_LOG_ACTION,
   AUDIT_LOG_ENTITY_TYPE,
 } from '../audit-logs/audit-logs.constant';
+import {
+  EVENT_NET_WORTH_CHANGED,
+  NetWorthChangedEvent,
+} from '../../common/events/net-worth-changed.event';
 
 type AccessMode = 'read' | 'write';
 
@@ -47,6 +53,8 @@ export class AccountsService {
     private readonly walletsService: WalletsService,
     private readonly accountMapper: AccountMapper,
     private readonly auditLogsService: AuditLogsService,
+    private readonly settingsService: SettingsService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   // ---------------------------------------------------------------- helpers
@@ -121,6 +129,12 @@ export class AccountsService {
           walletId: result.walletId,
         },
       });
+      if (this.eventEmitter && result.balance > 0) {
+        this.eventEmitter.emit(
+          EVENT_NET_WORTH_CHANGED,
+          new NetWorthChangedEvent(userId, 'account.create'),
+        );
+      }
 
       return result;
     } catch (error: any) {
@@ -345,6 +359,7 @@ export class AccountsService {
     let walletId: string | undefined;
     let balanceBefore = 0;
     let balanceAfter = 0;
+    await this.settingsService.verifyActionPin(userId, dto.pin);
 
     const result = await this.dataSource.transaction(async (manager) => {
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
@@ -402,6 +417,12 @@ export class AccountsService {
           reason: dto.reason,
         },
       });
+    }
+    if (this.eventEmitter) {
+      this.eventEmitter.emit(
+        EVENT_NET_WORTH_CHANGED,
+        new NetWorthChangedEvent(userId, 'account.adjust_balance'),
+      );
     }
 
     return result;
@@ -708,4 +729,4 @@ export class AccountsService {
 
     return { balanceAfter: newAcc.balance };
   }
-}
+}

@@ -156,15 +156,6 @@ describe('AuthController', () => {
     });
   });
 
-  describe('getProfile', () => {
-    it('should return current user profile', async () => {
-      const result = await controller.getProfile(mockUserResponse);
-
-      expect(result.statusCode).toBe(200);
-      expect(result.data).toEqual(mockUserResponse);
-    });
-  });
-
   describe('changePassword', () => {
     it('should call authService.changePassword and return success message', async () => {
       const dto: ChangePasswordDto = {

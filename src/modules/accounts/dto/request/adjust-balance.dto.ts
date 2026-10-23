@@ -1,6 +1,16 @@
 // src/modules/accounts/dto/request/adjust-balance.dto.ts
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsNumber, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { BalanceDirection } from '../../../../modules/accounts/enums/balance-direction.enum';
 import { MAX_MONEY_AMOUNT } from '../../accounts.constant';
@@ -22,4 +32,13 @@ export class AdjustBalanceDto {
   @MaxLength(255)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   reason: string;
+
+  @ApiPropertyOptional({
+    example: '123456',
+    description: 'Mã PIN bảo mật (bắt buộc nếu người dùng đã bật yêu cầu mã PIN khi giao dịch)',
+  })
+  @IsOptional()
+  @IsString({ message: 'Mã PIN phải là chuỗi ký tự số' })
+  @Matches(/^\d{4,6}$/, { message: 'Mã PIN phải bao gồm từ 4 đến 6 chữ số' })
+  pin?: string;
 }

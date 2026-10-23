@@ -32,9 +32,6 @@ export class MessageReaction extends BaseEntity {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({
-    type: 'enum',
-    enum: ReactionEmoji,
-  })
+  @Column({ type: 'varchar', length: 20 })
   emoji: ReactionEmoji;
 }

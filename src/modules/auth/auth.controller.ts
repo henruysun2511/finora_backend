@@ -30,7 +30,7 @@ import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
 
 @ApiTags('Auth')
-@Controller({ path: 'auth', version: '1' })
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -139,19 +139,6 @@ export class AuthController {
   ) {
     await this.authService.logout(userId, dto?.refreshToken);
     return ApiResponse.noContent('Đăng xuất thành công');
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('me')
-  @SwaggerDoc({
-    summary: 'Thông tin cá nhân (Profile)',
-    description:
-      'Lấy thông tin tài khoản đang đăng nhập kèm danh sách vai trò và quyền hạn',
-    responseType: UserResponseDto,
-    bearerAuth: true,
-  })
-  async getProfile(@CurrentUser() user: UserResponseDto) {
-    return ApiResponse.success(user, 'Lấy thông tin tài khoản thành công');
   }
 
   @UseGuards(JwtAuthGuard)

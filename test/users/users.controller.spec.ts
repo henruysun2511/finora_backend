@@ -2,13 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from 'modules/users/users.controller';
 import { UsersService } from 'modules/users/users.service';
 import { UserResponseDto } from 'modules/users/dto/response/user.dto';
-import { CreateUserDto } from 'modules/users/dto/request/create-user.dto';
-import { UpdateUserDto } from 'modules/users/dto/request/update-user.dto';
 import { UserQueryDto } from 'modules/users/dto/request/user-query.dto';
 import { AssignRoleDto } from 'modules/users/dto/request/assign-role.dto';
 import { UserStatus } from 'modules/users/enums/user-status.enum';
 import { AuthProvider } from 'common/enums/auth-provider.enum';
 import { ApiResponse, PaginatedResponse } from 'common/response/api-response';
+
+import { UpdateProfileDto } from 'modules/users/dto/request/update-profile.dto';
+import { UpdateUserDto } from 'modules/users/dto/request/update-user.dto';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -33,7 +34,7 @@ describe('UsersController', () => {
 
   beforeEach(async () => {
     service = {
-      create: jest.fn(),
+      updateProfile: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
       update: jest.fn(),
@@ -49,21 +50,34 @@ describe('UsersController', () => {
     controller = module.get<UsersController>(UsersController);
   });
 
-  describe('create', () => {
-    it('should create a user and return ApiResponse with status 201', async () => {
-      const dto: CreateUserDto = {
-        email: 'test@finora.com',
-        password: 'Password123!',
-        fullName: 'Test User',
-      };
-      service.create!.mockResolvedValue(mockUserResponse);
+  describe('getProfile', () => {
+    it('should return current user profile', async () => {
+      const result = await controller.getProfile(mockUserResponse);
 
-      const result = await controller.create(dto);
-
-      expect(service.create).toHaveBeenCalledWith(dto, undefined);
       expect(result).toBeInstanceOf(ApiResponse);
-      expect(result.statusCode).toBe(201);
+      expect(result.statusCode).toBe(200);
       expect(result.data).toEqual(mockUserResponse);
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('should update profile and return ApiResponse with status 200', async () => {
+      const dto: UpdateProfileDto = {
+        fullName: 'Updated Name',
+        phone: '0123456789',
+      };
+      service.updateProfile!.mockResolvedValue({
+        ...mockUserResponse,
+        fullName: 'Updated Name',
+        phone: '0123456789',
+      });
+
+      const result = await controller.updateProfile(mockUserId, dto);
+
+      expect(service.updateProfile).toHaveBeenCalledWith(mockUserId, dto);
+      expect(result).toBeInstanceOf(ApiResponse);
+      expect(result.statusCode).toBe(200);
+      expect(result.data.fullName).toBe('Updated Name');
     });
   });
 

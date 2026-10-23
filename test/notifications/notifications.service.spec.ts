@@ -67,8 +67,75 @@ describe('NotificationsService', () => {
         expect.objectContaining({ id: 'notif-1', actionUrl: '/budgets/b-1' }),
         3,
       );
-      expect(result.id).toBe('notif-1');
-      expect(result.actionUrl).toBe('/budgets/b-1');
+      expect(result!.id).toBe('notif-1');
+      expect(result!.actionUrl).toBe('/budgets/b-1');
+    });
+
+    it('Bỏ qua thông báo khi người dùng tắt nhóm thông báo tương ứng trong settings', async () => {
+      const mockSettingsService = {
+        getNotificationPreferences: jest.fn().mockResolvedValue({
+          budgetAlerts: false,
+        }),
+      } as any;
+
+      const serviceWithSettings = new NotificationsService(
+        notifRepo,
+        gateway,
+        mapper,
+        mockSettingsService,
+      );
+
+      const dto = {
+        userId: USER_ID,
+        type: NotificationType.BUDGET_WARNING,
+        title: 'Ngân sách sắp hết',
+        body: 'Đã chi 80%',
+      };
+
+      const result = await serviceWithSettings.createNotification(dto);
+
+      expect(result).toBeNull();
+      expect(notifRepo.save).not.toHaveBeenCalled();
+      expect(gateway.sendNotificationToUser).not.toHaveBeenCalled();
+    });
+
+    it('Thông báo bảo mật SECURITY_ALERT luôn được gửi kể cả khi pushNotifications = false', async () => {
+      const mockSettingsService = {
+        getNotificationPreferences: jest.fn().mockResolvedValue({
+          pushNotifications: false,
+        }),
+      } as any;
+
+      const serviceWithSettings = new NotificationsService(
+        notifRepo,
+        gateway,
+        mapper,
+        mockSettingsService,
+      );
+
+      const dto = {
+        userId: USER_ID,
+        type: NotificationType.SECURITY_ALERT,
+        title: 'Cảnh báo bảo mật',
+        body: 'Đăng nhập từ thiết bị lạ',
+      };
+
+      const entity = {
+        id: 'notif-sec-1',
+        ...dto,
+        isRead: false,
+        createdAt: new Date(),
+      } as any;
+
+      notifRepo.create.mockReturnValue(entity);
+      notifRepo.save.mockResolvedValue(entity);
+      notifRepo.countUnread.mockResolvedValue(1);
+
+      const result = await serviceWithSettings.createNotification(dto);
+
+      expect(result).not.toBeNull();
+      expect(notifRepo.save).toHaveBeenCalled();
+      expect(gateway.sendNotificationToUser).toHaveBeenCalled();
     });
   });
 

@@ -5,6 +5,7 @@ import { UserRoleRepository } from './repositories/user-role.repository';
 import { UserMapper } from './mapper/user.mapper';
 import { CreateUserDto } from './dto/request/create-user.dto';
 import { UpdateUserDto } from './dto/request/update-user.dto';
+import { UpdateProfileDto } from './dto/request/update-profile.dto';
 import { UserQueryDto } from './dto/request/user-query.dto';
 import { AssignRoleDto } from './dto/request/assign-role.dto';
 import { UserResponseDto } from './dto/response/user.dto';
@@ -80,6 +81,45 @@ export class UsersService {
     return this.userMapper.toResponseDto(user);
   }
 
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<UserResponseDto> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new UserNotFoundException(userId);
+    }
+
+    const oldSnapshot = {
+      fullName: user.fullName,
+      phone: user.phone,
+      avatar: user.avatar,
+    };
+
+    const updatePayload: Partial<User> = {};
+    if (dto.fullName !== undefined) updatePayload.fullName = dto.fullName;
+    if (dto.phone !== undefined) updatePayload.phone = dto.phone;
+    if (dto.avatar !== undefined) updatePayload.avatar = dto.avatar;
+
+    const updated = await this.userRepository.update(userId, updatePayload);
+    const result = this.userMapper.toResponseDto(updated);
+
+    this.auditLogsService.recordLog({
+      userId,
+      action: AUDIT_LOG_ACTION.PROFILE_UPDATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+      entityId: userId,
+      oldValue: oldSnapshot,
+      newValue: {
+        fullName: result.fullName,
+        phone: result.phone,
+        avatar: result.avatar,
+      },
+    });
+
+    return result;
+  }
+
   async update(
     id: string,
     dto: UpdateUserDto,
@@ -106,8 +146,8 @@ export class UsersService {
     };
 
     const updatePayload: Record<string, unknown> = { ...dto };
-    if (dto.password) {
-      updatePayload.password = await bcrypt.hash(dto.password, 10);
+    if ((dto as any).password) {
+      updatePayload.password = await bcrypt.hash((dto as any).password, 10);
     }
 
     const updated = await this.userRepository.update(id, updatePayload);

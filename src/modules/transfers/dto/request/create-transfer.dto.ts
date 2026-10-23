@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -56,4 +57,13 @@ export class CreateTransferDto {
   @IsOptional()
   @IsDateString({}, { message: 'transferDate phải là định dạng ISO date string' })
   transferDate?: string;
+
+  @ApiPropertyOptional({
+    example: '123456',
+    description: 'Mã PIN bảo mật (bắt buộc nếu người dùng đã bật yêu cầu mã PIN khi giao dịch)',
+  })
+  @IsOptional()
+  @IsString({ message: 'Mã PIN phải là chuỗi ký tự số' })
+  @Matches(/^\d{4,6}$/, { message: 'Mã PIN phải bao gồm từ 4 đến 6 chữ số' })
+  pin?: string;
 }

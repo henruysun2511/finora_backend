@@ -14,11 +14,13 @@ export class TransactionMapper {
     createdBy: string,
     currency: string,
     fallbackName: string,
+    recurringTransactionId?: string,
   ): Partial<Transaction> {
     return {
       accountId: dto.accountId,
       createdBy,
       categoryId: dto.categoryId,
+      recurringTransactionId: recurringTransactionId ?? null,
       type: dto.type,
       amount: dto.amount,
       currency: currency.toUpperCase(),
