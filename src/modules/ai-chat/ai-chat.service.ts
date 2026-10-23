@@ -1,45 +1,82 @@
 // src/modules/ai-chat/ai-chat.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { ChatMessageRepository } from './repositories/chat-message.repository';
-import { PendingActionRepository } from './repositories/pending-action.repository';
 import {
-  LlmService,
-  LlmChatContextMessage,
-  LlmToolCall,
-} from './services/llm.service';
-import { AiChatMapper } from './mapper/ai-chat.mapper';
-import { WalletsService } from '../wallets/wallets.service';
+  HttpException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { TransactionType } from '../../common/enums/transaction-type.enum';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
+import { TransactionSource } from '../transactions/enums/transaction-source.enum';
 import { TransactionsService } from '../transactions/transactions.service';
-import { MascotsService } from '../mascots/mascots.service';
-import { SettingsService } from '../settings/settings.service';
-import { SendMessageDto } from './dto/request/send-message.dto';
+import { WalletsService } from '../wallets/wallets.service';
+import { AI_CHAT_CONFIG } from './constants';
+import { ChatHistoryQueryDto } from './dto/request/chat-history-query.dto';
 import {
+  EditTransactionDraftDto,
   ExecutePendingActionDto,
   PendingActionDecision,
 } from './dto/request/execute-pending-action.dto';
-import { ChatHistoryQueryDto } from './dto/request/chat-history-query.dto';
+import { SendMediaMessageDto } from './dto/request/send-media-message.dto';
+import { SendMessageDto } from './dto/request/send-message.dto';
 import { ChatMessageResponseDto } from './dto/response/chat-message-response.dto';
 import { PendingActionResponseDto } from './dto/response/pending-action-response.dto';
-import { ChatRole } from './enums/chat-role.enum';
-import { ChatMessageType } from './enums/chat-message-type.enum';
-import { PendingActionStatus } from './enums/pending-action-status.enum';
+import { PendingAction } from './entities/pending-action.entity';
 import { AiIntent } from './enums/ai-intent.enum';
-import { TransactionType } from '../../common/enums/transaction-type.enum';
-import { TransactionSource } from '../transactions/enums/transaction-source.enum';
+import { ChatMessageType } from './enums/chat-message-type.enum';
+import { ChatRole } from './enums/chat-role.enum';
+import { PendingActionStatus } from './enums/pending-action-status.enum';
 import {
-  PendingActionNotFoundException,
-  PendingActionExpiredException,
+  AiChatInvalidAmountException,
+  AiChatInvalidDateException,
+  AiChatInvalidNameException,
+  AiMediaRequiredException,
+  AiTransactionCreateFailedException,
+  AiUnsupportedMediaException,
   PendingActionAlreadyProcessedException,
+  PendingActionExpiredException,
   PendingActionInvalidAccountException,
   PendingActionInvalidCategoryException,
+  PendingActionNotFoundException,
 } from './exceptions/ai-chat.exception';
-import { AI_CHAT_CONFIG, MASCOT_TEMPLATE_POOL } from './ai-chat.constant';
 import {
-  CannedQueryRegistry,
-  CannedQueryFunction,
-} from './services/canned-query.registry';
+  CategoryLite,
+  MascotCode,
+  UploadedMedia,
+  WalletAccountLite,
+} from './interfaces/ai-chat.types';
+import { AiChatMapper } from './mapper/ai-chat.mapper';
+import { ChatMessageRepository } from './repositories/chat-message.repository';
+import { PendingActionRepository } from './repositories/pending-action.repository';
+import { CannedQueryRegistry } from './services/canned-query.registry';
+import { CategoryClassifierService } from './services/category-classifier.service';
+import { ChatRateLimiter } from './services/chat-rate-limiter.service';
+import {
+  IntentClassifierService,
+  IntentResult,
+} from './services/intent-classifier.service';
+import { MascotAdviceService } from './services/mascot-advice.service';
+import { MascotContextService } from './services/mascot-context.service';
+import { MascotToneService } from './services/mascot-tone.service';
+import { OcrService } from './services/ocr.service';
+import { QueryPlannerService } from './services/query-planner.service';
+import { SpeechToTextService } from './services/speech-to-text.service';
+import { TransactionDraftService } from './services/transaction-draft.service';
+import {
+  isoToTransactionDate,
+  isValidIsoDate,
+  startOfMonth,
+  todayVn,
+} from './utils/date.util';
+import { formatMoney, truncate } from './utils/text.util';
+
+interface PipelineParams {
+  userId: string;
+  walletId: string;
+  userText: string;
+  userPayload?: Record<string, any> | null;
+}
 
 @Injectable()
 export class AiChatService {
@@ -48,246 +85,617 @@ export class AiChatService {
   constructor(
     private readonly chatMessageRepo: ChatMessageRepository,
     private readonly pendingActionRepo: PendingActionRepository,
-    private readonly llmService: LlmService,
     private readonly mapper: AiChatMapper,
     private readonly walletsService: WalletsService,
     private readonly accountsService: AccountsService,
     private readonly categoriesService: CategoriesService,
     private readonly transactionsService: TransactionsService,
-    private readonly mascotsService: MascotsService,
-    private readonly settingsService: SettingsService,
-    private readonly cannedQueryRegistry: CannedQueryRegistry,
+    private readonly mascotContext: MascotContextService,
+    private readonly intentClassifier: IntentClassifierService,
+    private readonly draftService: TransactionDraftService,
+    private readonly categoryClassifier: CategoryClassifierService,
+    private readonly queryPlanner: QueryPlannerService,
+    private readonly cannedQueries: CannedQueryRegistry,
+    private readonly tone: MascotToneService,
+    private readonly adviceService: MascotAdviceService,
+    private readonly stt: SpeechToTextService,
+    private readonly ocr: OcrService,
+    private readonly rateLimiter: ChatRateLimiter,
   ) {}
 
-  /**
-   * Gửi tin nhắn đến AI Chatbot và nhận phản hồi thông minh
-   */
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GỬI TIN NHẮN
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Kênh chat text (hoặc text đã được client nhận diện). */
   async sendMessage(
     userId: string,
     dto: SendMessageDto,
   ): Promise<ChatMessageResponseDto> {
-    // 1. Kiểm tra quyền truy cập ví của người dùng
+    this.rateLimiter.assertAllowed(userId);
     await this.walletsService.getWalletById(dto.walletId, userId);
 
-    // 2. Lưu tin nhắn của USER vào CSDL
-    await this.chatMessageRepo.createAndSave({
+    const source = dto.source ?? TransactionSource.CHAT_TEXT;
+    return this.processText({
       userId,
       walletId: dto.walletId,
-      role: ChatRole.USER,
-      messageType: ChatMessageType.TEXT,
-      textContent: dto.message,
+      text: dto.message,
+      source,
+      intentOverride: dto.intentOverride,
+      userPayload:
+        source === TransactionSource.CHAT_TEXT
+          ? null
+          : { input: String(source) },
     });
+  }
 
-    // 3. Lấy cấu hình AI và thiết lập người dùng
-    const aiConfig = await this.settingsService.getEffectiveAiConfig(userId);
-    const userSettings = await this.settingsService.getSettings(userId);
-    const mascotData = await this.mascotsService.getCurrentUserMascot(userId);
+  /** Kênh giọng nói (PhoWhisper) hoặc ảnh hóa đơn (VietOCR). */
+  async sendMediaMessage(
+    userId: string,
+    dto: SendMediaMessageDto,
+    file: UploadedMedia | undefined,
+  ): Promise<ChatMessageResponseDto> {
+    if (!file || !file.buffer || !file.buffer.length)
+      throw new AiMediaRequiredException();
 
-    // Van an toàn `show_mascot` theo tài liệu ai-flow.md: nếu tắt, dùng tông Nora trung tính
-    let mascotCode =
-      mascotData?.mascot?.tierName?.toLowerCase() || AI_CHAT_CONFIG.DEFAULT_MASCOT_CODE;
-    let systemPrompt = '';
-
-    if (userSettings && userSettings.showMascot === false) {
-      mascotCode = 'nora';
-      systemPrompt =
-        'Bạn là Nora, trợ lý tài chính trung tính, khách quan của Finora. ' +
-        'Hãy đưa ra câu trả lời thực tế, ngắn gọn, lịch sự, không phán xét, không trào phúng.';
-    } else {
-      systemPrompt = await this.mascotsService.getSystemPromptForUser(userId);
+    const mime = (file.mimetype || '').toLowerCase();
+    const isAudio = (
+      AI_CHAT_CONFIG.ALLOWED_AUDIO_MIME as readonly string[]
+    ).includes(mime);
+    const isImage = (
+      AI_CHAT_CONFIG.ALLOWED_IMAGE_MIME as readonly string[]
+    ).includes(mime);
+    if (!isAudio && !isImage)
+      throw new AiUnsupportedMediaException(
+        `Định dạng "${mime || 'không rõ'}" không được hỗ trợ`,
+      );
+    if (isAudio && file.size > AI_CHAT_CONFIG.MAX_AUDIO_BYTES) {
+      throw new AiUnsupportedMediaException(
+        `Tệp âm thanh tối đa ${AI_CHAT_CONFIG.MAX_AUDIO_BYTES / 1024 / 1024}MB`,
+      );
+    }
+    if (isImage && file.size > AI_CHAT_CONFIG.MAX_IMAGE_BYTES) {
+      throw new AiUnsupportedMediaException(
+        `Ảnh tối đa ${AI_CHAT_CONFIG.MAX_IMAGE_BYTES / 1024 / 1024}MB`,
+      );
     }
 
-    // 4. Lấy ngữ cảnh hội thoại (10 tin nhắn gần nhất)
-    const recentMessages = await this.chatMessageRepo.findRecentContext(
-      dto.walletId,
-      userId,
-      AI_CHAT_CONFIG.CHAT_CONTEXT_LIMIT,
-    );
-    const contextMessages: LlmChatContextMessage[] = recentMessages.map((m) => ({
-      role: m.role,
-      content: m.textContent,
-    }));
+    this.rateLimiter.assertAllowed(userId);
+    await this.walletsService.getWalletById(dto.walletId, userId);
 
-    // 5. Bổ sung danh sách tài khoản & danh mục vào System Prompt để LLM mapping chính xác
-    const [accountsPage, categories] = await Promise.all([
-      this.accountsService.listAccounts(userId, {
+    if (isAudio) {
+      // STT thất bại -> 422 trước khi lưu bất cứ thứ gì
+      const result = await this.stt.transcribe(file);
+      return this.processText({
+        userId,
         walletId: dto.walletId,
-        page: 1,
-        limit: 100,
-        isArchived: false,
-      } as any),
-      this.categoriesService.getCategories(userId, {} as any),
-    ]);
-
-    const accounts = accountsPage.items || [];
-    const accountsInfo = accounts
-      .map((a) => `${a.name} (ID: ${a.id}, Số dư: ${a.balance} ${a.currency})`)
-      .join(', ');
-    const categoriesInfo = categories
-      .map((c) => `${c.name} (Loại: ${c.type}, ID: ${c.id})`)
-      .join(', ');
-
-    const cannedQueriesInfo = this.cannedQueryRegistry
-      .getDefinitions()
-      .map((d) => `- ${d.name}: ${d.description}`)
-      .join('\n');
-
-    const enrichedSystemPrompt =
-      `${systemPrompt}\n\n` +
-      `[NGỮ CẢNH DỮ LIỆU VÍ CỦA NGƯỜI DÙNG]:\n` +
-      `- Danh sách tài khoản trong ví: ${accountsInfo || 'Chưa có tài khoản'}\n` +
-      `- Danh sách danh mục trong hệ thống: ${categoriesInfo || 'Chưa có danh mục'}\n` +
-      `- Hãy ưu tiên chọn đúng tên tài khoản và tên danh mục có trong danh sách trên khi gọi công cụ.\n\n` +
-      `[DANH MỤC HÀM TRUY VẤN SỐ LIỆU ĐƯỢC HỆ THỐNG HỖ TRỢ (CANNED QUERIES)]:\n` +
-      `${cannedQueriesInfo}\n\n` +
-      `[QUY TẮC NHẬN DIỆN VÀ PHẢN HỒI Ý ĐỊNH]:\n` +
-      `1. Thêm/ghi chép giao dịch (thu/chi): HÃY GỌI CÔNG CỤ draft_transaction.\n` +
-      `2. Truy vấn số liệu tài chính: HÃY GỌI CÔNG CỤ execute_canned_query và chọn đúng tên hàm trong danh mục Canned Queries ở trên. Nếu người dùng hỏi một chức năng tra cứu ngoài danh mục (ví dụ giá vàng, chứng khoán, thuế), hãy trả lời thẳng thắn là hệ thống chưa hỗ trợ chức năng này.\n` +
-      `3. Câu hỏi ngoài phạm vi tài chính (tiền ảo crypto/bitcoin, thời tiết, lập trình, công nghệ, ăn gì ngon...): Hãy từ chối trả lời khéo léo theo đúng giọng điệu linh thú và nhắc nhở người dùng quay lại quản lý chi tiêu. Bắt đầu câu trả lời bằng tiền tố [OUT_OF_SCOPE].\n` +
-      `4. Câu nói cụt lủn, mơ hồ, không rõ nghĩa ("?", "tiền", "giúp"): Hãy hỏi lại người dùng một cách thân thiện theo tính cách linh thú để làm rõ. Bắt đầu câu trả lời bằng tiền tố [INTENT_UNCLEAR].\n` +
-      `5. Trò chuyện, chào hỏi, xin lời khuyên tài chính: Trả lời tự nhiên theo đúng tính cách linh thú.`;
-
-    // 6. Gửi hội thoại sang LLM Engine
-    const llmResult = await this.llmService.generateReply({
-      userMessage: dto.message,
-      systemPrompt: enrichedSystemPrompt,
-      mascotCode,
-      contextMessages,
-      aiConfig,
-    });
-
-    // 7. Xử lý phản hồi theo từng nhánh Tool / Intent
-    if (llmResult.toolCall) {
-      if (llmResult.toolCall.name === 'draft_transaction') {
-        return this.handleDraftTransaction({
-          userId,
-          walletId: dto.walletId,
-          mascotCode,
-          args: llmResult.toolCall.args,
-          accounts,
-          categories,
-          userPrompt: dto.message,
-        });
-      }
-
-      // Nhánh Canned Query: Thực thi truy vấn tài chính đã được cấp phép
-      if (
-        llmResult.toolCall.name === 'execute_canned_query' ||
-        llmResult.toolCall.name === 'query_spending_summary' ||
-        llmResult.toolCall.name === 'query_wallet_balances'
-      ) {
-        return this.handleCannedQuery({
-          userId,
-          walletId: dto.walletId,
-          mascotCode,
-          toolCall: llmResult.toolCall,
-        });
-      }
+        text: result.text,
+        source: TransactionSource.VOICE,
+        userPayload: { input: 'voice', sttConfidence: result.confidence },
+      });
     }
 
-    // Nhánh phản hồi văn bản (Chitchat, Out-of-scope, Làm rõ ý định)
-    let payloadJson: Record<string, any> | null = null;
-    if (llmResult.intent === AiIntent.INTENT_UNCLEAR) {
-      payloadJson = {
-        clarifyOptions: [
-          'Ghi chép giao dịch mới',
-          'Xem báo cáo chi tiêu tháng này',
-          'Tra cứu số dư tài khoản',
-          'Tư vấn mẹo tiết kiệm',
-        ],
-      };
-    }
+    const ocr = await this.ocr.extractText(file);
+    return this.runPipeline(
+      {
+        userId,
+        walletId: dto.walletId,
+        userText: 'Ảnh hóa đơn',
+        userPayload: {
+          input: 'receipt',
+          ocrConfidence: ocr.confidence,
+          ocrTextPreview: truncate(ocr.text, 500),
+        },
+      },
+      (mascot) =>
+        this.handleAddTransaction({
+          userId,
+          walletId: dto.walletId,
+          mascot,
+          source: TransactionSource.RECEIPT_SCAN,
+          input: { kind: 'receipt', ocrText: ocr.text },
+        }),
+    );
+  }
 
-    const assistantMessage = await this.chatMessageRepo.createAndSave({
-      userId,
-      walletId: dto.walletId,
-      role: ChatRole.ASSISTANT,
-      messageType: ChatMessageType.TEXT,
-      textContent: llmResult.text,
-      intent: llmResult.intent || AiIntent.CHITCHAT,
-      mascot: mascotCode,
-      payloadJson,
-    });
+  private processText(p: {
+    userId: string;
+    walletId: string;
+    text: string;
+    source: TransactionSource;
+    intentOverride?:
+      AiIntent.ADD_TRANSACTION | AiIntent.QUERY_SPENDING | AiIntent.CHITCHAT;
+    userPayload?: Record<string, any> | null;
+  }): Promise<ChatMessageResponseDto> {
+    return this.runPipeline(
+      {
+        userId: p.userId,
+        walletId: p.walletId,
+        userText: p.text,
+        userPayload: p.userPayload,
+      },
+      async (mascot) => {
+        const intent: IntentResult = p.intentOverride
+          ? { intent: p.intentOverride, confidence: 1, source: 'override' }
+          : await this.intentClassifier.classify(p.text);
 
-    return this.mapper.toMessageResponse(assistantMessage);
+        this.logger.debug(
+          `intent=${intent.intent} conf=${intent.confidence.toFixed(2)} via=${intent.source}`,
+        );
+
+        switch (intent.intent) {
+          case AiIntent.ADD_TRANSACTION:
+            return this.handleAddTransaction({
+              userId: p.userId,
+              walletId: p.walletId,
+              mascot,
+              source: p.source,
+              input: { kind: 'text', text: p.text },
+            });
+          case AiIntent.QUERY_SPENDING:
+            return this.handleQuery(
+              p.userId,
+              p.walletId,
+              mascot,
+              p.text,
+              intent,
+            );
+          case AiIntent.OUT_OF_SCOPE:
+            return this.replyText(
+              p.userId,
+              p.walletId,
+              mascot,
+              AiIntent.OUT_OF_SCOPE,
+              await this.tone.sayGenerated(mascot, 'outOfScope', p.text),
+            );
+          case AiIntent.CHITCHAT: {
+            const key = this.intentClassifier.isAdviceRequest(p.text)
+              ? 'advice'
+              : 'chitchat';
+            return this.replyText(
+              p.userId,
+              p.walletId,
+              mascot,
+              AiIntent.CHITCHAT,
+              await this.tone.sayGenerated(mascot, key, p.text),
+            );
+          }
+          default:
+            return this.handleUnclear(p.userId, p.walletId, mascot, p.text);
+        }
+      },
+    );
   }
 
   /**
-   * Xử lý xác nhận hoặc từ chối hành động giao dịch do AI đề xuất (Pending Action)
+   * Khung chung: lưu tin USER -> chạy xử lý -> lỗi "AI/logic" bất ngờ thì trả câu xin lỗi theo giọng mascot
+   * (không bao giờ 500 vì AI). HttpException (404/409/422...) được giữ nguyên.
    */
+  private async runPipeline(
+    p: PipelineParams,
+    work: (mascot: MascotCode) => Promise<ChatMessageResponseDto>,
+  ): Promise<ChatMessageResponseDto> {
+    const mascot = await this.mascotContext.resolve(p.userId);
+
+    await this.chatMessageRepo.createAndSave({
+      userId: p.userId,
+      walletId: p.walletId,
+      role: ChatRole.USER,
+      messageType: ChatMessageType.TEXT,
+      textContent: p.userText,
+      payloadJson: p.userPayload ?? null,
+    });
+
+    try {
+      return await work(mascot);
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      this.logger.error(
+        `Lỗi xử lý tin nhắn AI: ${(err as Error)?.message}`,
+        (err as Error)?.stack,
+      );
+      try {
+        return await this.replyText(
+          p.userId,
+          p.walletId,
+          mascot,
+          null,
+          this.tone.say(mascot, 'error'),
+          { error: true },
+        );
+      } catch (saveErr) {
+        this.logger.error(
+          `Không lưu được tin nhắn lỗi: ${(saveErr as Error)?.message}`,
+        );
+        throw new ServiceUnavailableException({
+          code: 'AI_CHAT_UNAVAILABLE',
+          message:
+            'Trợ lý đang tạm thời không khả dụng. Vui lòng thử lại sau ít phút.',
+        });
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CÁC NHÁNH
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Nhánh 1: trích xuất -> phân loại -> PendingAction (KHÔNG lưu giao dịch thật) -> hỏi xác nhận. */
+  private async handleAddTransaction(p: {
+    userId: string;
+    walletId: string;
+    mascot: MascotCode;
+    source: TransactionSource;
+    input:
+      { kind: 'text'; text: string } | { kind: 'receipt'; ocrText: string };
+  }): Promise<ChatMessageResponseDto> {
+    const { userId, walletId, mascot } = p;
+    const { accounts, categories } = await this.loadWalletContext(
+      userId,
+      walletId,
+    );
+
+    const result =
+      p.input.kind === 'text'
+        ? await this.draftService.fromText({
+            text: p.input.text,
+            source: p.source,
+            accounts,
+            categories,
+          })
+        : await this.draftService.fromReceipt({
+            ocrText: p.input.ocrText,
+            source: p.source,
+            accounts,
+            categories,
+          });
+
+    if (!result.ok) {
+      const reason = 'reason' in result ? result.reason : 'no_amount';
+      const key = reason === 'no_amount' ? 'needAmount' : 'amountTooLarge';
+      return this.replyText(
+        userId,
+        walletId,
+        mascot,
+        AiIntent.ADD_TRANSACTION,
+        this.tone.say(mascot, key),
+        {
+          reason,
+          requireManualInput: true,
+        },
+      );
+    }
+
+    const d = result.draft;
+    const expiresAt = new Date(
+      Date.now() + AI_CHAT_CONFIG.PENDING_ACTION_TTL_MINUTES * 60 * 1000,
+    );
+    const amountFormatted = formatMoney(d.amount, d.currency);
+
+    const toolInput = {
+      type: d.type,
+      amount: d.amount,
+      name: d.name,
+      date: d.date,
+      note: d.note,
+      accountId: d.accountId,
+      accountName: d.accountName,
+      categoryId: d.categoryId,
+      categoryName: d.categoryName,
+      categoryKey: d.categoryKey,
+      source: d.source,
+    };
+    const previewPayload = {
+      title: 'Xác nhận ghi chép giao dịch',
+      type: d.type,
+      name: d.name,
+      amount: d.amount,
+      amountFormatted,
+      currency: d.currency,
+      accountId: d.accountId,
+      accountName: d.accountName,
+      categoryId: d.categoryId,
+      categoryName: d.categoryName,
+      categorySource: d.categorySource,
+      categoryConfidence: d.categoryConfidence,
+      suggestedNewCategory: d.suggestedNewCategory,
+      date: d.date,
+      note: d.note,
+      source: d.source,
+      missingFields: d.missingFields,
+      warnings: d.warnings,
+      expiresAt: expiresAt.toISOString(),
+    };
+
+    const pending = await this.pendingActionRepo.createAndSave({
+      userId,
+      walletId,
+      toolName: 'draft_transaction',
+      toolInput,
+      previewPayload,
+      expiresAt,
+    });
+
+    try {
+      const message = await this.chatMessageRepo.createAndSave({
+        userId,
+        walletId,
+        role: ChatRole.ASSISTANT,
+        messageType: ChatMessageType.CONFIRMATION_PROMPT,
+        textContent: this.tone.say(mascot, 'confirm', {
+          name: d.name,
+          amount: amountFormatted,
+          category: d.categoryName ?? 'chưa phân loại',
+        }),
+        intent: AiIntent.ADD_TRANSACTION,
+        mascot,
+        payloadJson: {
+          pendingActionId: pending.id,
+          preview: previewPayload,
+          toolInput,
+        },
+      });
+      await this.pendingActionRepo.attachChatMessage(pending.id, message.id);
+      pending.chatMessageId = message.id;
+      return this.mapper.toMessageResponse(message, pending);
+    } catch (err) {
+      // Không để lại hành động chờ "mồ côi" không gắn với tin nhắn nào
+      await this.pendingActionRepo
+        .markStatus(pending.id, PendingActionStatus.REJECTED)
+        .catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /** Nhánh 2: intent -> hàm canned query được phê duyệt -> dữ liệu thật -> biểu đồ + diễn giải theo mascot. */
+  private async handleQuery(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+    text: string,
+    intent: IntentResult,
+  ): Promise<ChatMessageResponseDto> {
+    const categories = (
+      await this.loadWalletContext(userId, walletId).catch(() => ({
+        categories: [] as CategoryLite[],
+      }))
+    ).categories;
+    const plan = this.queryPlanner.plan(text, categories, intent.queryHint);
+
+    const result = this.cannedQueries.isSupported(plan.functionName)
+      ? await this.cannedQueries.execute({ plan, userId, walletId, mascot })
+      : this.cannedQueries.unsupported(mascot);
+
+    const message = await this.chatMessageRepo.createAndSave({
+      userId,
+      walletId,
+      role: ChatRole.ASSISTANT,
+      messageType: result.messageType,
+      textContent: result.textContent,
+      intent: AiIntent.QUERY_SPENDING,
+      mascot,
+      payloadJson: result.payloadJson,
+    });
+    return this.mapper.toMessageResponse(message);
+  }
+
+  /** Nhánh 5: hỏi lại người dùng + gợi ý tuỳ chọn (client gửi lại kèm intentOverride). */
+  private handleUnclear(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+    text: string,
+  ): Promise<ChatMessageResponseDto> {
+    const actions = [
+      { label: 'Ghi chép giao dịch mới', intent: AiIntent.ADD_TRANSACTION },
+      {
+        label: 'Xem báo cáo chi tiêu tháng này',
+        intent: AiIntent.QUERY_SPENDING,
+        message: 'Chi tiêu tháng này của tôi',
+      },
+      {
+        label: 'Tra cứu số dư tài khoản',
+        intent: AiIntent.QUERY_SPENDING,
+        message: 'Số dư các tài khoản của tôi',
+      },
+      {
+        label: 'Xin lời khuyên tiết kiệm',
+        intent: AiIntent.CHITCHAT,
+        message: 'Cho tôi lời khuyên tiết kiệm tiền',
+      },
+    ];
+    return this.tone.sayGenerated(mascot, 'unclear', text).then((reply) =>
+      this.replyText(userId, walletId, mascot, AiIntent.INTENT_UNCLEAR, reply, {
+        clarifyOptions: actions.map((a) => a.label),
+        clarifyActions: actions,
+        originalMessage: text,
+      }),
+    );
+  }
+
+  private async replyText(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+    intent: AiIntent | null,
+    text: string,
+    payloadJson: Record<string, any> | null = null,
+  ): Promise<ChatMessageResponseDto> {
+    const message = await this.chatMessageRepo.createAndSave({
+      userId,
+      walletId,
+      role: ChatRole.ASSISTANT,
+      messageType: ChatMessageType.TEXT,
+      textContent: text,
+      intent,
+      mascot,
+      payloadJson,
+    });
+    return this.mapper.toMessageResponse(message);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // XÁC NHẬN / TỪ CHỐI HÀNH ĐỘNG CHỜ
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async executePendingAction(
     userId: string,
     actionId: string,
     dto: ExecutePendingActionDto,
   ): Promise<PendingActionResponseDto> {
-    const action = await this.pendingActionRepo.findByIdAndUser(actionId, userId);
-    if (!action) {
-      throw new PendingActionNotFoundException(actionId);
-    }
+    type Outcome =
+      | { kind: 'processed'; status: string }
+      | { kind: 'expired' }
+      | { kind: 'rejected'; action: PendingAction }
+      | {
+          kind: 'confirmed';
+          action: PendingAction;
+          transactionId: string;
+          draft: ValidatedDraft;
+        };
 
-    if (action.status !== PendingActionStatus.PENDING) {
-      throw new PendingActionAlreadyProcessedException(action.status);
-    }
-
-    if (new Date() > new Date(action.expiresAt)) {
-      await this.pendingActionRepo.markStatus(actionId, PendingActionStatus.EXPIRED);
-      throw new PendingActionExpiredException();
-    }
-
-    // Trường hợp 1: Người dùng HỦY bỏ
-    if (dto.action === PendingActionDecision.REJECT) {
-      const updated = await this.pendingActionRepo.markStatus(
-        actionId,
-        PendingActionStatus.REJECTED,
-      );
-      return this.mapper.toPendingActionResponse(updated!);
-    }
-
-    // Trường hợp 2: Người dùng XÁC NHẬN (có thể kèm dữ liệu chỉnh sửa)
-    const toolInput = action.toolInput || {};
-    const edited = dto.editedData || {};
-
-    const amount = edited.amount !== undefined ? Number(edited.amount) : Number(toolInput.amount);
-    const name = edited.name || toolInput.name || 'Giao dịch';
-    const accountId = edited.accountId || toolInput.accountId;
-    const categoryId = edited.categoryId || toolInput.categoryId;
-    const note = edited.note !== undefined ? edited.note : toolInput.note;
-    const type = (toolInput.type as TransactionType) || TransactionType.EXPENSE;
-    const transactionDate = edited.date ? new Date(edited.date) : (toolInput.date ? new Date(toolInput.date) : new Date());
-
-    if (!accountId) {
-      throw new PendingActionInvalidAccountException();
-    }
-
-    if (!categoryId) {
-      throw new PendingActionInvalidCategoryException();
-    }
-
-    // Tạo giao dịch thật qua TransactionsService
-    const createdTx = await this.transactionsService.createTransaction(userId, {
-      accountId,
-      categoryId,
-      type,
-      amount,
-      name,
-      note,
-      transactionDate,
-      source: TransactionSource.CHAT_TEXT,
-    });
-
-    // Cập nhật trạng thái PendingAction sang CONFIRMED và lưu ID giao dịch
-    const updated = await this.pendingActionRepo.markStatus(
+    // Khoá hàng + xử lý trong 1 transaction: bấm 2 lần cùng lúc chỉ tạo đúng 1 giao dịch.
+    const outcome = await this.pendingActionRepo.withLock<Outcome>(
       actionId,
-      PendingActionStatus.CONFIRMED,
-      createdTx.id,
+      userId,
+      async (action, manager) => {
+        if (action.status !== PendingActionStatus.PENDING)
+          return { kind: 'processed', status: action.status };
+
+        if (new Date() > new Date(action.expiresAt)) {
+          await this.pendingActionRepo.markStatus(
+            actionId,
+            PendingActionStatus.EXPIRED,
+            null,
+            manager,
+          );
+          return { kind: 'expired' };
+        }
+
+        if (dto.action === PendingActionDecision.REJECT) {
+          await this.pendingActionRepo.markStatus(
+            actionId,
+            PendingActionStatus.REJECTED,
+            null,
+            manager,
+          );
+          action.status = PendingActionStatus.REJECTED;
+          return { kind: 'rejected', action };
+        }
+
+        // CONFIRM: kiểm tra đầy đủ -> lỗi ở đây sẽ rollback, hành động vẫn PENDING để người dùng sửa và thử lại
+        const draft = await this.validateDraft(userId, action, dto.editedData);
+        let transactionId: string;
+        try {
+          const created = await this.transactionsService.createTransaction(
+            userId,
+            {
+              accountId: draft.accountId,
+              categoryId: draft.categoryId,
+              type: draft.type,
+              amount: draft.amount,
+              name: draft.name,
+              note: draft.note ?? undefined,
+              transactionDate: isoToTransactionDate(draft.date),
+              source: draft.source,
+            } as any,
+          );
+          transactionId = created.id;
+        } catch (err) {
+          if (err instanceof HttpException) throw err; // lỗi nghiệp vụ của TransactionsService (số dư, tài khoản khoá...)
+          this.logger.error(
+            `Tạo giao dịch từ PendingAction ${actionId} thất bại: ${(err as Error)?.message}`,
+            (err as Error)?.stack,
+          );
+          throw new AiTransactionCreateFailedException();
+        }
+
+        await this.pendingActionRepo.markStatus(
+          actionId,
+          PendingActionStatus.CONFIRMED,
+          transactionId,
+          manager,
+        );
+        action.status = PendingActionStatus.CONFIRMED;
+        action.transactionId = transactionId;
+        return { kind: 'confirmed', action, transactionId, draft };
+      },
     );
 
-    return this.mapper.toPendingActionResponse(updated!);
+    if (!outcome) throw new PendingActionNotFoundException(actionId);
+    if (outcome.kind === 'processed')
+      throw new PendingActionAlreadyProcessedException(outcome.status);
+    if (outcome.kind === 'expired') throw new PendingActionExpiredException();
+
+    const mascot = await this.mascotContext.resolve(userId);
+    const walletId = outcome.action.walletId;
+
+    if (outcome.kind === 'rejected') {
+      const msg = await this.safeReply(
+        userId,
+        walletId,
+        mascot,
+        AiIntent.ADD_TRANSACTION,
+        this.tone.say(mascot, 'rejected'),
+        {
+          pendingActionId: actionId,
+          result: 'rejected',
+        },
+      );
+      return this.mapper.toPendingActionResponse(outcome.action, msg);
+    }
+
+    // Đã lưu thành công -> kiểm tra lời khuyên (không chặn, không làm hỏng luồng chính)
+    const advice = await this.findAdvice(
+      userId,
+      walletId,
+      mascot,
+      outcome.draft,
+    );
+    const savedText = this.tone.say(mascot, 'saved', {
+      name: outcome.draft.name,
+      amount: formatMoney(outcome.draft.amount, outcome.draft.currency),
+    });
+    const msg = await this.safeReply(
+      userId,
+      walletId,
+      mascot,
+      AiIntent.ADD_TRANSACTION,
+      advice ? `${savedText}\n${advice.message}` : savedText,
+      {
+        pendingActionId: actionId,
+        result: 'confirmed',
+        transactionId: outcome.transactionId,
+        advice: advice ?? null,
+        transaction: {
+          id: outcome.transactionId,
+          type: outcome.draft.type,
+          name: outcome.draft.name,
+          amount: outcome.draft.amount,
+          categoryName: outcome.draft.categoryName,
+          date: outcome.draft.date,
+        },
+      },
+    );
+    return this.mapper.toPendingActionResponse(outcome.action, msg);
   }
 
-  /**
-   * Lấy lịch sử tin nhắn trong ví (phân trang dạng cursor)
-   */
+  async getPendingAction(
+    userId: string,
+    actionId: string,
+  ): Promise<PendingActionResponseDto> {
+    const action = await this.pendingActionRepo.findByIdAndUser(
+      actionId,
+      userId,
+    );
+    if (!action) throw new PendingActionNotFoundException(actionId);
+    return this.mapper.toPendingActionResponse(action);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LỊCH SỬ
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async getHistory(
     userId: string,
     query: ChatHistoryQueryDto,
@@ -299,17 +707,22 @@ export class AiChatService {
       query.limit,
       query.beforeId,
     );
-    return this.mapper.toMessageListResponse(list);
+    const confirmIds = list
+      .filter((m) => m.messageType === ChatMessageType.CONFIRMATION_PROMPT)
+      .map((m) => m.id);
+    const pendings = await this.pendingActionRepo.findByChatMessageIds(
+      confirmIds,
+      userId,
+    );
+    return this.mapper.toMessageListResponse(list, pendings);
   }
 
-  /**
-   * Xóa toàn bộ lịch sử tin nhắn trong ví
-   */
   async clearHistory(
     userId: string,
     walletId: string,
   ): Promise<{ success: boolean; message: string }> {
     await this.walletsService.getWalletById(walletId, userId);
+    await this.pendingActionRepo.rejectPendingByWallet(walletId, userId);
     await this.chatMessageRepo.deleteByWallet(walletId, userId);
     return {
       success: true,
@@ -317,151 +730,204 @@ export class AiChatService {
     };
   }
 
-  // ── [PRIVATE HELPER HANDLERS] ──────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELPER
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /**
-   * Xử lý Nhánh 1: Soạn giao dịch nháp và tạo Pending Action
-   */
-  private async handleDraftTransaction(params: {
-    userId: string;
-    walletId: string;
-    mascotCode: string;
-    args: Record<string, any>;
-    accounts: any[];
-    categories: any[];
-    userPrompt: string;
-  }): Promise<ChatMessageResponseDto> {
-    const { userId, walletId, mascotCode, args, accounts, categories } = params;
+  private async loadWalletContext(
+    userId: string,
+    walletId: string,
+  ): Promise<{ accounts: WalletAccountLite[]; categories: CategoryLite[] }> {
+    const [accountsPage, rawCategories] = await Promise.all([
+      this.accountsService.listAccounts(userId, {
+        walletId,
+        page: 1,
+        limit: 100,
+        isArchived: false,
+      } as any),
+      this.categoriesService.getCategories(userId, {} as any),
+    ]);
+    const accounts: WalletAccountLite[] = (
+      (accountsPage as any)?.items ?? []
+    ).map((a: any) => ({
+      id: a.id,
+      name: String(a.name ?? ''),
+      balance: Number(a.balance) || 0,
+      currency: a.currency || 'VND',
+    }));
+    const categories: CategoryLite[] = (
+      Array.isArray(rawCategories) ? rawCategories : []
+    ).map((c: any) => ({
+      id: c.id,
+      name: String(c.name ?? ''),
+      type: c.type as TransactionType,
+    }));
+    return { accounts, categories };
+  }
 
-    const amount = Number(args.amount) || 0;
-    const type = args.type === 'INCOME' ? TransactionType.INCOME : TransactionType.EXPENSE;
-    const name = args.name || (type === TransactionType.INCOME ? 'Khoản thu mới' : 'Khoản chi mới');
+  /** Gộp dữ liệu người dùng chỉnh sửa lên bản nháp, rồi kiểm tra chặt trước khi tạo giao dịch thật. */
+  private async validateDraft(
+    userId: string,
+    action: PendingAction,
+    edited?: EditTransactionDraftDto,
+  ): Promise<ValidatedDraft> {
+    const input = action.toolInput || {};
+    const edit = edited || {};
 
-    // Tìm tài khoản phù hợp nhất trong ví
-    let matchedAccount = accounts[0];
-    if (args.accountName) {
-      const found = accounts.find((a) =>
-        a.name.toLowerCase().includes(args.accountName.toLowerCase()),
+    const rawType = String(input.type);
+    const type = (Object.values(TransactionType) as string[]).includes(rawType)
+      ? (rawType as TransactionType)
+      : TransactionType.EXPENSE;
+
+    const amount =
+      edit.amount !== undefined ? Number(edit.amount) : Number(input.amount);
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      amount > AI_CHAT_CONFIG.MAX_TRANSACTION_AMOUNT
+    ) {
+      throw new AiChatInvalidAmountException(
+        `Số tiền phải lớn hơn 0 và không vượt quá ${AI_CHAT_CONFIG.MAX_TRANSACTION_AMOUNT.toLocaleString('vi-VN')}`,
       );
-      if (found) matchedAccount = found;
     }
 
-    // Tìm danh mục phù hợp nhất
-    let matchedCategory = categories.find((c) => c.type === type);
-    if (args.categoryName) {
-      const found = categories.find(
-        (c) =>
-          c.type === type &&
-          c.name.toLowerCase().includes(args.categoryName.toLowerCase()),
-      );
-      if (found) matchedCategory = found;
-    }
-
-    const toolInput = {
-      type,
-      amount,
-      name,
-      accountId: matchedAccount?.id || null,
-      accountName: matchedAccount?.name || 'Tài khoản mặc định',
-      categoryId: matchedCategory?.id || null,
-      categoryName: matchedCategory?.name || 'Chưa phân loại',
-      date: args.date || new Date().toISOString().split('T')[0],
-      note: args.note || null,
-    };
-
-    const previewPayload = {
-      title: 'Xác nhận ghi chép giao dịch',
-      type,
-      name,
-      amount,
-      amountFormatted: new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: matchedAccount?.currency || 'VND',
-      }).format(amount),
-      accountName: toolInput.accountName,
-      categoryName: toolInput.categoryName,
-      date: toolInput.date,
-      note: toolInput.note,
-    };
-
-    // Tạo Pending Action có hạn 15 phút
-    const expiresAt = new Date(
-      Date.now() + AI_CHAT_CONFIG.PENDING_ACTION_TTL_MINUTES * 60 * 1000,
+    const name = truncate(
+      String(edit.name ?? input.name ?? '').trim(),
+      AI_CHAT_CONFIG.MAX_TRANSACTION_NAME_LENGTH,
     );
-    const pendingAction = await this.pendingActionRepo.createAndSave({
+    if (!name) throw new AiChatInvalidNameException();
+
+    const date = String(edit.date ?? input.date ?? todayVn());
+    if (!isValidIsoDate(date) || date > todayVn())
+      throw new AiChatInvalidDateException();
+
+    const accountId = edit.accountId ?? input.accountId ?? null;
+    const categoryId = edit.categoryId ?? input.categoryId ?? null;
+    if (!accountId)
+      throw new PendingActionInvalidAccountException(
+        'Vui lòng chọn tài khoản thanh toán trước khi lưu',
+      );
+    if (!categoryId)
+      throw new PendingActionInvalidCategoryException(
+        'Vui lòng chọn danh mục trước khi lưu',
+      );
+
+    const { accounts, categories } = await this.loadWalletContext(
       userId,
-      walletId,
-      toolName: 'draft_transaction',
-      toolInput,
-      previewPayload,
-      expiresAt,
-    });
+      action.walletId,
+    );
+    const account = accounts.find((a) => a.id === accountId);
+    if (!account) throw new PendingActionInvalidAccountException();
+    const category = categories.find((c) => c.id === categoryId);
+    if (!category)
+      throw new PendingActionInvalidCategoryException('Danh mục không tồn tại');
+    if (category.type !== type)
+      throw new PendingActionInvalidCategoryException(
+        'Danh mục không khớp với loại giao dịch (thu/chi)',
+      );
 
-    const pool = MASCOT_TEMPLATE_POOL[mascotCode] || MASCOT_TEMPLATE_POOL.nora;
-    const confirmText = `${pool.confirmPrefix}\n\n- **Giao dịch**: ${name}\n- **Số tiền**: ${previewPayload.amountFormatted}\n- **Danh mục**: ${previewPayload.categoryName}\n- **Tài khoản**: ${previewPayload.accountName}`;
+    const rawSource = String(input.source ?? TransactionSource.CHAT_TEXT);
+    const source = (Object.values(TransactionSource) as string[]).includes(
+      rawSource,
+    )
+      ? (rawSource as TransactionSource)
+      : TransactionSource.CHAT_TEXT;
 
-    // Lưu tin nhắn trợ lý loại CONFIRMATION_PROMPT
-    const assistantMessage = await this.chatMessageRepo.createAndSave({
-      userId,
-      walletId,
-      role: ChatRole.ASSISTANT,
-      messageType: ChatMessageType.CONFIRMATION_PROMPT,
-      textContent: confirmText,
-      intent: AiIntent.ADD_TRANSACTION,
-      mascot: mascotCode,
-      payloadJson: {
-        pendingActionId: pendingAction.id,
-        preview: previewPayload,
-        toolInput,
-      },
-    });
+    const note = edit.note !== undefined ? edit.note : (input.note ?? null);
+    const categoryKey: string | null =
+      category.id === input.categoryId && input.categoryKey
+        ? String(input.categoryKey)
+        : this.categoryClassifier.keyOfCategory(category, type);
 
-    // Cập nhật ngược chatMessageId vào pendingAction
-    await this.pendingActionRepo.markStatus(pendingAction.id, PendingActionStatus.PENDING);
-
-    return this.mapper.toMessageResponse(assistantMessage);
+    return {
+      type,
+      amount,
+      name,
+      date,
+      note: note ? String(note) : null,
+      source,
+      accountId: account.id,
+      currency: account.currency || 'VND',
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryKey,
+    };
   }
 
-  /**
-   * Xử lý Nhánh 2: Truy vấn dữ liệu tài chính qua CannedQueryRegistry
-   */
-  private async handleCannedQuery(params: {
-    userId: string;
-    walletId: string;
-    mascotCode: string;
-    toolCall: LlmToolCall;
-  }): Promise<ChatMessageResponseDto> {
-    const { userId, walletId, mascotCode, toolCall } = params;
-
-    let functionName = toolCall.args?.functionName;
-    const queryArgs = toolCall.args?.parameters || toolCall.args || {};
-
-    // Hỗ trợ ngược nếu tool cũ trả thẳng tên
-    if (toolCall.name === 'query_spending_summary') {
-      functionName = CannedQueryFunction.GET_SPENDING_SUMMARY;
-    } else if (toolCall.name === 'query_wallet_balances') {
-      functionName = CannedQueryFunction.GET_WALLET_BALANCES;
+  /** Lời khuyên của mascot — mọi lỗi đều bị nuốt, không ảnh hưởng giao dịch đã lưu. */
+  private async findAdvice(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+    draft: ValidatedDraft,
+  ): Promise<{ ruleId: string; message: string } | null> {
+    try {
+      let monthExpense: number | null = null;
+      let monthIncome: number | null = null;
+      if (this.adviceService.needsMonthTotals(mascot)) {
+        const today = todayVn();
+        const s = await this.cannedQueries.summarizeRange(
+          userId,
+          walletId,
+          startOfMonth(today),
+          today,
+        );
+        monthExpense = s.totalExpense;
+        monthIncome = s.totalIncome;
+      }
+      return this.adviceService.findAdvice({
+        mascot,
+        type: draft.type,
+        amount: draft.amount,
+        categoryKey: draft.categoryKey,
+        monthExpense,
+        monthIncome,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Không tính được lời khuyên: ${(err as Error)?.message}`,
+      );
+      return null;
     }
-
-    const queryResult = await this.cannedQueryRegistry.execute({
-      functionName: functionName || '',
-      args: queryArgs,
-      userId,
-      walletId,
-      mascotCode,
-    });
-
-    const assistantMessage = await this.chatMessageRepo.createAndSave({
-      userId,
-      walletId,
-      role: ChatRole.ASSISTANT,
-      messageType: queryResult.messageType,
-      textContent: queryResult.textContent,
-      intent: AiIntent.QUERY_SPENDING,
-      mascot: mascotCode,
-      payloadJson: queryResult.payloadJson,
-    });
-
-    return this.mapper.toMessageResponse(assistantMessage);
   }
+
+  /** Lưu tin nhắn mascot sau khi giao dịch đã xử lý xong; lỗi lưu tin KHÔNG được làm hỏng kết quả đã thành công. */
+  private async safeReply(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+    intent: AiIntent,
+    text: string,
+    payload: Record<string, any>,
+  ): Promise<ChatMessageResponseDto | null> {
+    try {
+      return await this.replyText(
+        userId,
+        walletId,
+        mascot,
+        intent,
+        text,
+        payload,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Không lưu được tin nhắn phản hồi sau xử lý: ${(err as Error)?.message}`,
+      );
+      return null;
+    }
+  }
+}
+
+interface ValidatedDraft {
+  type: TransactionType;
+  amount: number;
+  name: string;
+  date: string;
+  note: string | null;
+  source: TransactionSource;
+  accountId: string;
+  currency: string;
+  categoryId: string;
+  categoryName: string;
+  categoryKey: string | null;
 }

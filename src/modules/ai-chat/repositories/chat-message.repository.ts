@@ -3,8 +3,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChatMessage } from '../entities/chat-message.entity';
-import { ChatRole } from '../enums/chat-role.enum';
 import { ChatMessageType } from '../enums/chat-message-type.enum';
+import { ChatRole } from '../enums/chat-role.enum';
+import { AiChatInvalidCursorException } from '../exceptions/ai-chat.exception';
 
 @Injectable()
 export class ChatMessageRepository {
@@ -31,25 +32,12 @@ export class ChatMessageRepository {
       textContent: data.textContent,
       intent: data.intent || null,
       mascot: data.mascot || null,
-      payloadJson: data.payloadJson || null,
+      payloadJson: data.payloadJson || undefined,
     });
     return this.repo.save(entity);
   }
 
-  async findRecentContext(
-    walletId: string,
-    userId: string,
-    limit = 10,
-  ): Promise<ChatMessage[]> {
-    const list = await this.repo.find({
-      where: { walletId, userId },
-      order: { createdAt: 'DESC' },
-      take: limit,
-    });
-    // Trả về theo thứ tự thời gian tăng dần để nạp vào prompt context
-    return list.reverse();
-  }
-
+  /** Lịch sử mới nhất trước. Phân trang keyset theo (created_at, id) nên không mất/lặp tin cùng mili-giây. */
   async findByWalletPaged(
     walletId: string,
     userId: string,
@@ -61,17 +49,20 @@ export class ChatMessageRepository {
       .where('msg.wallet_id = :walletId', { walletId })
       .andWhere('msg.user_id = :userId', { userId })
       .orderBy('msg.created_at', 'DESC')
-      .take(limit);
+      .addOrderBy('msg.id', 'DESC')
+      .limit(limit);
 
     if (beforeId) {
-      const cursor = await this.repo.findOne({ where: { id: beforeId } });
-      if (cursor) {
-        qb.andWhere('msg.created_at < :cursorTime', { cursorTime: cursor.createdAt });
-      }
+      const cursor = await this.repo.findOne({
+        where: { id: beforeId, walletId, userId },
+      });
+      if (!cursor) throw new AiChatInvalidCursorException();
+      qb.andWhere('(msg.created_at, msg.id) < (:cursorTime, :cursorId)', {
+        cursorTime: cursor.createdAt,
+        cursorId: cursor.id,
+      });
     }
-
-    const results = await qb.getMany();
-    return results;
+    return qb.getMany();
   }
 
   async deleteByWallet(walletId: string, userId: string): Promise<void> {

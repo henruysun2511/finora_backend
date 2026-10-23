@@ -17,6 +17,12 @@ const SCHEMA: Schema = {
   EXCHANGE_RATE_API_URL: { type: 'string' },
   EXCHANGE_RATE_CACHE_TTL_SECONDS: { type: 'number' },
   EXCHANGE_RATE_TIMEOUT_MS: { type: 'number' },
+  AI_MODEL_SERVICE_URL: { type: 'string' },
+  AI_MODEL_SERVICE_KEY: { type: 'string' },
+  AI_INTENT_THRESHOLD: { type: 'number' },
+  AI_CATEGORY_THRESHOLD: { type: 'number' },
+  AI_STT_MIN_CONFIDENCE: { type: 'number' },
+  AI_TEXT_GEN_ENABLED: { type: 'boolean' },
 };
 
 export function validateEnv(): void {

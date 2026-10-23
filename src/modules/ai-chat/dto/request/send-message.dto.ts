@@ -2,6 +2,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -10,7 +11,8 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TransactionSource } from '../../../transactions/enums/transaction-source.enum';
-import { AI_CHAT_CONFIG } from '../../ai-chat.constant';
+import { AI_CHAT_CONFIG } from '../../constants';
+import { AiIntent } from '../../enums/ai-intent.enum';
 
 export class SendMessageDto {
   @ApiProperty({
@@ -22,7 +24,8 @@ export class SendMessageDto {
   walletId: string;
 
   @ApiProperty({
-    description: 'Nội dung tin nhắn người dùng gửi (text, hoặc text sau khi STT/OCR)',
+    description:
+      'Nội dung tin nhắn (text, hoặc text đã nhận diện ở phía client)',
     example: 'Hôm nay ăn sáng phở bò 45k trả bằng tiền mặt',
   })
   @IsString({ message: 'message phải là chuỗi ký tự' })
@@ -42,4 +45,24 @@ export class SendMessageDto {
   @IsOptional()
   @IsEnum(TransactionSource, { message: 'source không hợp lệ' })
   source?: TransactionSource = TransactionSource.CHAT_TEXT;
+
+  @ApiPropertyOptional({
+    enum: [
+      AiIntent.ADD_TRANSACTION,
+      AiIntent.QUERY_SPENDING,
+      AiIntent.CHITCHAT,
+    ],
+    description:
+      'Ép intent khi người dùng chọn một gợi ý làm rõ (clarifyActions) — bỏ qua bước phân loại intent và xử lý thẳng vào nhánh tương ứng.',
+  })
+  @IsOptional()
+  @IsIn(
+    [AiIntent.ADD_TRANSACTION, AiIntent.QUERY_SPENDING, AiIntent.CHITCHAT],
+    {
+      message:
+        'intentOverride chỉ nhận add_transaction, query_spending hoặc chitchat',
+    },
+  )
+  intentOverride?:
+    AiIntent.ADD_TRANSACTION | AiIntent.QUERY_SPENDING | AiIntent.CHITCHAT;
 }

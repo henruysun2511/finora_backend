@@ -1,27 +1,36 @@
 // src/modules/ai-chat/ai-chat.controller.ts
 import {
-  Controller,
-  Get,
-  Post,
-  Delete,
   Body,
-  Param,
-  Query,
+  Controller,
+  Delete,
+  Get,
   HttpStatus,
-  UseGuards,
+  Param,
   ParseUUIDPipe,
+  Post,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AiChatService } from './ai-chat.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
+import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { SendMessageDto } from './dto/request/send-message.dto';
-import { ExecutePendingActionDto } from './dto/request/execute-pending-action.dto';
+import { AiChatService } from './ai-chat.service';
+import { AI_CHAT_CONFIG } from './constants';
 import { ChatHistoryQueryDto } from './dto/request/chat-history-query.dto';
+import {
+  ExecutePendingActionDto,
+  PendingActionDecision,
+} from './dto/request/execute-pending-action.dto';
+import { SendMediaMessageDto } from './dto/request/send-media-message.dto';
+import { SendMessageDto } from './dto/request/send-message.dto';
 import { ChatMessageResponseDto } from './dto/response/chat-message-response.dto';
 import { PendingActionResponseDto } from './dto/response/pending-action-response.dto';
+import { UploadedMedia } from './interfaces/ai-chat.types';
 
 @ApiTags('AI Chatbot')
 @ApiBearerAuth('access-token')
@@ -34,7 +43,7 @@ export class AiChatController {
   @SwaggerDoc({
     summary: 'Gửi tin nhắn đến Trợ lý tài chính AI Mascot',
     description:
-      'Gửi tin nhắn văn bản, hoặc văn bản nhận diện từ giọng nói/hóa đơn. AI phân tích ý định, trả về lời thoại Mascot, dữ liệu biểu đồ hoặc thẻ xác nhận thêm giao dịch.',
+      'Gửi tin nhắn văn bản. AI phân loại ý định rồi trả về: thẻ xác nhận giao dịch (add_transaction), dữ liệu biểu đồ/thống kê (query), hoặc lời thoại theo phong cách Mascot (chitchat / ngoài phạm vi / cần làm rõ). Khi người dùng chọn một gợi ý làm rõ, gửi lại kèm intentOverride.',
     responseType: ChatMessageResponseDto,
   })
   async sendMessage(
@@ -49,10 +58,57 @@ export class AiChatController {
     });
   }
 
+  @Post('messages/media')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['walletId', 'file'],
+      properties: {
+        walletId: { type: 'string', format: 'uuid' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Âm thanh (giọng nói) hoặc ảnh hóa đơn',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: Math.max(
+          AI_CHAT_CONFIG.MAX_AUDIO_BYTES,
+          AI_CHAT_CONFIG.MAX_IMAGE_BYTES,
+        ),
+        files: 1,
+      },
+    }),
+  )
+  @SwaggerDoc({
+    summary: 'Gửi giọng nói hoặc ảnh hóa đơn cho AI',
+    description:
+      'Giọng nói được chuyển thành văn bản (PhoWhisper) rồi xử lý như tin nhắn thường. Ảnh hóa đơn được đọc bằng OCR (VietOCR) để trích tổng tiền/tên cửa hàng và tạo thẻ xác nhận giao dịch. Không nhận diện/đọc được sẽ trả 422 kèm requireManualInput.',
+    responseType: ChatMessageResponseDto,
+  })
+  async sendMediaMessage(
+    @CurrentUser('id') userId: string,
+    @Body() dto: SendMediaMessageDto,
+    @UploadedFile() file: UploadedMedia | undefined,
+  ) {
+    const data = await this.aiChatService.sendMediaMessage(userId, dto, file);
+    return new ApiResponse({
+      statusCode: HttpStatus.CREATED,
+      message: 'Xử lý tệp và nhận phản hồi thành công',
+      data,
+    });
+  }
+
   @Get('messages')
   @SwaggerDoc({
     summary: 'Lấy lịch sử hội thoại trong ví',
-    description: 'Hỗ trợ phân trang theo con trỏ cursor (beforeId) và giới hạn số lượng tin nhắn.',
+    description:
+      'Mới nhất trước. Phân trang theo con trỏ beforeId. Tin CONFIRMATION_PROMPT kèm trạng thái hiện tại của hành động chờ.',
     responseType: ChatMessageResponseDto,
   })
   async getHistory(
@@ -67,11 +123,29 @@ export class AiChatController {
     });
   }
 
+  @Get('pending-actions/:id')
+  @SwaggerDoc({
+    summary: 'Xem trạng thái một hành động chờ xác nhận',
+    description: 'Trạng thái PENDING đã quá hạn được trả về là EXPIRED.',
+    responseType: PendingActionResponseDto,
+  })
+  async getPendingAction(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) actionId: string,
+  ) {
+    const data = await this.aiChatService.getPendingAction(userId, actionId);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: 'Lấy hành động chờ thành công',
+      data,
+    });
+  }
+
   @Post('pending-actions/:id/execute')
   @SwaggerDoc({
-    summary: 'Xác nhận hoặc từ chối hành động giao dịch do AI đề xuất',
+    summary: 'Xác nhận hoặc từ chối giao dịch do AI đề xuất',
     description:
-      'Xử lý hành động chờ (CONFIRM hoặc REJECT). Khi CONFIRM, giao dịch thật sẽ được tạo vào sổ cái. Có thể truyền kèm dữ liệu chỉnh sửa.',
+      'CONFIRM: kiểm tra lại dữ liệu (kèm editedData nếu người dùng sửa/bổ sung) rồi tạo giao dịch thật; kết quả kèm tin nhắn của Mascot (và lời khuyên nếu khớp rule). REJECT: hủy. Lỗi dữ liệu (400) không làm mất hành động chờ — người dùng có thể sửa và gửi lại.',
     responseType: PendingActionResponseDto,
   })
   async executePendingAction(
@@ -79,10 +153,14 @@ export class AiChatController {
     @Param('id', ParseUUIDPipe) actionId: string,
     @Body() dto: ExecutePendingActionDto,
   ) {
-    const data = await this.aiChatService.executePendingAction(userId, actionId, dto);
+    const data = await this.aiChatService.executePendingAction(
+      userId,
+      actionId,
+      dto,
+    );
     return new ApiResponse({
       statusCode: HttpStatus.OK,
-      message: `Đã ${dto.action === 'CONFIRM' ? 'xác nhận tạo' : 'từ chối'} giao dịch thành công`,
+      message: `Đã ${dto.action === PendingActionDecision.CONFIRM ? 'xác nhận tạo' : 'từ chối'} giao dịch thành công`,
       data,
     });
   }
@@ -90,7 +168,8 @@ export class AiChatController {
   @Delete('messages')
   @SwaggerDoc({
     summary: 'Xóa toàn bộ lịch sử tin nhắn trong ví',
-    description: 'Xóa sạch các tin nhắn hội thoại của người dùng trong ví cụ thể.',
+    description:
+      'Xóa sạch tin nhắn của người dùng trong ví và hủy các hành động chờ xác nhận còn hiệu lực.',
   })
   async clearHistory(
     @CurrentUser('id') userId: string,

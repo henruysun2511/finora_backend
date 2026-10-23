@@ -7,9 +7,7 @@ export class PendingActionsScheduler {
   private readonly logger = new Logger(PendingActionsScheduler.name);
   private isProcessing = false;
 
-  constructor(
-    private readonly pendingActionRepo: PendingActionRepository,
-  ) {}
+  constructor(private readonly pendingActionRepo: PendingActionRepository) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async handleExpiredPendingActions(): Promise<void> {

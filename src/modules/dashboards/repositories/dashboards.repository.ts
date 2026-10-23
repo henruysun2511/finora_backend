@@ -473,4 +473,106 @@ export class DashboardRepository {
     ]);
     return { totalUsers: Number(users[0].total_users), transactions: transactions[0] };
   }
+
+  async getSpendingSummaryByRange(
+    userId: string,
+    walletId: string | undefined,
+    from: string,
+    to: string,
+  ) {
+    const summaryQuery = this.dataSource
+      .createQueryBuilder()
+      .select('COUNT(tx.id)', 'count')
+      .addSelect(
+        "COALESCE(SUM(CASE WHEN tx.type = 'EXPENSE' THEN tx.amount ELSE 0 END), 0)",
+        'totalExpense',
+      )
+      .addSelect(
+        "COALESCE(SUM(CASE WHEN tx.type = 'INCOME' THEN tx.amount ELSE 0 END), 0)",
+        'totalIncome',
+      )
+      .from('transactions', 'tx');
+
+    this.applyUserWalletFilter(summaryQuery, userId, walletId);
+    summaryQuery
+      .andWhere("tx.status = 'CONFIRMED'")
+      .andWhere('tx.exclude_from_report = false')
+      .andWhere('tx.deleted_at IS NULL')
+      .andWhere("(tx.transaction_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= :from::date", { from })
+      .andWhere("(tx.transaction_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= :to::date", { to });
+
+    const categoryQuery = this.dataSource
+      .createQueryBuilder()
+      .select('cat.id', 'id')
+      .addSelect('cat.name', 'name')
+      .addSelect('COALESCE(SUM(tx.amount), 0)', 'amount')
+      .addSelect('COUNT(tx.id)', 'count')
+      .from('transactions', 'tx')
+      .innerJoin('categories', 'cat', 'tx.category_id = cat.id');
+
+    this.applyUserWalletFilter(categoryQuery, userId, walletId);
+    categoryQuery
+      .andWhere("tx.type = 'EXPENSE'")
+      .andWhere("tx.status = 'CONFIRMED'")
+      .andWhere('tx.exclude_from_report = false')
+      .andWhere('tx.deleted_at IS NULL')
+      .andWhere("(tx.transaction_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= :from::date", { from })
+      .andWhere("(tx.transaction_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= :to::date", { to })
+      .groupBy('cat.id')
+      .addGroupBy('cat.name')
+      .orderBy('amount', 'DESC');
+
+    const [summaryRaw, categoriesRaw] = await Promise.all([
+      summaryQuery.getRawOne(),
+      categoryQuery.getRawMany(),
+    ]);
+
+    return {
+      transactionCount: Number(summaryRaw?.count || 0),
+      totalExpense: Number(summaryRaw?.totalExpense || 0),
+      totalIncome: Number(summaryRaw?.totalIncome || 0),
+      categories: (categoriesRaw || []).map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        amount: Number(c.amount || 0),
+        count: Number(c.count || 0),
+      })),
+    };
+  }
+
+  async getRecentTransactions(
+    userId: string,
+    walletId: string | undefined,
+    limit = 5,
+  ) {
+    const query = this.dataSource
+      .createQueryBuilder()
+      .select('tx.id', 'id')
+      .addSelect('tx.name', 'name')
+      .addSelect('tx.amount', 'amount')
+      .addSelect('tx.type', 'type')
+      .addSelect('COALESCE(cat.name, :defaultCat)', 'categoryName')
+      .addSelect("TO_CHAR(tx.transaction_date AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD')", 'date')
+      .from('transactions', 'tx')
+      .leftJoin('categories', 'cat', 'tx.category_id = cat.id');
+
+    this.applyUserWalletFilter(query, userId, walletId);
+    query
+      .setParameter('defaultCat', 'Khác')
+      .andWhere("tx.status = 'CONFIRMED'")
+      .andWhere('tx.exclude_from_report = false')
+      .andWhere('tx.deleted_at IS NULL')
+      .orderBy('tx.transaction_date', 'DESC')
+      .limit(limit);
+
+    const rows = await query.getRawMany();
+    return rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      amount: Number(r.amount || 0),
+      type: r.type,
+      categoryName: r.categoryName,
+      date: r.date,
+    }));
+  }
 }
