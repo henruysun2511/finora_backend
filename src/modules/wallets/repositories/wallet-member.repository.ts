@@ -47,4 +47,34 @@ export class WalletMemberRepository {
     });
     return members.map((member) => member.userId);
   }
+
+  async findByWalletAndUserForUpdate(
+    walletId: string,
+    userId: string,
+    manager: EntityManager,
+  ): Promise<WalletMember | null> {
+    return manager
+      .createQueryBuilder(WalletMember, 'wm')
+      .setLock('pessimistic_write')
+      .where('wm.wallet_id = :walletId', { walletId })
+      .andWhere('wm.user_id = :userId', { userId })
+      .getOne();
+  }
+
+  async softDelete(id: string, manager?: EntityManager): Promise<void> {
+    if (manager) {
+      await manager.softDelete(WalletMember, id);
+      return;
+    }
+    await this.repo.softDelete(id);
+  }
+
+  async remove(member: WalletMember, manager?: EntityManager): Promise<void> {
+    if (manager) {
+      await manager.remove(WalletMember, member);
+      return;
+    }
+    await this.repo.remove(member);
+  }
 }
+

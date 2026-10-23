@@ -66,3 +66,57 @@ export class CannotRemoveOwnerException extends AppError {
     });
   }
 }
+
+export class CannotLeaveAsOwnerException extends AppError {
+  constructor() {
+    super({
+      code: WALLET_ERROR_CODE.CANNOT_LEAVE_AS_OWNER,
+      message:
+        'Chủ sở hữu không thể tự rời ví. Vui lòng chuyển quyền chủ sở hữu cho thành viên khác trước khi rời ví.',
+      statusCode: HttpStatus.BAD_REQUEST,
+    });
+  }
+}
+
+export class WalletTargetNotMemberException extends AppError {
+  constructor(userId: string) {
+    super({
+      code: WALLET_ERROR_CODE.TARGET_NOT_MEMBER,
+      message: 'Người dùng được chỉ định không phải là thành viên hợp lệ trong ví',
+      statusCode: HttpStatus.BAD_REQUEST,
+      details: { userId },
+    });
+  }
+}
+
+export class WalletMemberInviteNotFoundException extends AppError {
+  constructor(walletId: string) {
+    super({
+      code: WALLET_ERROR_CODE.MEMBER_INVITE_NOT_FOUND,
+      message: 'Không tìm thấy lời mời tham gia ví hoặc lời mời đã được xử lý',
+      statusCode: HttpStatus.NOT_FOUND,
+      details: { walletId },
+    });
+  }
+}
+
+export class CannotModifyOwnerRoleException extends AppError {
+  constructor() {
+    super({
+      code: WALLET_ERROR_CODE.CANNOT_MODIFY_OWNER_ROLE,
+      message: 'Không thể thay đổi vai trò của chủ sở hữu ví qua chức năng này',
+      statusCode: HttpStatus.BAD_REQUEST,
+    });
+  }
+}
+
+export class WalletMemberSelfActionException extends AppError {
+  constructor(message = 'Bạn không thể tự thực hiện hành động này lên chính mình') {
+    super({
+      code: WALLET_ERROR_CODE.CANNOT_SELF_ACTION,
+      message,
+      statusCode: HttpStatus.BAD_REQUEST,
+    });
+  }
+}
+

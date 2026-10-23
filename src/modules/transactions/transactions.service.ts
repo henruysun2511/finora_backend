@@ -34,8 +34,13 @@ import {
   EVENT_NET_WORTH_CHANGED,
   NetWorthChangedEvent,
 } from '../../common/events/net-worth-changed.event';
+import {
+  EVENT_WALLET_BALANCE_UPDATED,
+  WalletBalanceUpdatedEvent,
+} from '../wallets/events/wallet-balance-updated.event';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 
 @Injectable()
 export class TransactionsService {
@@ -157,9 +162,24 @@ export class TransactionsService {
         EVENT_NET_WORTH_CHANGED,
         new NetWorthChangedEvent(userId, 'transaction.create'),
       );
+      this.eventEmitter.emit(
+        EVENT_WALLET_BALANCE_UPDATED,
+        new WalletBalanceUpdatedEvent(
+          account.walletId,
+          dto.accountId,
+          result.response.id,
+          dto.type,
+          dto.amount,
+          userId,
+          result.response.balanceAfter ?? 0,
+          category.name,
+          dto.note,
+        ),
+      );
     }
     return result.response;
   }
+
 
   /**
    * Lấy danh sách giao dịch có phân trang và bộ lọc theo các tài khoản user có quyền truy cập.
@@ -359,9 +379,24 @@ export class TransactionsService {
         EVENT_NET_WORTH_CHANGED,
         new NetWorthChangedEvent(userId, 'transaction.update'),
       );
+      this.eventEmitter.emit(
+        EVENT_WALLET_BALANCE_UPDATED,
+        new WalletBalanceUpdatedEvent(
+          targetAccount.walletId,
+          targetAccountId,
+          id,
+          targetType,
+          targetAmount,
+          userId,
+          result.response.balanceAfter ?? 0,
+          targetCategory?.name,
+          transaction.note,
+        ),
+      );
     }
     return result.response;
   }
+
 
   /**
    * Xóa giao dịch (Soft Delete).
@@ -382,34 +417,37 @@ export class TransactionsService {
       transaction.accountId,
     );
 
-    const alerts = await this.dataSource.transaction(async (manager) => {
-      // 1. Hoàn tác số dư tài khoản
-      await this.accountsService.revertTransactionBalance(
-        {
-          accountId: transaction.accountId,
-          type: transaction.type,
-          amount: transaction.amount,
-        },
-        manager,
-      );
+    const { alerts, balanceAfter } = await this.dataSource.transaction(
+      async (manager) => {
+        // 1. Hoàn tác số dư tài khoản
+        const { balanceAfter } =
+          await this.accountsService.revertTransactionBalance(
+            {
+              accountId: transaction.accountId,
+              type: transaction.type,
+              amount: transaction.amount,
+            },
+            manager,
+          );
 
-      const budgetAlerts = await this.budgetsService.syncTransactionChange(
-        {
-          walletId: account.walletId,
-          categoryId: transaction.categoryId,
-          amount: transaction.amount,
-          currency: transaction.currency,
-          type: transaction.type,
-          transactionDate: new Date(transaction.transactionDate),
-        },
-        null,
-        manager,
-      );
+        const budgetAlerts = await this.budgetsService.syncTransactionChange(
+          {
+            walletId: account.walletId,
+            categoryId: transaction.categoryId,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            type: transaction.type,
+            transactionDate: new Date(transaction.transactionDate),
+          },
+          null,
+          manager,
+        );
 
-      // 2. Soft delete bản ghi giao dịch
-      await this.transactionRepo.softDelete(transaction.id, manager);
-      return budgetAlerts;
-    });
+        // 2. Soft delete bản ghi giao dịch
+        await this.transactionRepo.softDelete(transaction.id, manager);
+        return { alerts: budgetAlerts, balanceAfter };
+      },
+    );
     await this.budgetsService.notifyBudgetAlerts(alerts);
 
     this.auditLogsService.recordLog({
@@ -432,8 +470,23 @@ export class TransactionsService {
         EVENT_NET_WORTH_CHANGED,
         new NetWorthChangedEvent(userId, 'transaction.delete'),
       );
+      this.eventEmitter.emit(
+        EVENT_WALLET_BALANCE_UPDATED,
+        new WalletBalanceUpdatedEvent(
+          account.walletId,
+          transaction.accountId,
+          transaction.id,
+          transaction.type,
+          transaction.amount,
+          userId,
+          balanceAfter,
+          transaction.category?.name,
+          transaction.note,
+        ),
+      );
     }
   }
+
 
   /**
    * Lấy danh sách giao dịch dạng lưới gom nhóm theo ngày.

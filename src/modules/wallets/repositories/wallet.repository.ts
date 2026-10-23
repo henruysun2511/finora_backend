@@ -38,6 +38,18 @@ export class WalletRepository {
     });
   }
 
+  async findByIdForUpdate(
+    id: string,
+    manager: EntityManager,
+  ): Promise<Wallet | null> {
+    return manager
+      .createQueryBuilder(Wallet, 'wallet')
+      .setLock('pessimistic_write')
+      .where('wallet.id = :id', { id })
+      .getOne();
+  }
+
+
   async findByNameAndOwnerId(
     name: string,
     ownerId: string,

@@ -199,15 +199,36 @@ Toàn bộ hệ thống Finora áp dụng **Dynamic RBAC (Role-Based Access Cont
    - Vai trò trong Finora được người dùng/admin tự do tạo mới và phân bổ quyền trên giao diện người dùng (UI). Do đó, backend **chỉ xác thực theo Permission code**. Bất kỳ Role nào có chứa Permission tương ứng đều sẽ tự động được cấp quyền truy cập.
    - Người dùng có cờ quản trị hệ thống (`isSysAdmin === true`) sẽ được `PermissionsGuard` tự động bypass qua mọi kiểm tra quyền.
 
-#### 6.2.2 Thứ tự chuẩn của Decorator trên API Method
+#### 6.2.2 Quy tắc BẮT BUỘC về Ghi nhận Nhật ký Kiểm toán (@Auditable Decorator)
+
+Toàn bộ các hành động làm thay đổi trạng thái dữ liệu (Create, Update, Delete) hoặc các sự kiện bảo mật, cộng tác quan trọng **BẮT BUỘC** phải được ghi vết kiểm toán (Audit Log) thông qua decorator `@Auditable(...)` đặt tại Controller.
+
+1. **Nguyên tắc "Declarative Auditing" tại Controller Layer**:
+   - Hệ thống sử dụng `AuditLogInterceptor` được đăng ký toàn cục (`APP_INTERCEPTOR`). Khi một route handler thực thi thành công, interceptor sẽ tự động trích xuất ngữ cảnh HTTP (bao gồm `ipAddress`, `userAgent`, và `userId` từ JWT Token) và gửi log bất đồng bộ ngầm.
+   - **TUYỆT ĐỐI KHÔNG GỌI AUDIT LOG THỦ CÔNG TRONG SERVICE:** Cấm inject `AuditLogsService` vào Service của các feature module để gọi `recordLog`. Việc này gây lặp code (boilerplate), vi phạm nguyên lý Single Responsibility, và làm mất metadata mạng (`ipAddress`, `userAgent`). Service chỉ tập trung vào transaction và business logic.
+2. **Cấu trúc cấu hình `@Auditable(options)`**:
+   - `action`: Hằng số từ `AUDIT_LOG_ACTION` trong `src/modules/audit-logs/audit-logs.constant.ts` (VD: `CREATE`, `UPDATE`, `DELETE`, `WALLET_UPDATE`, `MEMBER_INVITE`, `MEMBER_ROLE_CHANGE`,...).
+   - `entityType`: Hằng số từ `AUDIT_LOG_ENTITY_TYPE` trong `src/modules/audit-logs/audit-logs.constant.ts` (VD: `USER`, `AUTH`, `WALLET`, `WALLET_MEMBER`, `TRANSACTION`, `ACCOUNT`,...).
+   - `entityId`: (Tùy chọn) Định danh bản ghi bị tác động.
+     - Có thể là tên param URL/body: ví dụ `'id'`, `'userId'`.
+     - Hoặc hàm callback: `(req, res) => res?.data?.id || req.params?.id`.
+     - *Mặc định*: Interceptor tự fallback tìm `res?.data?.id` -> `res?.id` -> `req.params?.id` -> `req.body?.id`.
+   - `walletId`: (Tùy chọn) **BẮT BUỘC** khai báo đối với mọi tài nguyên thuộc phạm vi ví (`TRANSACTION`, `ACCOUNT`, `WALLET`, `WALLET_MEMBER`, `BUDGET`).
+     - Có thể là tên param URL/body: ví dụ `'walletId'`, `'id'`.
+     - Hoặc callback: `(req, res) => req.params?.walletId || res?.data?.walletId`.
+     - *Ý nghĩa*: Cung cấp chỉ mục lọc dữ liệu phân quyền theo ví trực tiếp mà không cần JOIN chậm.
+   - `oldValue` & `newValue`: (Tùy chọn) Callback trích xuất dữ liệu trước/sau biến động. Mặc định hệ thống tự động lưu `req.body` (đã mask thông tin nhạy cảm: mật khẩu, token, pin...) làm `newValue`.
+
+#### 6.2.3 Thứ tự chuẩn của Decorator trên API Method
 
 Để code đồng nhất, dễ đọc và bảo trì, các decorator trên mỗi method trong Controller **BẮT BUỘC** tuân theo thứ tự sau:
 
 ```ts
 // 1. HTTP Method Decorator (@Get, @Post, @Patch, @Delete...)
 // 2. Phân quyền: @Permissions(...) hoặc @Public()
-// 3. HttpCode (chỉ khi khác mặc định, VD: @HttpCode(HttpStatus.NO_CONTENT) cho DELETE)
-// 4. @SwaggerDoc({ ... })
+// 3. Ghi vết kiểm toán: @Auditable(...) (BẮT BUỘC cho các route thay đổi dữ liệu hoặc bảo mật)
+// 4. HttpCode (chỉ khi khác mặc định, VD: @HttpCode(HttpStatus.NO_CONTENT) cho DELETE)
+// 5. @SwaggerDoc({ ... })
 ```
 
 #### Ví dụ mẫu Controller chuẩn:
@@ -236,6 +257,11 @@ import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
 import { Permissions } from '../authorization/decorators/permissions.decorator';
 import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
+import { Auditable } from '../audit-logs/decorators/auditable.decorator';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -245,6 +271,10 @@ export class UsersController {
 
   @Post()
   @Permissions(SYSTEM_PERMISSIONS.USERS_CREATE)
+  @Auditable({
+    action: AUDIT_LOG_ACTION.CREATE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+  })
   @SwaggerDoc({
     summary: 'Tạo người dùng mới',
     bodyType: CreateUserDto,
@@ -280,6 +310,11 @@ export class UsersController {
 
   @Patch(':id')
   @Permissions(SYSTEM_PERMISSIONS.USERS_UPDATE)
+  @Auditable({
+    action: AUDIT_LOG_ACTION.UPDATE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+    entityId: 'id',
+  })
   @SwaggerDoc({
     summary: 'Cập nhật người dùng',
     bodyType: UpdateUserDto,
@@ -295,6 +330,11 @@ export class UsersController {
 
   @Delete(':id')
   @Permissions(SYSTEM_PERMISSIONS.USERS_DELETE)
+  @Auditable({
+    action: AUDIT_LOG_ACTION.DELETE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+    entityId: 'id',
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa người dùng',
@@ -309,10 +349,16 @@ export class UsersController {
 - Route theo thứ tự: `POST /` → `GET /` → `GET /:id` → `PATCH /:id` → `DELETE /:id`.
 - `Controller` **không** chứa logic nghiệp vụ (không check unique, không `Object.assign`).
 - `@SwaggerDoc` bắt buộc cho **mọi** route (kể cả DELETE).
+- `@Auditable` bắt buộc cho các route làm biến động dữ liệu (`POST`, `PATCH`, `PUT`, `DELETE`).
 
 ### 6.3 Service (`<module>.service.ts`)
 
 Nơi duy nhất chứa business logic. Mẫu từng method chuẩn:
+
+> [!IMPORTANT]
+> **QUY TẮC BẢO TOÀN SERVICE & AUDIT LOGS:**
+> - Service **tuyệt đối không inject `AuditLogsService`** để gọi thủ công `recordLog`. Mọi hoạt động ghi log phải được cấu hình khai báo tại Controller bằng decorator `@Auditable(...)`.
+> - Service chỉ tập trung giải quyết: kiểm tra ràng buộc nghiệp vụ, bảo toàn tính toàn vẹn dữ liệu (ACID transaction, Pessimistic Lock nếu có xung đột số dư), và gọi Repository/Mapper.
 
 ```ts
 // CREATE: kiểm tra unique → (kiểm tra FK) → tạo → save → mapper
