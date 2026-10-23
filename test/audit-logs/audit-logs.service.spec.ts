@@ -76,6 +76,7 @@ describe('AuditLogsService', () => {
 
   describe('recordLog', () => {
     it('nên ghi nhận audit log ngầm mà không throw error khi DB lỗi', async () => {
+      const loggerSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
       (repo.save as jest.Mock).mockRejectedValue(new Error('DB Timeout'));
 
       await expect(
@@ -85,6 +86,13 @@ describe('AuditLogsService', () => {
           entityType: 'AUTH',
         }),
       ).resolves.not.toThrow();
+
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('DB Timeout'),
+        expect.any(String),
+      );
+      loggerSpy.mockRestore();
     });
   });
 

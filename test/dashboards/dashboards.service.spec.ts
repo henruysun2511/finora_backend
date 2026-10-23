@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DashboardService } from '../../src/modules/dashboards/dashboards.service';
 import { DashboardRepository } from '../../src/modules/dashboards/repositories/dashboards.repository';
 import { WalletsService } from '../../src/modules/wallets/wallets.service';
+import { DashboardMapper } from '../../src/modules/dashboards/mapper/dashboards.mapper';
 import { DashboardWalletAccessDeniedException } from '../../src/modules/dashboards/exceptions/dashboards.exception';
 
 describe('DashboardService', () => {
@@ -29,6 +30,7 @@ describe('DashboardService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DashboardService,
+        DashboardMapper,
         { provide: DashboardRepository, useValue: mockDashboardRepo },
         { provide: WalletsService, useValue: mockWalletsService },
       ],
