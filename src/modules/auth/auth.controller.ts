@@ -28,6 +28,11 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
+import { Auditable } from '../audit-logs/decorators/auditable.decorator';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -143,6 +148,10 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Patch('change-password')
+  @Auditable({
+    action: AUDIT_LOG_ACTION.PASSWORD_CHANGE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.AUTH,
+  })
   @HttpCode(HttpStatus.OK)
   @SwaggerDoc({
     summary: 'Đổi mật khẩu',

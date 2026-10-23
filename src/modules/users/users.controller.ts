@@ -23,6 +23,11 @@ import { ApiResponse } from '../../common/response/api-response';
 import { Permissions } from '../authorization/decorators/permissions.decorator';
 import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Auditable } from '../audit-logs/decorators/auditable.decorator';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -46,6 +51,10 @@ export class UsersController {
   }
 
   @Patch('profile')
+  @Auditable({
+    action: AUDIT_LOG_ACTION.PROFILE_UPDATE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+  })
   @SwaggerDoc({
     summary: 'Cập nhật thông tin cá nhân (Profile)',
     description:
@@ -94,6 +103,10 @@ export class UsersController {
 
   @Patch(':id')
   @Permissions(SYSTEM_PERMISSIONS.USERS_UPDATE)
+  @Auditable({
+    action: AUDIT_LOG_ACTION.UPDATE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+  })
   @SwaggerDoc({
     summary: 'Cập nhật thông tin người dùng',
     description:
@@ -115,6 +128,10 @@ export class UsersController {
 
   @Delete(':id')
   @Permissions(SYSTEM_PERMISSIONS.USERS_DELETE)
+  @Auditable({
+    action: AUDIT_LOG_ACTION.DELETE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   @SwaggerDoc({
     summary: 'Xóa mềm người dùng',
@@ -130,6 +147,10 @@ export class UsersController {
 
   @Post(':id/roles')
   @Permissions(SYSTEM_PERMISSIONS.USERS_ASSIGN_ROLE)
+  @Auditable({
+    action: AUDIT_LOG_ACTION.UPDATE,
+    entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+  })
   @SwaggerDoc({
     summary: 'Gán vai trò cho người dùng',
     description: 'Cập nhật danh sách vai trò (roles) cho tài khoản người dùng',
