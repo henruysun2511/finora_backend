@@ -1,20 +1,22 @@
 // src/modules/ai-chat/services/canned-query.registry.ts
 import { Injectable, Logger } from '@nestjs/common';
-import { TransactionsService } from '../../transactions/transactions.service';
 import { AccountsService } from '../../accounts/accounts.service';
+import { DashboardService } from '../../dashboards/dashboards.service';
+import { AI_CHAT_CONFIG } from '../constants';
 import { ChatMessageType } from '../enums/chat-message-type.enum';
-import { TransactionType } from '../../../common/enums/transaction-type.enum';
+import { MascotCode } from '../interfaces/ai-chat.types';
+import { resolveRange, TimeRange } from '../utils/date.util';
+import { formatMoney, normalizeForMatch } from '../utils/text.util';
+import { ChartBuilderService } from './chart-builder.service';
+import { MascotToneService } from './mascot-tone.service';
+import { CannedQueryFunction, CannedQueryPlan } from './query-planner.service';
 
-export enum CannedQueryFunction {
-  GET_SPENDING_SUMMARY = 'get_spending_summary',
-  GET_WALLET_BALANCES = 'get_wallet_balances',
-  GET_TOP_CATEGORIES = 'get_top_categories',
-}
+export { CannedQueryFunction } from './query-planner.service';
 
 export interface CannedQueryDefinition {
   name: CannedQueryFunction;
   description: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
 }
 
 export interface ExecuteCannedQueryResult {
@@ -23,139 +25,115 @@ export interface ExecuteCannedQueryResult {
   payloadJson: Record<string, any>;
 }
 
+export interface SpendingCategorySummary {
+  id: string;
+  name: string;
+  amount: number;
+  count: number;
+}
+
+export interface SpendingSummaryRangeResult {
+  transactionCount: number;
+  totalExpense: number;
+  totalIncome: number;
+  byCategory: Array<{ label: string; value: number }>;
+  categories: SpendingCategorySummary[];
+}
+
+const TIME_RANGE_PARAM = {
+  type: 'string',
+  enum: Object.values(TimeRange),
+  description: 'Khoảng thời gian (mặc định THIS_MONTH)',
+};
+
+/**
+ * Registry các hàm truy vấn định sẵn (canned queries) được phê duyệt — "function calling" an toàn:
+ * Sử dụng DashboardService để tổng hợp số liệu trực tiếp từ cơ sở dữ liệu qua SQL tối ưu,
+ * đảm bảo dữ liệu đồng nhất 100% với Dashboard chính của ứng dụng.
+ */
 @Injectable()
 export class CannedQueryRegistry {
   private readonly logger = new Logger(CannedQueryRegistry.name);
 
-  // Danh mục các hàm truy vấn định sẵn (Canned Queries) được cấp phép trong hệ thống
   private readonly definitions: CannedQueryDefinition[] = [
     {
       name: CannedQueryFunction.GET_SPENDING_SUMMARY,
       description:
-        'Tra cứu tổng chi tiêu, tổng thu nhập và cơ cấu chi tiêu theo từng danh mục (Pie Chart) trong khoảng thời gian: hôm nay, tuần này, tháng này, tháng trước.',
+        'Tổng chi/thu và cơ cấu chi theo danh mục (biểu đồ tròn) trong một khoảng thời gian; có thể lọc 1 danh mục.',
       parameters: {
-        type: 'OBJECT',
-        properties: {
-          timeRange: {
-            type: 'STRING',
-            enum: ['TODAY', 'THIS_WEEK', 'THIS_MONTH', 'LAST_MONTH'],
-            description: 'Khoảng thời gian muốn thống kê chi tiêu (mặc định: THIS_MONTH)',
-          },
-          categoryName: {
-            type: 'STRING',
-            description: 'Tên danh mục cần lọc cụ thể nếu có (ví dụ: Ăn uống, Đi lại)',
-          },
-        },
-      },
-    },
-    {
-      name: CannedQueryFunction.GET_WALLET_BALANCES,
-      description:
-        'Tra cứu số dư của tất cả các tài khoản trong ví và tổng tiền hiện có (Stat Card).',
-      parameters: {
-        type: 'OBJECT',
-        properties: {},
+        timeRange: TIME_RANGE_PARAM,
+        categoryName: { type: 'string' },
       },
     },
     {
       name: CannedQueryFunction.GET_TOP_CATEGORIES,
       description:
-        'Tra cứu top các danh mục chi tiêu tốn nhiều tiền nhất trong tháng (Bar Chart).',
+        'Top danh mục chi nhiều nhất trong một khoảng thời gian (biểu đồ cột).',
       parameters: {
-        type: 'OBJECT',
-        properties: {
-          timeRange: {
-            type: 'STRING',
-            enum: ['THIS_MONTH', 'LAST_MONTH'],
-            description: 'Khoảng thời gian thống kê top danh mục (mặc định: THIS_MONTH)',
-          },
-          limit: {
-            type: 'NUMBER',
-            description: 'Số lượng danh mục cần lấy (mặc định: 5)',
-          },
-        },
+        timeRange: TIME_RANGE_PARAM,
+        limit: { type: 'number', maximum: 10 },
       },
+    },
+    {
+      name: CannedQueryFunction.GET_WALLET_BALANCES,
+      description: 'Số dư từng tài khoản và tổng số dư của ví (stat card).',
+      parameters: {},
+    },
+    {
+      name: CannedQueryFunction.COMPARE_PERIODS,
+      description:
+        'So sánh tổng chi của kỳ hiện tại với kỳ liền trước (vd tháng này vs tháng trước).',
+      parameters: { timeRange: TIME_RANGE_PARAM },
+    },
+    {
+      name: CannedQueryFunction.GET_RECENT_TRANSACTIONS,
+      description: 'Danh sách các giao dịch gần đây nhất.',
+      parameters: { limit: { type: 'number', maximum: 20 } },
     },
   ];
 
   constructor(
-    private readonly transactionsService: TransactionsService,
+    private readonly dashboardService: DashboardService,
     private readonly accountsService: AccountsService,
+    private readonly chartBuilder: ChartBuilderService,
+    private readonly tone: MascotToneService,
   ) {}
 
-  /**
-   * Lấy danh sách định nghĩa các hàm truy vấn gửi cho LLM
-   */
   getDefinitions(): CannedQueryDefinition[] {
     return this.definitions;
   }
 
-  /**
-   * Kiểm tra xem tên hàm truy vấn có được hệ thống hỗ trợ hay không
-   */
-  isSupported(functionName: string): boolean {
-    return Object.values(CannedQueryFunction).includes(functionName as CannedQueryFunction);
+  isSupported(fn: string | null | undefined): boolean {
+    return !!fn && this.definitions.some((d) => d.name === fn);
   }
 
-  /**
-   * Thực thi hàm Canned Query được chỉ định
-   */
   async execute(params: {
-    functionName: string;
-    args: Record<string, any>;
+    plan: CannedQueryPlan;
     userId: string;
     walletId: string;
-    mascotCode: string;
+    mascot: MascotCode;
   }): Promise<ExecuteCannedQueryResult> {
-    const { functionName, args, userId, walletId, mascotCode } = params;
-
-    switch (functionName) {
+    const { plan, userId, walletId, mascot } = params;
+    switch (plan.functionName) {
       case CannedQueryFunction.GET_SPENDING_SUMMARY:
-        return this.executeSpendingSummary(userId, walletId, mascotCode, args);
-
-      case CannedQueryFunction.GET_WALLET_BALANCES:
-        return this.executeWalletBalances(userId, walletId, mascotCode);
-
+        return this.spendingSummary(userId, walletId, mascot, plan);
       case CannedQueryFunction.GET_TOP_CATEGORIES:
-        return this.executeTopCategories(userId, walletId, mascotCode, args);
-
+        return this.topCategories(userId, walletId, mascot, plan);
+      case CannedQueryFunction.GET_WALLET_BALANCES:
+        return this.walletBalances(userId, walletId, mascot);
+      case CannedQueryFunction.COMPARE_PERIODS:
+        return this.comparePeriods(userId, walletId, mascot, plan);
+      case CannedQueryFunction.GET_RECENT_TRANSACTIONS:
+        return this.recentTransactions(userId, walletId, mascot, plan);
       default:
-        return this.getUnsupportedQueryResult(functionName, mascotCode);
+        return this.unsupported(mascot);
     }
   }
 
-  /**
-   * Trả về kết quả thông báo khi người dùng yêu cầu hàm truy vấn chưa hỗ trợ
-   */
-  getUnsupportedQueryResult(
-    functionName: string,
-    mascotCode: string,
-  ): ExecuteCannedQueryResult {
-    let textContent =
-      'Finora hiện chưa hỗ trợ chức năng tra cứu này. Hiện tại tôi có thể giúp bạn: ' +
-      'xem cơ cấu chi tiêu tháng này, tra cứu số dư ví, hoặc xem top danh mục chi nhiều nhất.';
-
-    if (mascotCode === 'ruby') {
-      textContent =
-        'Ủa chức năng tra cứu này Ruby chưa hỗ trợ nè cưng! 💳 ' +
-        'Cưng có thể xem biểu đồ chi tiêu tháng, kiểm tra số dư ví hoặc top danh mục ngốn tiền nha!';
-    } else if (mascotCode === 'ash') {
-      textContent =
-        'Hệ thống chưa hỗ trợ tra cứu mục này đâu bạn ơi... ' +
-        'Hãy tập trung kiểm tra chi tiêu tháng này hoặc xem lại số dư ví trước đã nhé!';
-    } else if (mascotCode === 'penny') {
-      textContent =
-        'Dạ mục này em chưa có số liệu rồi nè 🐷. ' +
-        'Bạn có muốn xem tổng chi tiêu hay đếm xem các tài khoản còn bao nhiêu tiền hông?';
-    } else if (mascotCode === 'bellingham') {
-      textContent =
-        'Báo cáo mục này chưa có trong danh mục sếp ơi! 🎩 ' +
-        'Tôi có thể xuất ngay báo cáo chi tiêu tháng hoặc tổng số dư tài sản cho sếp!';
-    }
-
+  unsupported(mascot: MascotCode): ExecuteCannedQueryResult {
     return {
       messageType: ChatMessageType.TEXT,
-      textContent,
+      textContent: this.tone.say(mascot, 'unsupported'),
       payloadJson: {
         supportedQueries: this.definitions.map((d) => ({
           name: d.name,
@@ -165,199 +143,319 @@ export class CannedQueryRegistry {
     };
   }
 
-  // ── [CANNED QUERY 1: TỔNG QUAN CHI TIÊU] ────────────────────────────────────
-
-  private async executeSpendingSummary(
+  /**
+   * Tổng hợp thu/chi theo khoảng ngày qua DashboardService (SQL aggregate tối ưu, không tải mảng vào RAM).
+   */
+  async summarizeRange(
     userId: string,
     walletId: string,
-    mascotCode: string,
-    args: Record<string, any>,
-  ): Promise<ExecuteCannedQueryResult> {
-    const timeRange = args.timeRange || 'THIS_MONTH';
-    const now = new Date();
-    const queryMonth = now.getUTCMonth() + 1;
-    const queryYear = now.getUTCFullYear();
-
-    const gridData = await this.transactionsService.getDailyGrid(userId, {
-      month: queryMonth,
-      year: queryYear,
+    from: string,
+    to: string,
+  ): Promise<SpendingSummaryRangeResult> {
+    const data = await this.dashboardService.getSpendingSummaryByRange(
+      userId,
       walletId,
-    });
-
-    const summary = gridData?.summary || {
-      totalExpense: 0,
-      totalIncome: 0,
-      totalTransactions: 0,
-    };
-    const totalExpense = summary.totalExpense || 0;
-    const totalIncome = summary.totalIncome || 0;
-
-    const formattedExpense = new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(totalExpense);
-
-    // Tính tổng từng danh mục
-    const categoryTotals: Record<string, { label: string; value: number }> = {};
-    if (Array.isArray(gridData?.days)) {
-      for (const day of gridData.days) {
-        if (Array.isArray(day.transactions)) {
-          for (const tx of day.transactions) {
-            if (tx.type === TransactionType.EXPENSE) {
-              const catName = tx.categoryName || 'Khác';
-              const amt = Number(tx.amount) || 0;
-              if (!categoryTotals[catName]) {
-                categoryTotals[catName] = { label: catName, value: 0 };
-              }
-              categoryTotals[catName].value += amt;
-            }
-          }
-        }
-      }
-    }
-
-    const data = Object.values(categoryTotals).map((item) => ({
-      label: item.label,
-      value: item.value,
-      percentage: totalExpense > 0 ? Math.round((item.value / totalExpense) * 100) : 0,
-    }));
-
-    let textContent = `Trong tháng này, bạn đã chi tiêu ${formattedExpense} trên tổng số ${summary.totalTransactions || 0} giao dịch.`;
-    if (mascotCode === 'ruby') {
-      textContent = `Tháng này cưng quẹt thẻ hết ${formattedExpense} rồi đó nha! 💳 Xem biểu đồ bên dưới để biết tiền trôi về đâu nè!`;
-    } else if (mascotCode === 'ash') {
-      textContent = `Tháng này bạn đã tiêu ${formattedExpense} rồi... Cần thắt lưng buộc bụng lại ngay nhé!`;
-    } else if (mascotCode === 'penny') {
-      textContent = `Tháng này bạn đã tiêu hết ${formattedExpense} rồi nè. Xem biểu đồ để tiết kiệm hơn nha! 🐷`;
-    }
+      from,
+      to,
+    );
 
     return {
+      transactionCount: data.transactionCount,
+      totalExpense: data.totalExpense,
+      totalIncome: data.totalIncome,
+      byCategory: data.categories.map((c) => ({
+        label: c.name,
+        value: c.amount,
+      })),
+      categories: data.categories,
+    };
+  }
+
+  // ── Các hàm truy vấn ───────────────────────────────────────────────────────
+
+  private async spendingSummary(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+    plan: CannedQueryPlan,
+  ): Promise<ExecuteCannedQueryResult> {
+    const range = resolveRange(plan.params.timeRange);
+    const s = await this.summarizeRange(userId, walletId, range.from, range.to);
+    const base = {
+      functionName: CannedQueryFunction.GET_SPENDING_SUMMARY,
+      timeRange: range.range,
+      periodLabel: range.label,
+      from: range.from,
+      to: range.to,
+    };
+
+    if (s.transactionCount === 0) {
+      return {
+        messageType: ChatMessageType.TEXT,
+        textContent: this.tone.say(mascot, 'noData', { period: range.label }),
+        payloadJson: { ...base, empty: true },
+      };
+    }
+
+    if (plan.params.categoryName) {
+      const key = normalizeForMatch(plan.params.categoryName);
+      const matched = s.categories.find(
+        (c) => normalizeForMatch(c.name) === key,
+      );
+      const total = matched ? matched.amount : 0;
+      const count = matched ? matched.count : 0;
+      const pct =
+        s.totalExpense > 0 ? Math.round((total / s.totalExpense) * 100) : 0;
+
+      return {
+        messageType: ChatMessageType.STAT_CARD,
+        textContent: count > 0
+          ? this.tone.say(mascot, 'spendingCategory', {
+              period: range.label,
+              category: plan.params.categoryName,
+              total: formatMoney(total),
+              pct,
+              count,
+            })
+          : this.tone.say(mascot, 'noData', { period: range.label }),
+        payloadJson: {
+          ...base,
+          categoryName: plan.params.categoryName,
+          total,
+          totalFormatted: formatMoney(total),
+          percentOfExpense: pct,
+          transactionCount: count,
+        },
+      };
+    }
+
+    const pie = this.chartBuilder.buildPie(s.byCategory);
+    return {
       messageType: ChatMessageType.CHART_PIE,
-      textContent,
+      textContent: this.tone.say(mascot, 'spending', {
+        period: range.label,
+        total: formatMoney(s.totalExpense),
+        count: s.transactionCount,
+      }),
       payloadJson: {
+        ...base,
         chartType: 'pie',
-        functionName: CannedQueryFunction.GET_SPENDING_SUMMARY,
-        timeRange,
-        totalExpense,
-        totalIncome,
-        summary: gridData?.summary,
-        period: gridData?.period,
-        data,
+        totalExpense: s.totalExpense,
+        totalIncome: s.totalIncome,
+        net: s.totalIncome - s.totalExpense,
+        transactionCount: s.transactionCount,
+        data: pie.data,
       },
     };
   }
 
-  // ── [CANNED QUERY 2: SỐ DƯ TÀI KHOẢN VÍ] ───────────────────────────────────
-
-  private async executeWalletBalances(
+  private async topCategories(
     userId: string,
     walletId: string,
-    mascotCode: string,
+    mascot: MascotCode,
+    plan: CannedQueryPlan,
   ): Promise<ExecuteCannedQueryResult> {
-    const accountsPage = await this.accountsService.listAccounts(userId, {
+    const range = resolveRange(plan.params.timeRange);
+    const limit = Math.min(Math.max(plan.params.limit ?? 5, 1), 10);
+    const s = await this.summarizeRange(userId, walletId, range.from, range.to);
+    const base = {
+      functionName: CannedQueryFunction.GET_TOP_CATEGORIES,
+      timeRange: range.range,
+      periodLabel: range.label,
+      from: range.from,
+      to: range.to,
+      limit,
+    };
+
+    if (!s.byCategory.length) {
+      return {
+        messageType: ChatMessageType.TEXT,
+        textContent: this.tone.say(mascot, 'noData', { period: range.label }),
+        payloadJson: { ...base, empty: true },
+      };
+    }
+
+    const bar = this.chartBuilder.buildBar(s.byCategory, limit);
+    return {
+      messageType: ChatMessageType.CHART_BAR,
+      textContent: this.tone.say(mascot, 'top', {
+        period: range.label,
+        top: bar.data[0]?.label ?? '',
+      }),
+      payloadJson: {
+        ...base,
+        chartType: 'bar',
+        totalExpense: s.totalExpense,
+        data: bar.data,
+      },
+    };
+  }
+
+  private async walletBalances(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+  ): Promise<ExecuteCannedQueryResult> {
+    const page = await this.accountsService.listAccounts(userId, {
       walletId,
       page: 1,
-      limit: 50,
+      limit: 100,
       isArchived: false,
     } as any);
-
-    const accounts = accountsPage.items || [];
+    const accounts = (page as any)?.items ?? [];
     const totalBalance = accounts.reduce(
-      (sum, a) => sum + (Number(a.balance) || 0),
+      (s: number, a: any) => s + (Number(a.balance) || 0),
       0,
     );
-
-    const formattedTotal = new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(totalBalance);
-
-    let textContent = `Tổng số dư các tài khoản trong ví hiện tại là: ${formattedTotal}.`;
-    if (mascotCode === 'ruby') {
-      textContent = `Ví của cưng đang có tổng cộng ${formattedTotal} nè! 💳 Đủ ngân sách để tiếp tục săn deal không cưng?`;
-    } else if (mascotCode === 'ash') {
-      textContent = `Số dư hiện tại là ${formattedTotal}. Nhớ giữ tiền phòng thủ, đừng tiêu hết đấy!`;
-    } else if (mascotCode === 'bellingham') {
-      textContent = `Báo cáo số dư tài sản khả dụng của sếp: ${formattedTotal}. Sẵn sàng phân bổ dòng tiền mới! 🎩`;
-    } else if (mascotCode === 'penny') {
-      textContent = `Heo đất của bạn đang có tổng cộng ${formattedTotal} nè! 🐷 Tích tiểu thành đại nha!`;
-    }
+    const currency = accounts[0]?.currency || 'VND';
+    const mixedCurrency =
+      new Set(accounts.map((a: any) => a.currency || 'VND')).size > 1;
 
     return {
       messageType: ChatMessageType.STAT_CARD,
-      textContent,
+      textContent: this.tone.say(mascot, 'balance', {
+        balance: formatMoney(totalBalance, currency),
+      }),
       payloadJson: {
         functionName: CannedQueryFunction.GET_WALLET_BALANCES,
         totalBalance,
-        totalBalanceFormatted: formattedTotal,
+        totalBalanceFormatted: formatMoney(totalBalance, currency),
+        currency,
+        mixedCurrency,
         accountCount: accounts.length,
-        accounts: accounts.map((a) => ({
+        accounts: accounts.map((a: any) => ({
           id: a.id,
           name: a.name,
-          balance: a.balance,
-          currency: a.currency,
+          balance: Number(a.balance) || 0,
+          currency: a.currency || 'VND',
+          balanceFormatted: formatMoney(Number(a.balance) || 0, a.currency),
         })),
       },
     };
   }
 
-  // ── [CANNED QUERY 3: TOP DANH MỤC CHI TIÊU] ─────────────────────────────────
-
-  private async executeTopCategories(
+  private async comparePeriods(
     userId: string,
     walletId: string,
-    mascotCode: string,
-    args: Record<string, any>,
+    mascot: MascotCode,
+    plan: CannedQueryPlan,
   ): Promise<ExecuteCannedQueryResult> {
-    const limit = Math.min(Number(args.limit) || 5, 10);
-    const now = new Date();
-    const queryMonth = now.getUTCMonth() + 1;
-    const queryYear = now.getUTCFullYear();
+    const range = resolveRange(plan.params.timeRange);
+    const [cur, prev] = await Promise.all([
+      this.summarizeRange(userId, walletId, range.from, range.to),
+      this.summarizeRange(
+        userId,
+        walletId,
+        range.previous.from,
+        range.previous.to,
+      ),
+    ]);
+    const base = {
+      functionName: CannedQueryFunction.COMPARE_PERIODS,
+      timeRange: range.range,
+      periodLabel: range.label,
+      previousLabel: range.previous.label,
+    };
 
-    const gridData = await this.transactionsService.getDailyGrid(userId, {
-      month: queryMonth,
-      year: queryYear,
-      walletId,
-    });
-
-    const categoryTotals: Record<string, { label: string; value: number }> = {};
-    if (Array.isArray(gridData?.days)) {
-      for (const day of gridData.days) {
-        if (Array.isArray(day.transactions)) {
-          for (const tx of day.transactions) {
-            if (tx.type === TransactionType.EXPENSE) {
-              const catName = tx.categoryName || 'Khác';
-              const amt = Number(tx.amount) || 0;
-              if (!categoryTotals[catName]) {
-                categoryTotals[catName] = { label: catName, value: 0 };
-              }
-              categoryTotals[catName].value += amt;
-            }
-          }
-        }
-      }
+    if (cur.transactionCount === 0 && prev.transactionCount === 0) {
+      return {
+        messageType: ChatMessageType.TEXT,
+        textContent: this.tone.say(mascot, 'noData', {
+          period: `${range.label} và ${range.previous.label}`,
+        }),
+        payloadJson: { ...base, empty: true },
+      };
     }
 
-    // Sắp xếp giảm dần và lấy top N danh mục
-    const sortedCategories = Object.values(categoryTotals)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, limit);
+    const chart = this.chartBuilder.buildComparison(
+      { label: range.label, value: cur.totalExpense },
+      { label: range.previous.label, value: prev.totalExpense },
+    );
 
-    let textContent = `Dưới đây là top ${sortedCategories.length} danh mục bạn chi tiêu nhiều nhất trong tháng:`;
-    if (mascotCode === 'ruby') {
-      textContent = `Đây nè cưng! Top ${sortedCategories.length} khoản ngốn nhiều tiền nhất tháng này của cưng đây: 💳`;
-    } else if (mascotCode === 'ash') {
-      textContent = `Xem kỹ top ${sortedCategories.length} danh mục này để biết chỗ nào cần cắt giảm ngay lập tức nhé!`;
-    }
+    const prevMap = new Map(prev.byCategory.map((i) => [i.label, i.value]));
+    const curMap = new Map(cur.byCategory.map((i) => [i.label, i.value]));
+    const labels = new Set([...prevMap.keys(), ...curMap.keys()]);
+    const categoryChanges = [...labels]
+      .map((label) => ({
+        label,
+        current: curMap.get(label) ?? 0,
+        previous: prevMap.get(label) ?? 0,
+        delta: (curMap.get(label) ?? 0) - (prevMap.get(label) ?? 0),
+      }))
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 5);
+
+    const key =
+      chart.direction === 'up'
+        ? 'compareUp'
+        : chart.direction === 'down'
+          ? 'compareDown'
+          : 'compareSame';
 
     return {
       messageType: ChatMessageType.CHART_BAR,
-      textContent,
+      textContent: this.tone.say(mascot, key, {
+        period: range.label,
+        previous: range.previous.label,
+        total: formatMoney(cur.totalExpense),
+        delta: formatMoney(chart.deltaAbs),
+        pct: chart.deltaPercent ?? '—',
+      }),
       payloadJson: {
-        chartType: 'bar',
-        functionName: CannedQueryFunction.GET_TOP_CATEGORIES,
-        limit,
-        data: sortedCategories,
+        ...base,
+        ...chart,
+        currentTotal: cur.totalExpense,
+        previousTotal: prev.totalExpense,
+        categoryChanges,
+      },
+    };
+  }
+
+  private async recentTransactions(
+    userId: string,
+    walletId: string,
+    mascot: MascotCode,
+    plan: CannedQueryPlan,
+  ): Promise<ExecuteCannedQueryResult> {
+    const limit = Math.min(
+      Math.max(
+        plan.params.limit ?? AI_CHAT_CONFIG.RECENT_TRANSACTIONS_LIMIT,
+        1,
+      ),
+      20,
+    );
+    const txs = await this.dashboardService.getRecentTransactions(
+      userId,
+      walletId,
+      limit,
+    );
+
+    if (!txs.length) {
+      return {
+        messageType: ChatMessageType.TEXT,
+        textContent: this.tone.say(mascot, 'noData', {
+          period: 'thời gian gần đây',
+        }),
+        payloadJson: {
+          functionName: CannedQueryFunction.GET_RECENT_TRANSACTIONS,
+          empty: true,
+        },
+      };
+    }
+
+    return {
+      messageType: ChatMessageType.TRANSACTION_LIST,
+      textContent: this.tone.say(mascot, 'recent', { count: txs.length }),
+      payloadJson: {
+        functionName: CannedQueryFunction.GET_RECENT_TRANSACTIONS,
+        items: txs.map((t) => ({
+          name: t.name,
+          amount: t.amount,
+          amountFormatted: formatMoney(t.amount),
+          type: t.type,
+          categoryName: t.categoryName,
+          date: t.date,
+        })),
       },
     };
   }

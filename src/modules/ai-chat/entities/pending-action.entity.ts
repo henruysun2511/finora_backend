@@ -1,10 +1,4 @@
-import {
-  Entity,
-  Column,
-  Index,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { PendingActionStatus } from '../enums/pending-action-status.enum';
 import { User } from '../../users/entities/user.entity';

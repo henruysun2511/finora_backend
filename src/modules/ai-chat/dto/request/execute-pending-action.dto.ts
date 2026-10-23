@@ -7,13 +7,14 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
-import { AI_CHAT_CONFIG } from '../../ai-chat.constant';
+import { Transform, Type } from 'class-transformer';
+import { AI_CHAT_CONFIG } from '../../constants';
 
 export enum PendingActionDecision {
   CONFIRM = 'CONFIRM',
@@ -21,10 +22,13 @@ export enum PendingActionDecision {
 }
 
 export class EditTransactionDraftDto {
-  @ApiPropertyOptional({ example: 'Phở bò tái nạm', description: 'Tên giao dịch' })
+  @ApiPropertyOptional({
+    example: 'Phở bò tái nạm',
+    description: 'Tên giao dịch',
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(AI_CHAT_CONFIG.MAX_TRANSACTION_NAME_LENGTH)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   name?: string;
 
@@ -45,18 +49,24 @@ export class EditTransactionDraftDto {
 
   @ApiPropertyOptional({
     example: '22222222-2222-2222-2222-222222222222',
-    description: 'ID danh mục chi tiêu',
+    description: 'ID danh mục',
   })
   @IsOptional()
   @IsUUID(undefined, { message: 'categoryId phải là UUID hợp lệ' })
   categoryId?: string;
 
-  @ApiPropertyOptional({ example: '2026-10-20T10:00:00.000Z', description: 'Ngày giao dịch' })
+  @ApiPropertyOptional({
+    example: '2026-10-20',
+    description: 'Ngày giao dịch dạng YYYY-MM-DD (giờ Việt Nam)',
+  })
   @IsOptional()
-  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date phải có dạng YYYY-MM-DD' })
   date?: string;
 
-  @ApiPropertyOptional({ example: 'Ăn cùng đồng nghiệp', description: 'Ghi chú thêm' })
+  @ApiPropertyOptional({
+    example: 'Ăn cùng đồng nghiệp',
+    description: 'Ghi chú thêm',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -68,15 +78,17 @@ export class ExecutePendingActionDto {
   @ApiProperty({
     enum: PendingActionDecision,
     example: PendingActionDecision.CONFIRM,
-    description: 'Quyết định của người dùng: CONFIRM (Xác nhận tạo) hoặc REJECT (Hủy bỏ)',
+    description: 'CONFIRM (xác nhận lưu) hoặc REJECT (hủy bỏ)',
   })
   @IsNotEmpty({ message: 'action không được để trống' })
-  @IsEnum(PendingActionDecision, { message: 'action phải là CONFIRM hoặc REJECT' })
+  @IsEnum(PendingActionDecision, {
+    message: 'action phải là CONFIRM hoặc REJECT',
+  })
   action: PendingActionDecision;
 
   @ApiPropertyOptional({
     type: EditTransactionDraftDto,
-    description: 'Dữ liệu chỉnh sửa trước khi lưu (nếu người dùng bấm Sửa thay vì Xác nhận ngay)',
+    description: 'Dữ liệu người dùng chỉnh sửa/bổ sung trước khi lưu',
   })
   @IsOptional()
   @ValidateNested()

@@ -1,10 +1,10 @@
-import { AiChatController } from '../../src/modules/ai-chat/ai-chat.controller';
-import { AiChatService } from '../../src/modules/ai-chat/ai-chat.service';
-import { ChatRole } from '../../src/modules/ai-chat/enums/chat-role.enum';
-import { ChatMessageType } from '../../src/modules/ai-chat/enums/chat-message-type.enum';
-import { AiIntent } from '../../src/modules/ai-chat/enums/ai-intent.enum';
-import { PendingActionStatus } from '../../src/modules/ai-chat/enums/pending-action-status.enum';
-import { PendingActionDecision } from '../../src/modules/ai-chat/dto/request/execute-pending-action.dto';
+import { AiChatController } from '../../src/modules/ai-chat-draft/ai-chat.controller';
+import { AiChatService } from '../../src/modules/ai-chat-draft/ai-chat.service';
+import { ChatRole } from '../../src/modules/ai-chat-draft/enums/chat-role.enum';
+import { ChatMessageType } from '../../src/modules/ai-chat-draft/enums/chat-message-type.enum';
+import { AiIntent } from '../../src/modules/ai-chat-draft/enums/ai-intent.enum';
+import { PendingActionStatus } from '../../src/modules/ai-chat-draft/enums/pending-action-status.enum';
+import { PendingActionDecision } from '../../src/modules/ai-chat-draft/dto/request/execute-pending-action.dto';
 
 describe('AiChatController', () => {
   let controller: AiChatController;

@@ -551,4 +551,28 @@ export class DashboardService {
     }
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   }
+
+  async getSpendingSummaryByRange(
+    userId: string,
+    walletId: string | undefined,
+    from: string,
+    to: string,
+  ) {
+    await this.validateWalletAccess(userId, walletId);
+    return this.dashboardRepo.getSpendingSummaryByRange(
+      userId,
+      walletId,
+      from,
+      to,
+    );
+  }
+
+  async getRecentTransactions(
+    userId: string,
+    walletId: string | undefined,
+    limit = 5,
+  ) {
+    await this.validateWalletAccess(userId, walletId);
+    return this.dashboardRepo.getRecentTransactions(userId, walletId, limit);
+  }
 }

@@ -1,27 +1,27 @@
-import { AiChatService } from '../../src/modules/ai-chat/ai-chat.service';
-import { ChatMessageRepository } from '../../src/modules/ai-chat/repositories/chat-message.repository';
-import { PendingActionRepository } from '../../src/modules/ai-chat/repositories/pending-action.repository';
-import { LlmService } from '../../src/modules/ai-chat/services/llm.service';
-import { AiChatMapper } from '../../src/modules/ai-chat/mapper/ai-chat.mapper';
+import { AiChatService } from '../../src/modules/ai-chat-draft/ai-chat.service';
+import { ChatMessageRepository } from '../../src/modules/ai-chat-draft/repositories/chat-message.repository';
+import { PendingActionRepository } from '../../src/modules/ai-chat-draft/repositories/pending-action.repository';
+import { LlmService } from '../../src/modules/ai-chat-draft/services/llm.service';
+import { AiChatMapper } from '../../src/modules/ai-chat-draft/mapper/ai-chat.mapper';
 import { WalletsService } from '../../src/modules/wallets/wallets.service';
 import { AccountsService } from '../../src/modules/accounts/accounts.service';
 import { CategoriesService } from '../../src/modules/categories/categories.service';
 import { TransactionsService } from '../../src/modules/transactions/transactions.service';
 import { MascotsService } from '../../src/modules/mascots/mascots.service';
 import { SettingsService } from '../../src/modules/settings/settings.service';
-import { ChatRole } from '../../src/modules/ai-chat/enums/chat-role.enum';
-import { ChatMessageType } from '../../src/modules/ai-chat/enums/chat-message-type.enum';
-import { PendingActionStatus } from '../../src/modules/ai-chat/enums/pending-action-status.enum';
-import { AiIntent } from '../../src/modules/ai-chat/enums/ai-intent.enum';
-import { PendingActionDecision } from '../../src/modules/ai-chat/dto/request/execute-pending-action.dto';
+import { ChatRole } from '../../src/modules/ai-chat-draft/enums/chat-role.enum';
+import { ChatMessageType } from '../../src/modules/ai-chat-draft/enums/chat-message-type.enum';
+import { PendingActionStatus } from '../../src/modules/ai-chat-draft/enums/pending-action-status.enum';
+import { AiIntent } from '../../src/modules/ai-chat-draft/enums/ai-intent.enum';
+import { PendingActionDecision } from '../../src/modules/ai-chat-draft/dto/request/execute-pending-action.dto';
 import {
   PendingActionNotFoundException,
   PendingActionExpiredException,
   PendingActionAlreadyProcessedException,
-} from '../../src/modules/ai-chat/exceptions/ai-chat.exception';
+} from '../../src/modules/ai-chat-draft/exceptions/ai-chat.exception';
 import { TransactionType } from '../../src/common/enums/transaction-type.enum';
 import { AiProvider } from '../../src/modules/settings/enums/ai-provider.enum';
-import { CannedQueryRegistry } from '../../src/modules/ai-chat/services/canned-query.registry';
+import { CannedQueryRegistry } from '../../src/modules/ai-chat-draft/services/canned-query.registry';
 
 describe('AiChatService', () => {
   let service: AiChatService;
