@@ -30,9 +30,10 @@ Read the following files:
 - docs/testing-guide.md
 - docs/development-workflow.md
 
-> **LƯU Ý QUAN TRỌNG (DYNAMIC RBAC):**
+> **LƯU Ý QUAN TRỌNG (DYNAMIC RBAC & AUDIT LOGS):**
 > - Mọi API route trong Controller bắt buộc phải có `@Permissions(SYSTEM_PERMISSIONS.<RESOURCE>_<ACTION>)` (hoặc `@Public()` nếu API mở).
 > - **TUYỆT ĐỐI KHÔNG** hardcode `@Roles('ADMIN')` vì hệ thống phân quyền động do người dùng cấu hình trên UI.
+> - **AUDIT LOG KHAI BÁO TẠI CONTROLLER:** Sử dụng decorator `@Auditable(...)` trên các endpoint làm thay đổi dữ liệu (`POST`, `PATCH`, `DELETE`). **TUYỆT ĐỐI KHÔNG** inject `AuditLogsService` vào Service để gọi `recordLog` thủ công (tránh lặp code và mất metadata mạng).
 
 
 ## 1. Think Before Coding

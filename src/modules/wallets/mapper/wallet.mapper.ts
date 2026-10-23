@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Wallet } from '../entities/wallet.entity';
+import { WalletMember } from '../entities/wallet-member.entity';
 import { Account } from '../../accounts/entities/account.entity';
 import { CreateWalletDto } from '../dto/request/create-wallet.dto';
 import { WalletResponseDto } from '../dto/response/wallet-response.dto';
 import { WalletAccountResponseDto } from '../dto/response/wallet-account-response.dto';
 import { WalletBalanceResponseDto } from '../dto/response/wallet-balance-response.dto';
+import { WalletMemberResponseDto } from '../dto/response/wallet-member-response.dto';
+import { WalletMemberInviteResponseDto } from '../dto/response/wallet-member-invite-response.dto';
 import { WalletMemberRole } from '../../../common/enums/wallet-member-role.enum';
 import { WALLET_DEFAULTS } from '../wallets.constant';
 
@@ -111,4 +114,34 @@ export class WalletMapper {
       accountsCount: accounts.filter((a) => !a.isArchived).length,
     };
   }
+
+  toMemberResponse(member: WalletMember): WalletMemberResponseDto {
+    return {
+      id: member.id,
+      userId: member.userId,
+      fullName: member.user?.fullName ?? '',
+      email: member.user?.email ?? '',
+      avatar: member.user?.avatar,
+      role: member.role,
+      status: member.status,
+      joinedAt: member.joinedAt,
+      createdAt: member.createdAt,
+    };
+  }
+
+  toMemberResponseList(members: WalletMember[]): WalletMemberResponseDto[] {
+    return members.map((m) => this.toMemberResponse(m));
+  }
+
+  toMemberInviteResponse(member: WalletMember): WalletMemberInviteResponseDto {
+    return {
+      id: member.id,
+      walletId: member.walletId,
+      userId: member.userId,
+      role: member.role,
+      status: member.status,
+      createdAt: member.createdAt,
+    };
+  }
 }
+

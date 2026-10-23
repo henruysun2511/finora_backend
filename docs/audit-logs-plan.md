@@ -87,13 +87,27 @@ Hệ thống kết hợp **2 cấp độ phân quyền** chặt chẽ:
 
 ---
 
-## 4. Cơ chế Kỹ thuật: Ghi Log Bất đồng bộ Không chặn (Non-blocking)
+## 4. Cơ chế Kỹ thuật: Ghi Log Bất đồng bộ Không chặn (Non-blocking Declarative Auditing)
 
 > [!TIP]
-> **Nguyên tắc Hiệu năng (Performance Principle):**
-> Ghi log tuyệt đối không được làm chậm (block) thời gian phản hồi của các request giao dịch nghiệp vụ chính. Nếu DB ghi log gặp trục trặc, **không bao giờ** được làm rollback giao dịch tài chính chính của người dùng.
+> **Nguyên tắc Hiệu năng & Kiến trúc Sạch (Clean Architecture & Performance Principle):**
+> 1. **Ghi log không chặn (Non-blocking):** Tuyệt đối không làm chậm thời gian phản hồi của request. Nếu ghi audit log lỗi, **không bao giờ** làm rollback giao dịch tài chính chính của người dùng.
+> 2. **Khai báo tại Controller (@Auditable):** Tuyệt đối không inject `AuditLogsService` vào các Service nghiệp vụ để gọi log thủ công. Việc ghi nhận log được thực hiện khai báo (declarative) tại tầng Controller thông qua decorator `@Auditable(...)` kết hợp với `AuditLogInterceptor` toàn cục. Cách làm này loại bỏ hoàn toàn code lặp (boilerplate) trong Service và tự động thu thập đầy đủ metadata mạng (`ipAddress`, `userAgent`, `userId` từ JWT).
 
-### Phương thức `AuditLogsService.recordLog`
+### 4.1. Decorator `@Auditable` tại Controller Layer
+```typescript
+@Post('invite')
+@Permissions(SYSTEM_PERMISSIONS.WALLETS_MEMBER_INVITE)
+@Auditable({
+  action: AUDIT_LOG_ACTION.MEMBER_INVITE,
+  entityType: AUDIT_LOG_ENTITY_TYPE.WALLET_MEMBER,
+  entityId: (req, res) => res?.data?.id,
+  walletId: 'walletId',
+})
+async invite(...) { ... }
+```
+
+### 4.2. Cơ chế Thực thi ngầm qua `AuditLogsService.recordLog`
 ```typescript
 @Injectable()
 export class AuditLogsService {
@@ -102,7 +116,7 @@ export class AuditLogsService {
   constructor(private readonly auditLogRepo: AuditLogRepository) {}
 
   /**
-   * [CROSS-MODULE] Ghi nhận audit log an toàn, bất đồng bộ ngầm.
+   * [CROSS-MODULE / INTERCEPTOR] Ghi nhận audit log an toàn, bất đồng bộ ngầm.
    * Lỗi nội bộ trong quá trình ghi log được bắt trọn để bảo vệ giao dịch chính.
    */
   async recordLog(dto: CreateAuditLogDto): Promise<void> {

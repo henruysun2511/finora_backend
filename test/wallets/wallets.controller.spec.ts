@@ -192,4 +192,32 @@ describe('WalletsController', () => {
       expect(res.data).toEqual(mockBalance);
     });
   });
+
+  describe('transferOwnership', () => {
+    it('nên chuyển quyền chủ sở hữu thành công', async () => {
+      const dto = { newOwnerId: 'new-owner-id' };
+      service.transferOwnership = jest.fn().mockResolvedValue(mockWalletResponse);
+
+      const res = await controller.transferOwnership(mockUserId, mockWalletId, dto);
+
+      expect(service.transferOwnership).toHaveBeenCalledWith(
+        mockUserId,
+        mockWalletId,
+        dto,
+      );
+      expect(res.success).toBe(true);
+    });
+  });
+
+  describe('leave', () => {
+    it('nên tự rời khỏi ví thành công', async () => {
+      service.leaveWallet = jest.fn().mockResolvedValue(undefined);
+
+      const res = await controller.leave(mockUserId, mockWalletId);
+
+      expect(service.leaveWallet).toHaveBeenCalledWith(mockUserId, mockWalletId);
+      expect(res.success).toBe(true);
+    });
+  });
 });
+
