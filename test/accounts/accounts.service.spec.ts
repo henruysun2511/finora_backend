@@ -74,6 +74,9 @@ describe('AccountsService', () => {
       getUserWallets: jest.fn().mockResolvedValue([WALLET]),
       findById: jest.fn().mockResolvedValue(WALLET),
     };
+    const auditLogsService: any = {
+      recordLog: jest.fn(),
+    };
     settingsService = {
       verifyActionPin: jest.fn().mockResolvedValue(undefined),
     };
@@ -83,6 +86,7 @@ describe('AccountsService', () => {
       adjustmentRepo,
       walletsService,
       new AccountMapper(),
+      auditLogsService,
       settingsService,
     );
   });

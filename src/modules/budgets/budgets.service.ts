@@ -27,6 +27,11 @@ import { BudgetMapper } from './mapper/budget.mapper';
 import { BudgetPeriodRepository } from './repositories/budget-period.repository';
 import { BudgetRepository } from './repositories/budget.repository';
 import { PaginatedResponse } from '../../common/response/api-response';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const round2 = (value: number) =>
@@ -61,6 +66,7 @@ export class BudgetsService {
     private readonly categoriesService: CategoriesService,
     private readonly notificationsService: NotificationsService,
     private readonly mapper: BudgetMapper,
+    private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly exchangeRatesService?: ExchangeRatesService,
   ) {}
@@ -89,7 +95,7 @@ export class BudgetsService {
     }
 
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      const result = await this.dataSource.transaction(async (manager) => {
         const budget = await this.budgetRepo.save(
           this.budgetRepo.create({
             walletId: dto.walletId,
@@ -110,6 +116,24 @@ export class BudgetsService {
         );
         return this.mapper.toResponse(budget, firstPeriod);
       });
+
+      this.auditLogsService.recordLog({
+        userId,
+        walletId: dto.walletId,
+        action: AUDIT_LOG_ACTION.CREATE,
+        entityType: AUDIT_LOG_ENTITY_TYPE.BUDGET,
+        entityId: result.id,
+        newValue: {
+          walletId: dto.walletId,
+          categoryId: dto.categoryId,
+          period: dto.period,
+          limitAmount: dto.limitAmount,
+          startDate: dto.startDate,
+          isRollover: dto.isRollover ?? false,
+        },
+      });
+
+      return result;
     } catch (error) {
       if ((error as { code?: string })?.code === '23505') {
         throw new BudgetDuplicateException();
@@ -201,7 +225,14 @@ export class BudgetsService {
 
   async updateBudget(userId: string, id: string, dto: UpdateBudgetDto) {
     const budget = await this.getAccessibleBudget(userId, id, 'write');
-    return this.dataSource.transaction(async (manager) => {
+    const oldSnapshot = {
+      limitAmount: budget.limitAmount,
+      period: budget.period,
+      isRollover: budget.isRollover,
+      startDate: budget.startDate,
+    };
+
+    const result = await this.dataSource.transaction(async (manager) => {
       const current = await this.ensurePeriodThrough(
         budget,
         this.today(),
@@ -244,16 +275,47 @@ export class BudgetsService {
       }
       return this.mapper.toResponse(saved, current);
     });
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId: budget.walletId,
+      action: dto.limitAmount !== undefined ? AUDIT_LOG_ACTION.UPDATE_LIMIT : AUDIT_LOG_ACTION.UPDATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.BUDGET,
+      entityId: id,
+      oldValue: oldSnapshot,
+      newValue: {
+        limitAmount: result.limitAmount,
+        period: result.period,
+        isRollover: result.isRollover,
+        startDate: result.startDate,
+      },
+    });
+
+    return result;
   }
 
   async deleteBudget(userId: string, id: string): Promise<void> {
-    await this.getAccessibleBudget(userId, id, 'write');
+    const budget = await this.getAccessibleBudget(userId, id, 'write');
     await this.budgetRepo.softDelete(id);
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId: budget.walletId,
+      action: AUDIT_LOG_ACTION.DELETE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.BUDGET,
+      entityId: id,
+      oldValue: {
+        walletId: budget.walletId,
+        categoryId: budget.categoryId,
+        limitAmount: budget.limitAmount,
+        period: budget.period,
+      },
+    });
   }
 
   async resetPeriod(userId: string, id: string) {
     const budget = await this.getAccessibleBudget(userId, id, 'write');
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const current = await this.ensurePeriodThrough(
         budget,
         this.today(),
@@ -285,6 +347,19 @@ export class BudgetsService {
       );
       return this.mapper.toResponse(budget, next);
     });
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId: budget.walletId,
+      action: AUDIT_LOG_ACTION.ROLLOVER_EXECUTE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.BUDGET,
+      entityId: id,
+      newValue: {
+        currentPeriod: result.currentPeriod,
+      },
+    });
+
+    return result;
   }
 
   async advancePeriods(): Promise<void> {

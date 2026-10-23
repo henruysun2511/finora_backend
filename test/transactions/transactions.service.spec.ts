@@ -66,6 +66,10 @@ describe('TransactionsService', () => {
 
     mapper = new TransactionMapper();
 
+    const auditLogsService = {
+      recordLog: jest.fn(),
+    } as any;
+
     service = new TransactionsService(
       dataSource,
       transactionRepo,
@@ -73,6 +77,7 @@ describe('TransactionsService', () => {
       categoriesService,
       mapper,
       budgetsService,
+      auditLogsService,
     );
   });
 

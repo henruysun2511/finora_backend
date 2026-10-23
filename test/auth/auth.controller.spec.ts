@@ -66,6 +66,7 @@ describe('AuthController', () => {
   describe('register', () => {
     it('should register user and return 201 ApiResponse', async () => {
       const dto: RegisterDto = {
+        username: 'testuser',
         email: 'user@finora.com',
         password: 'Password123!',
         fullName: 'Test User',
@@ -83,7 +84,7 @@ describe('AuthController', () => {
   describe('login', () => {
     it('should authenticate user and return 200 ApiResponse', async () => {
       const dto: LoginDto = {
-        email: 'user@finora.com',
+        username: 'testuser',
         password: 'Password123!',
       };
       service.login!.mockResolvedValue(mockAuthResponse);

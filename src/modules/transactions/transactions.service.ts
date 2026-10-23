@@ -7,6 +7,11 @@ import { Transaction } from './entities/transaction.entity';
 import { CategoriesService } from '../categories/categories.service';
 import { BudgetsService, TransactionBudgetImpact } from '../budgets/budgets.service';
 import { TransactionMapper } from './mapper/transaction.mapper';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 import { CreateTransactionDto } from './dto/request/create-transaction.dto';
 import { TransactionQueryDto } from './dto/request/transaction-query.dto';
 import { UpdateTransactionDto } from './dto/request/update-transaction.dto';
@@ -41,6 +46,7 @@ export class TransactionsService {
     private readonly categoriesService: CategoriesService,
     private readonly mapper: TransactionMapper,
     private readonly budgetsService: BudgetsService,
+    private readonly auditLogsService: AuditLogsService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
@@ -128,6 +134,24 @@ export class TransactionsService {
       ? await execute(manager)
       : await this.dataSource.transaction(execute);
     await this.budgetsService.notifyBudgetAlerts(result.alerts);
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId: account.walletId,
+      action: AUDIT_LOG_ACTION.CREATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.TRANSACTION,
+      entityId: result.response.id,
+      newValue: {
+        amount: dto.amount,
+        type: dto.type,
+        name: dto.name,
+        note: dto.note,
+        categoryId: dto.categoryId,
+        accountId: dto.accountId,
+        transactionDate: dto.transactionDate,
+      },
+    });
+
     if (this.eventEmitter) {
       this.eventEmitter.emit(
         EVENT_NET_WORTH_CHANGED,
@@ -222,6 +246,16 @@ export class TransactionsService {
     }
 
     // 4. Kiểm tra xem các trường tác động số dư có thay đổi không
+    const oldValue = {
+      amount: transaction.amount,
+      type: transaction.type,
+      name: transaction.name,
+      note: transaction.note,
+      categoryId: transaction.categoryId,
+      accountId: transaction.accountId,
+      transactionDate: transaction.transactionDate,
+    };
+
     const targetAmount = dto.amount !== undefined ? dto.amount : transaction.amount;
     const previousImpact: TransactionBudgetImpact = {
       walletId: currentAccount.walletId,
@@ -301,6 +335,25 @@ export class TransactionsService {
       };
     });
     await this.budgetsService.notifyBudgetAlerts(result.alerts);
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId: targetAccount.walletId,
+      action: AUDIT_LOG_ACTION.UPDATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.TRANSACTION,
+      entityId: id,
+      oldValue,
+      newValue: {
+        amount: targetAmount,
+        type: targetType,
+        name: transaction.name,
+        note: transaction.note,
+        categoryId: targetCategoryId,
+        accountId: targetAccountId,
+        transactionDate: transaction.transactionDate,
+      },
+    });
+
     if (this.eventEmitter && isBalanceAffected) {
       this.eventEmitter.emit(
         EVENT_NET_WORTH_CHANGED,
@@ -358,6 +411,22 @@ export class TransactionsService {
       return budgetAlerts;
     });
     await this.budgetsService.notifyBudgetAlerts(alerts);
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId: account.walletId,
+      action: AUDIT_LOG_ACTION.DELETE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.TRANSACTION,
+      entityId: transaction.id,
+      oldValue: {
+        amount: transaction.amount,
+        type: transaction.type,
+        name: transaction.name,
+        note: transaction.note,
+        categoryId: transaction.categoryId,
+        accountId: transaction.accountId,
+      },
+    });
     if (this.eventEmitter) {
       this.eventEmitter.emit(
         EVENT_NET_WORTH_CHANGED,

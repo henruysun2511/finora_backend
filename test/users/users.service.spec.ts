@@ -14,10 +14,13 @@ import { CreateUserDto } from 'modules/users/dto/request/create-user.dto';
 import { UpdateUserDto } from 'modules/users/dto/request/update-user.dto';
 import { UserQueryDto } from 'modules/users/dto/request/user-query.dto';
 
+import { AuditLogsService } from 'modules/audit-logs/audit-logs.service';
+
 describe('UsersService', () => {
   let service: UsersService;
   let userRepository: jest.Mocked<Partial<UserRepository>>;
   let userRoleRepository: jest.Mocked<Partial<UserRoleRepository>>;
+  let auditLogsService: jest.Mocked<Partial<AuditLogsService>>;
 
   const mockDate = new Date('2026-01-01T00:00:00.000Z');
   const mockUserId = '11111111-1111-1111-1111-111111111111';
@@ -56,11 +59,16 @@ describe('UsersService', () => {
       replaceRoles: jest.fn(),
     };
 
+    auditLogsService = {
+      recordLog: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: UserRepository, useValue: userRepository },
         { provide: UserRoleRepository, useValue: userRoleRepository },
+        { provide: AuditLogsService, useValue: auditLogsService },
         UserMapper,
       ],
     }).compile();

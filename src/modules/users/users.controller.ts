@@ -14,6 +14,7 @@ import {
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/request/update-profile.dto';
+import { UpdateUserDto } from './dto/request/update-user.dto';
 import { UserQueryDto } from './dto/request/user-query.dto';
 import { AssignRoleDto } from './dto/request/assign-role.dto';
 import { UserResponseDto } from './dto/response/user.dto';
@@ -91,6 +92,27 @@ export class UsersController {
     });
   }
 
+  @Patch(':id')
+  @Permissions(SYSTEM_PERMISSIONS.USERS_UPDATE)
+  @SwaggerDoc({
+    summary: 'Cập nhật thông tin người dùng',
+    description:
+      'Cập nhật họ tên, mật khẩu, số điện thoại, avatar hoặc trạng thái',
+    responseType: UserResponseDto,
+  })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser('id') actorId?: string,
+  ) {
+    const user = await this.usersService.update(id, dto, actorId);
+    return new ApiResponse({
+      statusCode: HttpStatus.OK,
+      message: 'Cập nhật thông tin người dùng thành công',
+      data: user,
+    });
+  }
+
   @Delete(':id')
   @Permissions(SYSTEM_PERMISSIONS.USERS_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -99,8 +121,11 @@ export class UsersController {
     description: 'Đánh dấu xóa mềm người dùng trong hệ thống',
     status: 204,
   })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.usersService.remove(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorId?: string,
+  ) {
+    await this.usersService.remove(id, actorId);
   }
 
   @Post(':id/roles')
@@ -113,8 +138,9 @@ export class UsersController {
   async assignRoles(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignRoleDto,
+    @CurrentUser('id') actorId?: string,
   ) {
-    const user = await this.usersService.assignRoles(id, dto);
+    const user = await this.usersService.assignRoles(id, dto, actorId);
     return new ApiResponse({
       statusCode: HttpStatus.OK,
       message: 'Gán vai trò cho người dùng thành công',

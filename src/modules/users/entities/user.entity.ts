@@ -9,9 +9,9 @@ import type { Setting } from '../../settings/entities/setting.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
-  @Column({ unique: true, length: 100 })
+  @Column({ unique: true, length: 100, nullable: true })
   @Index('idx_users_username')
-  username: string;
+  username?: string;
 
   @Column({ unique: true, length: 150 })
   @Index('idx_users_email')

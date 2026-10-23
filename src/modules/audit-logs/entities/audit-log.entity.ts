@@ -18,6 +18,10 @@ export class AuditLog extends BaseEntity {
   @JoinColumn({ name: 'user_id' })
   user?: User;
 
+  @Column({ name: 'wallet_id', type: 'uuid', nullable: true })
+  @Index('idx_audit_logs_wallet_id')
+  walletId?: string;
+
   @Column({ length: 100 })
   @Index('idx_audit_logs_action')
   action: string;

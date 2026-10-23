@@ -3,10 +3,10 @@ import { AppError } from '../../../common/errors/app.error';
 import { AUTH_ERROR_CODE } from '../auth.constant';
 
 export class InvalidCredentialsException extends AppError {
-  constructor() {
+  constructor(message = 'Tên đăng nhập hoặc mật khẩu không chính xác') {
     super({
       code: AUTH_ERROR_CODE.INVALID_CREDENTIALS,
-      message: 'Email hoặc mật khẩu không chính xác',
+      message,
       statusCode: HttpStatus.UNAUTHORIZED,
     });
   }

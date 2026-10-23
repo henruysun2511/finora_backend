@@ -9,6 +9,7 @@ import { AuthProvider } from 'common/enums/auth-provider.enum';
 import { ApiResponse, PaginatedResponse } from 'common/response/api-response';
 
 import { UpdateProfileDto } from 'modules/users/dto/request/update-profile.dto';
+import { UpdateUserDto } from 'modules/users/dto/request/update-user.dto';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -36,6 +37,7 @@ describe('UsersController', () => {
       updateProfile: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
+      update: jest.fn(),
       remove: jest.fn(),
       assignRoles: jest.fn(),
     };
@@ -104,13 +106,27 @@ describe('UsersController', () => {
     });
   });
 
+  describe('update', () => {
+    it('should update user and return updated response', async () => {
+      const dto: UpdateUserDto = { fullName: 'New Name' };
+      const updatedResponse = { ...mockUserResponse, fullName: 'New Name' };
+      service.update!.mockResolvedValue(updatedResponse);
+
+      const result = await controller.update(mockUserId, dto);
+
+      expect(service.update).toHaveBeenCalledWith(mockUserId, dto, undefined);
+      expect(result.statusCode).toBe(200);
+      expect(result.data).toEqual(updatedResponse);
+    });
+  });
+
   describe('remove', () => {
     it('should remove user and return undefined', async () => {
       service.remove!.mockResolvedValue(undefined);
 
       const result = await controller.remove(mockUserId);
 
-      expect(service.remove).toHaveBeenCalledWith(mockUserId);
+      expect(service.remove).toHaveBeenCalledWith(mockUserId, undefined);
       expect(result).toBeUndefined();
     });
   });
@@ -124,7 +140,7 @@ describe('UsersController', () => {
 
       const result = await controller.assignRoles(mockUserId, dto);
 
-      expect(service.assignRoles).toHaveBeenCalledWith(mockUserId, dto);
+      expect(service.assignRoles).toHaveBeenCalledWith(mockUserId, dto, undefined);
       expect(result.statusCode).toBe(200);
       expect(result.data).toEqual(mockUserResponse);
     });

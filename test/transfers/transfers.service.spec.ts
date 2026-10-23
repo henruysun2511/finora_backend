@@ -75,6 +75,9 @@ describe('TransfersService', () => {
       getExchangeRate: jest.fn(),
     };
 
+    const auditLogsService: any = {
+      recordLog: jest.fn(),
+    };
     settingsService = {
       verifyActionPin: jest.fn().mockResolvedValue(undefined),
     };
@@ -86,6 +89,7 @@ describe('TransfersService', () => {
       exchangeRatesService,
       settingsService,
       new TransferMapper(),
+      auditLogsService,
     );
   });
 

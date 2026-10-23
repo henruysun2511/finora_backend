@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SplitExpensesModule } from './modules/split-expenses/split-expenses.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
@@ -40,6 +41,7 @@ import { AiChatModule } from './modules/ai-chat/ai-chat.module';
     FriendsModule,
     FeedModule,
     BudgetsModule,
+    AuditLogsModule,
     SplitExpensesModule,
     MessagesModule,
     RecurringTransactionsModule,

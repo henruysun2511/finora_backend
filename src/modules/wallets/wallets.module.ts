@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Wallet } from './entities/wallet.entity';
 import { WalletMember } from './entities/wallet-member.entity';
@@ -8,9 +8,13 @@ import { WalletsService } from './wallets.service';
 import { WalletRepository } from './repositories/wallet.repository';
 import { WalletMemberRepository } from './repositories/wallet-member.repository';
 import { WalletMapper } from './mapper/wallet.mapper';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Wallet, WalletMember, Account])],
+  imports: [
+    TypeOrmModule.forFeature([Wallet, WalletMember, Account]),
+    forwardRef(() => AuditLogsModule),
+  ],
   controllers: [WalletsController],
   providers: [
     WalletsService,

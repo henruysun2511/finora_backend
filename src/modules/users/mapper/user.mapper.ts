@@ -17,6 +17,7 @@ export class UserMapper {
 
     return {
       id: user.id,
+      username: user.username,
       email: user.email,
       fullName: user.fullName,
       phone: user.phone,

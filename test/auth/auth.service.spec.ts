@@ -16,10 +16,15 @@ import {
   InvalidTokenException,
   AccountInactiveException,
 } from 'modules/auth/exceptions/auth.exception';
-import { EmailAlreadyExistsException } from 'modules/users/exceptions/user.exception';
+import {
+  EmailAlreadyExistsException,
+  UsernameAlreadyExistsException,
+} from 'modules/users/exceptions/user.exception';
 import { RegisterDto } from 'modules/auth/dto/request/register.dto';
 import { LoginDto } from 'modules/auth/dto/request/login.dto';
 import { ChangePasswordDto } from 'modules/auth/dto/request/change-password.dto';
+
+import { AuditLogsService } from 'modules/audit-logs/audit-logs.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -27,6 +32,7 @@ describe('AuthService', () => {
   let authorizationService: jest.Mocked<Partial<AuthorizationService>>;
   let tokenRepo: jest.Mocked<Partial<TokenRepository>>;
   let jwtService: jest.Mocked<Partial<JwtService>>;
+  let auditLogsService: jest.Mocked<Partial<AuditLogsService>>;
 
   const mockDate = new Date('2026-01-01T00:00:00.000Z');
   const mockUserId = '11111111-1111-1111-1111-111111111111';
@@ -39,6 +45,7 @@ describe('AuthService', () => {
 
   const mockUserEntity: User = {
     id: mockUserId,
+    username: 'testuser',
     email: 'user@finora.com',
     password: '', // will be set in beforeEach
     fullName: 'Test User',
@@ -59,6 +66,7 @@ describe('AuthService', () => {
     mockUserEntity.password = hashedPassword;
 
     usersService = {
+      findByUsername: jest.fn(),
       findByEmail: jest.fn(),
       findById: jest.fn(),
       findByGoogleId: jest.fn(),
@@ -67,6 +75,7 @@ describe('AuthService', () => {
       assignRole: jest.fn(),
       toResponseDto: jest.fn().mockImplementation((u: User) => ({
         id: u.id,
+        username: u.username,
         email: u.email,
         fullName: u.fullName,
         phone: u.phone,
@@ -96,6 +105,10 @@ describe('AuthService', () => {
       verify: jest.fn(),
     };
 
+    auditLogsService = {
+      recordLog: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -103,6 +116,7 @@ describe('AuthService', () => {
         { provide: AuthorizationService, useValue: authorizationService },
         { provide: TokenRepository, useValue: tokenRepo },
         { provide: JwtService, useValue: jwtService },
+        { provide: AuditLogsService, useValue: auditLogsService },
       ],
     }).compile();
 
@@ -112,12 +126,14 @@ describe('AuthService', () => {
   // ── Register ──────────────────────────────────────────────────────────────
   describe('register', () => {
     const registerDto: RegisterDto = {
+      username: 'newuser',
       email: 'new@finora.com',
       password: 'Password123!',
       fullName: 'New User',
     };
 
     it('should register a new user and return tokens', async () => {
+      usersService.findByUsername!.mockResolvedValue(null);
       usersService.findByEmail!.mockResolvedValue(null);
       usersService.createAuthUser!.mockResolvedValue(mockUserEntity);
       usersService.findById!.mockResolvedValue(mockUserEntity);
@@ -131,8 +147,19 @@ describe('AuthService', () => {
 
       const result = await service.register(registerDto);
 
+      expect(usersService.findByUsername).toHaveBeenCalledWith(
+        registerDto.username,
+      );
       expect(usersService.findByEmail).toHaveBeenCalledWith(registerDto.email);
-      expect(usersService.createAuthUser).toHaveBeenCalled();
+      expect(usersService.createAuthUser).toHaveBeenCalledWith({
+        username: registerDto.username,
+        email: registerDto.email,
+        password: expect.any(String),
+        fullName: registerDto.fullName,
+        phone: registerDto.phone,
+        authProvider: AuthProvider.LOCAL,
+        isActive: true,
+      });
       expect(usersService.assignRole).toHaveBeenCalledWith(
         mockUserId,
         'role-user-id',
@@ -142,7 +169,16 @@ describe('AuthService', () => {
       expect(result.user.email).toBe(mockUserEntity.email);
     });
 
+    it('should throw UsernameAlreadyExistsException if username is already in use', async () => {
+      usersService.findByUsername!.mockResolvedValue(mockUserEntity);
+
+      await expect(service.register(registerDto)).rejects.toThrow(
+        UsernameAlreadyExistsException,
+      );
+    });
+
     it('should throw EmailAlreadyExistsException if email is already in use', async () => {
+      usersService.findByUsername!.mockResolvedValue(null);
       usersService.findByEmail!.mockResolvedValue(mockUserEntity);
 
       await expect(service.register(registerDto)).rejects.toThrow(
@@ -154,23 +190,27 @@ describe('AuthService', () => {
   // ── Login ─────────────────────────────────────────────────────────────────
   describe('login', () => {
     const loginDto: LoginDto = {
-      email: 'user@finora.com',
+      username: 'testuser',
       password: 'Password123!',
     };
 
     it('should login with valid credentials', async () => {
-      usersService.findByEmail!.mockResolvedValue(mockUserEntity);
+      usersService.findByUsername!.mockResolvedValue(mockUserEntity);
       tokenRepo.saveToken!.mockResolvedValue({} as Token);
 
       const result = await service.login(loginDto);
 
+      expect(usersService.findByUsername).toHaveBeenCalledWith(
+        loginDto.username,
+        true,
+      );
       expect(result.accessToken).toBe('mocked.jwt.token');
       expect(result.refreshToken).toBe('mocked.jwt.token');
-      expect(result.user.email).toBe(loginDto.email);
+      expect(result.user.email).toBe(mockUserEntity.email);
     });
 
     it('should throw InvalidCredentialsException if user is not found', async () => {
-      usersService.findByEmail!.mockResolvedValue(null);
+      usersService.findByUsername!.mockResolvedValue(null);
 
       await expect(service.login(loginDto)).rejects.toThrow(
         InvalidCredentialsException,
@@ -178,7 +218,7 @@ describe('AuthService', () => {
     });
 
     it('should throw InvalidCredentialsException if password does not match', async () => {
-      usersService.findByEmail!.mockResolvedValue(mockUserEntity);
+      usersService.findByUsername!.mockResolvedValue(mockUserEntity);
 
       await expect(
         service.login({ ...loginDto, password: 'WrongPassword!' }),
@@ -186,7 +226,7 @@ describe('AuthService', () => {
     });
 
     it('should throw AccountInactiveException if user is inactive', async () => {
-      usersService.findByEmail!.mockResolvedValue({
+      usersService.findByUsername!.mockResolvedValue({
         ...mockUserEntity,
         isActive: false,
       } as User);

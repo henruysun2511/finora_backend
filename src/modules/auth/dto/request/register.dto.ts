@@ -9,6 +9,15 @@ import {
 
 export class RegisterDto {
   @ApiProperty({
+    example: 'nguyenvana',
+    description: 'Tên đăng nhập (username)',
+  })
+  @IsString({ message: 'Tên đăng nhập phải là chuỗi' })
+  @IsNotEmpty({ message: 'Tên đăng nhập không được để trống' })
+  @MinLength(3, { message: 'Tên đăng nhập phải có ít nhất 3 ký tự' })
+  username: string;
+
+  @ApiProperty({
     example: 'user@finora.vn',
     description: 'Địa chỉ email đăng ký',
   })

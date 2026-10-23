@@ -39,6 +39,27 @@ export class UserRepository {
     return qb.getOne();
   }
 
+  findByUsername(
+    username: string,
+    includePassword = false,
+  ): Promise<User | null> {
+    const qb = this.repo
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userRoles', 'userRoles')
+      .leftJoinAndSelect('userRoles.role', 'role')
+      .leftJoinAndSelect('role.rolePermissions', 'rolePermissions')
+      .leftJoinAndSelect('rolePermissions.permission', 'permission')
+      .where('LOWER(user.username) = LOWER(:username)', {
+        username: username.trim(),
+      });
+
+    if (includePassword) {
+      qb.addSelect('user.password');
+    }
+
+    return qb.getOne();
+  }
+
   findByGoogleId(googleId: string): Promise<User | null> {
     return this.repo.findOne({
       where: { googleId },

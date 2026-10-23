@@ -1,10 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { Wallet } from './entities/wallet.entity';
 import { WalletRepository } from './repositories/wallet.repository';
 import { WalletMemberRepository } from './repositories/wallet-member.repository';
 import { WalletMapper } from './mapper/wallet.mapper';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 import { CreateWalletDto } from './dto/request/create-wallet.dto';
 import { UpdateWalletDto } from './dto/request/update-wallet.dto';
@@ -33,6 +38,8 @@ export class WalletsService {
     private readonly walletRepo: WalletRepository,
     private readonly walletMemberRepo: WalletMemberRepository,
     private readonly walletMapper: WalletMapper,
+    @Inject(forwardRef(() => AuditLogsService))
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   // Tạo ví và tự động thêm người tạo làm OWNER.
@@ -64,7 +71,25 @@ export class WalletsService {
 
       await this.walletMemberRepo.save(member, manager);
 
-      return this.walletMapper.toResponse(savedWallet, WalletMemberRole.OWNER);
+      const res = this.walletMapper.toResponse(
+        savedWallet,
+        WalletMemberRole.OWNER,
+      );
+
+      this.auditLogsService.recordLog({
+        userId,
+        walletId: savedWallet.id,
+        action: AUDIT_LOG_ACTION.CREATE,
+        entityType: AUDIT_LOG_ENTITY_TYPE.WALLET,
+        entityId: savedWallet.id,
+        newValue: {
+          name: savedWallet.name,
+          defaultCurrency: savedWallet.defaultCurrency,
+          isShared: savedWallet.isShared,
+        },
+      });
+
+      return res;
     });
   }
 
@@ -172,6 +197,14 @@ export class WalletsService {
       }
     }
 
+    const oldValue = {
+      name: wallet.name,
+      icon: wallet.icon,
+      description: wallet.description,
+      defaultCurrency: wallet.defaultCurrency,
+      isShared: wallet.isShared,
+    };
+
     if (dto.name !== undefined) {
       wallet.name = dto.name;
     }
@@ -194,6 +227,22 @@ export class WalletsService {
 
     const savedWallet = await this.walletRepo.save(wallet);
 
+    this.auditLogsService.recordLog({
+      userId,
+      walletId,
+      action: AUDIT_LOG_ACTION.WALLET_UPDATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.WALLET,
+      entityId: walletId,
+      oldValue,
+      newValue: {
+        name: savedWallet.name,
+        icon: savedWallet.icon,
+        description: savedWallet.description,
+        defaultCurrency: savedWallet.defaultCurrency,
+        isShared: savedWallet.isShared,
+      },
+    });
+
     return this.walletMapper.toResponse(savedWallet, member.role);
   }
 
@@ -212,6 +261,15 @@ export class WalletsService {
     }
 
     await this.walletRepo.softDeleteById(walletId);
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId,
+      action: AUDIT_LOG_ACTION.WALLET_DELETE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.WALLET,
+      entityId: walletId,
+      oldValue: { name: wallet.name },
+    });
   }
 
   // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
