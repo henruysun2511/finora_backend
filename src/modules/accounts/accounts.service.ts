@@ -28,6 +28,11 @@ import {
 import { BalanceDirection } from '../../modules/accounts/enums/balance-direction.enum';
 import { TransactionType } from '../../common/enums/transaction-type.enum';
 import { Account } from './entities/account.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 type AccessMode = 'read' | 'write';
 
@@ -41,6 +46,7 @@ export class AccountsService {
     private readonly adjustmentRepo: AccountBalanceAdjustmentRepository,
     private readonly walletsService: WalletsService,
     private readonly accountMapper: AccountMapper,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   // ---------------------------------------------------------------- helpers
@@ -93,13 +99,30 @@ export class AccountsService {
     if (duplicated) throw new AccountNameAlreadyExistsException(dto.name);
 
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      const result = await this.dataSource.transaction(async (manager) => {
         const account = this.accountRepo.create(
           this.accountMapper.toEntity(dto, userId, idempotencyKey, resolvedCurrency),
         );
         const saved = await this.accountRepo.save(account, manager);
         return this.accountMapper.toDetail(saved);
       });
+
+      this.auditLogsService.recordLog({
+        userId,
+        walletId: dto.walletId,
+        action: AUDIT_LOG_ACTION.CREATE,
+        entityType: AUDIT_LOG_ENTITY_TYPE.ACCOUNT,
+        entityId: result.id,
+        newValue: {
+          name: result.name,
+          type: result.type,
+          currency: result.currency,
+          balance: result.balance,
+          walletId: result.walletId,
+        },
+      });
+
+      return result;
     } catch (error: any) {
       // Gửi lặp song song: unique index idempotency chặn bản ghi thứ 2 -> trả bản đã tạo
       if (error?.code === '23505' && idempotencyKey) {
@@ -147,12 +170,25 @@ export class AccountsService {
   // ---------------------------------------------------------------- update
 
   async updateAccount(userId: string, accountId: string, dto: UpdateAccountDto) {
-    return this.dataSource.transaction(async (manager) => {
+    let oldSnapshot: Record<string, any> | undefined;
+    let walletId: string | undefined;
+
+    const result = await this.dataSource.transaction(async (manager) => {
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
       if (!account) throw new AccountNotFoundException(accountId);
       const wallet = await this.assertWalletAccess(account.walletId, userId, 'write');
 
       if (account.isArchived) throw new AccountArchivedException(accountId);
+
+      oldSnapshot = {
+        name: account.name,
+        type: account.type,
+        currency: account.currency,
+        icon: account.icon,
+        color: account.color,
+        accountNumberLast4: account.accountNumberLast4,
+      };
+      walletId = account.walletId;
 
       if (dto.name !== undefined && dto.name.toLowerCase() !== account.name.toLowerCase()) {
         const duplicated = await this.accountRepo.findByWalletAndName(account.walletId, dto.name);
@@ -188,11 +224,35 @@ export class AccountsService {
       const saved = await this.accountRepo.save(account, manager);
       return this.accountMapper.toDetail(saved);
     });
+
+    if (walletId) {
+      this.auditLogsService.recordLog({
+        userId,
+        walletId,
+        action: AUDIT_LOG_ACTION.UPDATE,
+        entityType: AUDIT_LOG_ENTITY_TYPE.ACCOUNT,
+        entityId: accountId,
+        oldValue: oldSnapshot,
+        newValue: {
+          name: result.name,
+          type: result.type,
+          currency: result.currency,
+          icon: result.icon,
+          color: result.color,
+          accountNumberLast4: result.accountNumberLast4,
+        },
+      });
+    }
+
+    return result;
   }
 
   // ---------------------------------------------------------------- delete
 
   async deleteAccount(userId: string, accountId: string): Promise<void> {
+    let deletedSnapshot: Record<string, any> | undefined;
+    let walletId: string | undefined;
+
     await this.dataSource.transaction(async (manager) => {
       // Khóa dòng tài khoản: giao dịch đồng thời không chen vào giữa lúc kiểm tra và xóa
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
@@ -202,8 +262,27 @@ export class AccountsService {
       const hasHistory = await this.accountRepo.hasFinancialHistory(account.id, manager);
       if (hasHistory) throw new AccountHasTransactionsException(accountId);
 
+      deletedSnapshot = {
+        name: account.name,
+        type: account.type,
+        currency: account.currency,
+        balance: account.balance,
+      };
+      walletId = account.walletId;
+
       await this.accountRepo.softDelete(account.id, manager);
     });
+
+    if (walletId) {
+      this.auditLogsService.recordLog({
+        userId,
+        walletId,
+        action: AUDIT_LOG_ACTION.DELETE,
+        entityType: AUDIT_LOG_ENTITY_TYPE.ACCOUNT,
+        entityId: accountId,
+        oldValue: deletedSnapshot,
+      });
+    }
   }
 
   // ---------------------------------------------------------------- archive
@@ -217,19 +296,39 @@ export class AccountsService {
   }
 
   private async changeArchiveState(userId: string, accountId: string, archive: boolean) {
-    return this.dataSource.transaction(async (manager) => {
+    let walletId: string | undefined;
+    let wasChanged = false;
+
+    const result = await this.dataSource.transaction(async (manager) => {
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
       if (!account) throw new AccountNotFoundException(accountId);
       await this.assertWalletAccess(account.walletId, userId, 'write');
 
+      walletId = account.walletId;
+
       // Đã ở trạng thái đích -> idempotent, trả về nguyên trạng
       if (account.isArchived === archive) return this.accountMapper.toDetail(account);
 
+      wasChanged = true;
       account.isArchived = archive;
       account.archivedAt = archive ? new Date() : null;
       const saved = await this.accountRepo.save(account, manager);
       return this.accountMapper.toDetail(saved);
     });
+
+    if (wasChanged && walletId) {
+      this.auditLogsService.recordLog({
+        userId,
+        walletId,
+        action: archive ? AUDIT_LOG_ACTION.ARCHIVE : AUDIT_LOG_ACTION.UNARCHIVE,
+        entityType: AUDIT_LOG_ENTITY_TYPE.ACCOUNT,
+        entityId: accountId,
+        oldValue: { isArchived: !archive },
+        newValue: { isArchived: archive },
+      });
+    }
+
+    return result;
   }
 
   // ---------------------------------------------------------------- adjust balance
@@ -242,10 +341,17 @@ export class AccountsService {
   ) {
     if (!idempotencyKey) throw new IdempotencyKeyRequiredException();
 
-    return this.dataSource.transaction(async (manager) => {
+    let isNewAdjustment = false;
+    let walletId: string | undefined;
+    let balanceBefore = 0;
+    let balanceAfter = 0;
+
+    const result = await this.dataSource.transaction(async (manager) => {
       const account = await this.accountRepo.findByIdForUpdate(accountId, manager);
       if (!account) throw new AccountNotFoundException(accountId);
       await this.assertWalletAccess(account.walletId, userId, 'write');
+
+      walletId = account.walletId;
 
       // Yêu cầu gửi lặp: trả kết quả đã xử lý, không ghi lần 2
       const existed = await this.adjustmentRepo.findByKey(accountId, idempotencyKey, manager);
@@ -254,8 +360,8 @@ export class AccountsService {
       if (account.isArchived) throw new AccountArchivedException(accountId);
 
       const delta = dto.direction === BalanceDirection.INCREASE ? dto.amount : -dto.amount;
-      const balanceBefore = account.balance;
-      const balanceAfter = round2(balanceBefore + delta);
+      balanceBefore = account.balance;
+      balanceAfter = round2(balanceBefore + delta);
 
       if (balanceAfter < 0) {
         throw new AccountInsufficientBalanceException(balanceBefore, dto.amount);
@@ -276,9 +382,29 @@ export class AccountsService {
         idempotencyKey,
       });
       const saved = await this.adjustmentRepo.save(adjustment, manager);
+      isNewAdjustment = true;
 
       return this.accountMapper.toAdjustmentResponse(saved, account.currency);
     });
+
+    if (isNewAdjustment && walletId) {
+      this.auditLogsService.recordLog({
+        userId,
+        walletId,
+        action: AUDIT_LOG_ACTION.ADJUST_BALANCE,
+        entityType: AUDIT_LOG_ENTITY_TYPE.ACCOUNT,
+        entityId: accountId,
+        oldValue: { balance: balanceBefore },
+        newValue: {
+          balance: balanceAfter,
+          direction: dto.direction,
+          amount: dto.amount,
+          reason: dto.reason,
+        },
+      });
+    }
+
+    return result;
   }
 
   // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────

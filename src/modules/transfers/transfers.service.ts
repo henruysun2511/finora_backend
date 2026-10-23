@@ -15,6 +15,11 @@ import {
   TransferAccessDeniedException,
   TransferNotFoundException,
 } from './exceptions/transfer.exception';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 @Injectable()
 export class TransfersService {
@@ -24,6 +29,7 @@ export class TransfersService {
     private readonly accountsService: AccountsService,
     private readonly exchangeRatesService: ExchangeRatesService,
     private readonly mapper: TransferMapper,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   /**
@@ -56,7 +62,7 @@ export class TransfersService {
     }
 
     // 3. Thực thi cập nhật số dư và lưu giao dịch trong 1 database transaction ACID
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       await this.accountsService.executeTransferBalances(
         {
           fromAccountId: dto.fromAccountId,
@@ -90,6 +96,28 @@ export class TransfersService {
 
       return this.mapper.toResponse(saved);
     });
+
+    this.auditLogsService.recordLog({
+      userId,
+      walletId: fromAccount.walletId,
+      action: AUDIT_LOG_ACTION.CREATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.TRANSFER,
+      entityId: result.id,
+      newValue: {
+        fromAccountId: dto.fromAccountId,
+        toAccountId: dto.toAccountId,
+        amount: dto.amount,
+        fromCurrency: fromAccount.currency,
+        toAmount,
+        toCurrency: toAccount.currency,
+        fee: dto.fee ?? 0,
+        feeAccountId: dto.feeAccountId,
+        note: dto.note,
+        transferDate: result.transferDate,
+      },
+    });
+
+    return result;
   }
 
   /**

@@ -13,6 +13,11 @@ import {
   UserNotFoundException,
 } from './exceptions/user.exception';
 import { PaginatedResponse } from '../../common/response/api-response';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 import { User } from './entities/user.entity';
 
@@ -22,9 +27,10 @@ export class UsersService {
     private readonly userRepository: UserRepository,
     private readonly userRoleRepository: UserRoleRepository,
     private readonly userMapper: UserMapper,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
-  async create(dto: CreateUserDto): Promise<UserResponseDto> {
+  async create(dto: CreateUserDto, actorId?: string): Promise<UserResponseDto> {
     const existing = await this.userRepository.findByEmail(dto.email);
     if (existing) {
       throw new EmailAlreadyExistsException(dto.email);
@@ -36,7 +42,21 @@ export class UsersService {
       password: hashedPassword,
     });
 
-    return this.userMapper.toResponseDto(user);
+    const result = this.userMapper.toResponseDto(user);
+
+    this.auditLogsService.recordLog({
+      userId: actorId ?? user.id,
+      action: AUDIT_LOG_ACTION.CREATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+      entityId: user.id,
+      newValue: {
+        email: user.email,
+        fullName: user.fullName,
+        username: user.username,
+      },
+    });
+
+    return result;
   }
 
   async findAll(
@@ -60,7 +80,11 @@ export class UsersService {
     return this.userMapper.toResponseDto(user);
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<UserResponseDto> {
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    actorId?: string,
+  ): Promise<UserResponseDto> {
     const user = await this.userRepository.findById(id);
     if (!user) {
       throw new UserNotFoundException(id);
@@ -73,32 +97,84 @@ export class UsersService {
       }
     }
 
+    const oldSnapshot = {
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      status: user.status,
+    };
+
     const updatePayload: Record<string, unknown> = { ...dto };
     if (dto.password) {
       updatePayload.password = await bcrypt.hash(dto.password, 10);
     }
 
     const updated = await this.userRepository.update(id, updatePayload);
-    return this.userMapper.toResponseDto(updated);
+    const result = this.userMapper.toResponseDto(updated);
+
+    this.auditLogsService.recordLog({
+      userId: actorId ?? id,
+      action: AUDIT_LOG_ACTION.PROFILE_UPDATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+      entityId: id,
+      oldValue: oldSnapshot,
+      newValue: {
+        fullName: result.fullName,
+        email: result.email,
+        phone: result.phone,
+        avatar: result.avatar,
+        status: result.status,
+      },
+    });
+
+    return result;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actorId?: string): Promise<void> {
     const user = await this.userRepository.findById(id);
     if (!user) {
       throw new UserNotFoundException(id);
     }
     await this.userRepository.softDelete(id);
+
+    this.auditLogsService.recordLog({
+      userId: actorId ?? id,
+      action: AUDIT_LOG_ACTION.DELETE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+      entityId: id,
+      oldValue: {
+        email: user.email,
+        fullName: user.fullName,
+      },
+    });
   }
 
-  async assignRoles(id: string, dto: AssignRoleDto): Promise<UserResponseDto> {
+  async assignRoles(
+    id: string,
+    dto: AssignRoleDto,
+    actorId?: string,
+  ): Promise<UserResponseDto> {
     const user = await this.userRepository.findById(id);
     if (!user) {
       throw new UserNotFoundException(id);
     }
 
+    const oldRoles = user.userRoles?.map((ur) => ur.roleId) ?? [];
     await this.userRoleRepository.replaceRoles(id, dto.roleIds);
     const refreshed = await this.userRepository.findById(id);
-    return this.userMapper.toResponseDto(refreshed!);
+    const result = this.userMapper.toResponseDto(refreshed!);
+
+    this.auditLogsService.recordLog({
+      userId: actorId ?? id,
+      action: AUDIT_LOG_ACTION.UPDATE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.USER,
+      entityId: id,
+      oldValue: { roleIds: oldRoles },
+      newValue: { roleIds: dto.roleIds },
+    });
+
+    return result;
   }
 
   // ── [CROSS-MODULE SERVICE METHODS] ────────────────────────────────────────
@@ -129,6 +205,21 @@ export class UsersService {
     includePassword = false,
   ): Promise<User | null> {
     return this.userRepository.findByEmail(email, includePassword);
+  }
+
+  /**
+   * [CROSS-MODULE] Tìm entity User theo username, hỗ trợ tùy chọn lấy kèm mật khẩu đã hash.
+   * Dùng cho AuthService xử lý đăng nhập và đăng ký bằng username.
+   *
+   * @param username - Tên đăng nhập của user
+   * @param includePassword - Có nạp trường password vào kết quả hay không (mặc định: false)
+   * @returns User entity hoặc null nếu không tìm thấy
+   */
+  async findByUsername(
+    username: string,
+    includePassword = false,
+  ): Promise<User | null> {
+    return this.userRepository.findByUsername(username, includePassword);
   }
 
   /**

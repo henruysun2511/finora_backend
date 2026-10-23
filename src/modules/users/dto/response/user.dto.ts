@@ -17,6 +17,9 @@ export class UserResponseDto {
   @ApiProperty({ example: 'a2b3c4d5-e6f7-4a8b-9c0d-1e2f3a4b5c6d' })
   id: string;
 
+  @ApiPropertyOptional({ example: 'nguyenvana' })
+  username?: string;
+
   @ApiProperty({ example: 'nguyen.van.a@finora.vn' })
   email: string;
 

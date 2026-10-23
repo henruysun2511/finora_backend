@@ -5,6 +5,7 @@ import { Token } from './entities/token.entity';
 import { TokenRepository } from './repositories/token.repository';
 import { UsersModule } from '../users/users.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -18,6 +19,7 @@ import { AuthController } from './auth.controller';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     UsersModule,
     AuthorizationModule,
+    AuditLogsModule,
   ],
   controllers: [AuthController],
   providers: [

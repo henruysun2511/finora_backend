@@ -18,8 +18,16 @@ import {
   InvalidTokenException,
   AccountInactiveException,
 } from './exceptions/auth.exception';
-import { EmailAlreadyExistsException } from '../users/exceptions/user.exception';
+import {
+  EmailAlreadyExistsException,
+  UsernameAlreadyExistsException,
+} from '../users/exceptions/user.exception';
 import { User } from '../users/entities/user.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AUDIT_LOG_ACTION,
+  AUDIT_LOG_ENTITY_TYPE,
+} from '../audit-logs/audit-logs.constant';
 
 @Injectable()
 export class AuthService {
@@ -28,17 +36,26 @@ export class AuthService {
     private readonly authorizationService: AuthorizationService,
     private readonly tokenRepository: TokenRepository,
     private readonly jwtService: JwtService,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   // ── 1. Đăng ký tài khoản mới ──────────────────────────────────────────────
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
-    const existing = await this.usersService.findByEmail(dto.email);
-    if (existing) {
+    const existingUsername = await this.usersService.findByUsername(
+      dto.username,
+    );
+    if (existingUsername) {
+      throw new UsernameAlreadyExistsException(dto.username);
+    }
+
+    const existingEmail = await this.usersService.findByEmail(dto.email);
+    if (existingEmail) {
       throw new EmailAlreadyExistsException(dto.email);
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     const user = await this.usersService.createAuthUser({
+      username: dto.username,
       email: dto.email,
       password: hashedPassword,
       fullName: dto.fullName,
@@ -62,13 +79,13 @@ export class AuthService {
     };
   }
 
-  // ── 2. Đăng nhập Email / Mật khẩu ─────────────────────────────────────────
+  // ── 2. Đăng nhập Username / Mật khẩu ───────────────────────────────────────
   async login(
     dto: LoginDto,
     userAgent?: string,
     ipAddress?: string,
   ): Promise<AuthResponseDto> {
-    const user = await this.usersService.findByEmail(dto.email, true);
+    const user = await this.usersService.findByUsername(dto.username, true);
     if (!user || !user.password) {
       throw new InvalidCredentialsException();
     }
@@ -83,6 +100,16 @@ export class AuthService {
     }
 
     const tokens = await this.generateTokens(user, userAgent, ipAddress);
+
+    this.auditLogsService.recordLog({
+      userId: user.id,
+      action: AUDIT_LOG_ACTION.LOGIN,
+      entityType: AUDIT_LOG_ENTITY_TYPE.AUTH,
+      entityId: user.id,
+      ipAddress,
+      userAgent,
+      newValue: { username: user.username, email: user.email },
+    });
 
     return {
       ...tokens,
@@ -133,6 +160,16 @@ export class AuthService {
     }
 
     const tokens = await this.generateTokens(fullUser, userAgent, ipAddress);
+
+    this.auditLogsService.recordLog({
+      userId: fullUser.id,
+      action: AUDIT_LOG_ACTION.LOGIN,
+      entityType: AUDIT_LOG_ENTITY_TYPE.AUTH,
+      entityId: fullUser.id,
+      ipAddress,
+      userAgent,
+      newValue: { email: fullUser.email, provider: 'GOOGLE' },
+    });
 
     return {
       ...tokens,
@@ -191,6 +228,13 @@ export class AuthService {
         TokenType.REFRESH_TOKEN,
       );
     }
+
+    this.auditLogsService.recordLog({
+      userId,
+      action: AUDIT_LOG_ACTION.LOGOUT,
+      entityType: AUDIT_LOG_ENTITY_TYPE.AUTH,
+      entityId: userId,
+    });
   }
 
   // ── 6. Đổi mật khẩu ───────────────────────────────────────────────────────
@@ -221,6 +265,13 @@ export class AuthService {
 
     // Hủy toàn bộ token cũ để buộc đăng nhập lại
     await this.tokenRepository.revokeAllUserTokens(userId);
+
+    this.auditLogsService.recordLog({
+      userId,
+      action: AUDIT_LOG_ACTION.PASSWORD_CHANGE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.AUTH,
+      entityId: userId,
+    });
   }
 
   // ── Helper: Tạo cặp Access Token & Refresh Token ──────────────────────────

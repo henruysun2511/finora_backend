@@ -4,6 +4,7 @@ import { CategoriesModule } from '../categories/categories.module';
 import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WalletsModule } from '../wallets/wallets.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { BudgetPeriod } from './entities/budget-period.entity';
 import { Budget } from './entities/budget.entity';
 import { BudgetMapper } from './mapper/budget.mapper';
@@ -20,6 +21,7 @@ import { BudgetPeriodScheduler } from './schedulers/budget-period.scheduler';
     CategoriesModule,
     NotificationsModule,
     ExchangeRatesModule,
+    AuditLogsModule,
   ],
   controllers: [BudgetsController],
   providers: [

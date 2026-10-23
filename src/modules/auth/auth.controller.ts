@@ -39,7 +39,7 @@ export class AuthController {
   @SwaggerDoc({
     summary: 'Đăng ký tài khoản mới',
     description:
-      'Đăng ký tài khoản bằng email và mật khẩu (tự động gán role USER)',
+      'Đăng ký tài khoản bằng tên đăng nhập (username), email và mật khẩu (tự động gán role USER)',
     bodyType: RegisterDto,
     responseType: AuthResponseDto,
     status: 201,
@@ -54,7 +54,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @SwaggerDoc({
     summary: 'Đăng nhập',
-    description: 'Xác thực tài khoản và cấp cặp token JWT + Refresh Token',
+    description:
+      'Xác thực tài khoản bằng username và mật khẩu, cấp cặp token JWT + Refresh Token',
     bodyType: LoginDto,
     responseType: AuthResponseDto,
   })

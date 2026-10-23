@@ -8,12 +8,14 @@ import { TransfersService } from './transfers.service';
 import { TransfersController } from './transfers.controller';
 import { AccountsModule } from '../accounts/accounts.module';
 import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Transfer]),
     AccountsModule,
     ExchangeRatesModule,
+    AuditLogsModule,
   ],
   controllers: [TransfersController],
   providers: [

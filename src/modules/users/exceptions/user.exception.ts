@@ -22,3 +22,15 @@ export class EmailAlreadyExistsException extends AppError {
     });
   }
 }
+
+export class UsernameAlreadyExistsException extends AppError {
+  constructor(username: string) {
+    super({
+      code: 'USERNAME_ALREADY_EXISTS',
+      message: `Tên đăng nhập '${username}' đã tồn tại trên hệ thống`,
+      statusCode: HttpStatus.CONFLICT,
+      details: { username },
+    });
+  }
+}
+

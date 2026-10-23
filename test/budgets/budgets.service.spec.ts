@@ -53,6 +53,10 @@ describe('BudgetsService', () => {
       transaction: jest.fn((callback) => callback({})),
     };
 
+    const auditLogsService = {
+      recordLog: jest.fn(),
+    };
+
     service = new BudgetsService(
       dataSource as any,
       budgetRepo,
@@ -61,6 +65,7 @@ describe('BudgetsService', () => {
       categoriesService,
       {} as NotificationsService,
       new BudgetMapper(),
+      auditLogsService as any,
       exchangeRatesService as any,
     );
   });

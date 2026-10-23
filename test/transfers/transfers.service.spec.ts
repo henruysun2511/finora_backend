@@ -74,12 +74,17 @@ describe('TransfersService', () => {
       getExchangeRate: jest.fn(),
     };
 
+    const auditLogsService: any = {
+      recordLog: jest.fn(),
+    };
+
     service = new TransfersService(
       dataSource,
       transferRepo,
       accountsService,
       exchangeRatesService,
       new TransferMapper(),
+      auditLogsService,
     );
   });
 

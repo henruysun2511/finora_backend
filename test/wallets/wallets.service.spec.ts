@@ -20,11 +20,14 @@ import { WalletMember } from '../../src/modules/wallets/entities/wallet-member.e
 import { Account } from '../../src/modules/accounts/entities/account.entity';
 import { AccountType } from '../../src/modules/accounts/enums/account-type.enum';
 
+import { AuditLogsService } from '../../src/modules/audit-logs/audit-logs.service';
+
 describe('WalletsService', () => {
   let service: WalletsService;
   let walletRepo: jest.Mocked<Partial<WalletRepository>>;
   let walletMemberRepo: jest.Mocked<Partial<WalletMemberRepository>>;
   let dataSource: { transaction: jest.Mock };
+  let auditLogsService: { recordLog: jest.Mock };
 
   const mockUserId = '11111111-1111-1111-1111-111111111111';
   const mockWalletId = '22222222-2222-2222-2222-222222222222';
@@ -51,6 +54,10 @@ describe('WalletsService', () => {
       transaction: jest.fn(),
     };
 
+    auditLogsService = {
+      recordLog: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WalletsService,
@@ -58,6 +65,7 @@ describe('WalletsService', () => {
         { provide: WalletRepository, useValue: walletRepo },
         { provide: WalletMemberRepository, useValue: walletMemberRepo },
         { provide: DataSource, useValue: dataSource },
+        { provide: AuditLogsService, useValue: auditLogsService },
       ],
     }).compile();
 

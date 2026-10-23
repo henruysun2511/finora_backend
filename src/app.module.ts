@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/authorization/guards/permissions.guard';
 import { FeedModule } from './modules/feeds/feed.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -32,6 +33,7 @@ import { BudgetsModule } from './modules/budgets/budgets.module';
     FriendsModule,
     FeedModule,
     BudgetsModule,
+    AuditLogsModule,
   ],
 
   providers: [

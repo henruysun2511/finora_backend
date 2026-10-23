@@ -22,6 +22,7 @@ import { SwaggerDoc } from '../../common/swagger/swagger-doc';
 import { ApiResponse } from '../../common/response/api-response';
 import { Permissions } from '../authorization/decorators/permissions.decorator';
 import { SYSTEM_PERMISSIONS } from '../../common/constants/permission.constant';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -37,8 +38,11 @@ export class UsersController {
     responseType: UserResponseDto,
     status: 201,
   })
-  async create(@Body() dto: CreateUserDto) {
-    const user = await this.usersService.create(dto);
+  async create(
+    @Body() dto: CreateUserDto,
+    @CurrentUser('id') actorId?: string,
+  ) {
+    const user = await this.usersService.create(dto, actorId);
     return new ApiResponse({
       statusCode: HttpStatus.CREATED,
       message: 'Tạo tài khoản người dùng thành công',
@@ -85,8 +89,9 @@ export class UsersController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
+    @CurrentUser('id') actorId?: string,
   ) {
-    const user = await this.usersService.update(id, dto);
+    const user = await this.usersService.update(id, dto, actorId);
     return new ApiResponse({
       statusCode: HttpStatus.OK,
       message: 'Cập nhật thông tin người dùng thành công',
@@ -102,8 +107,11 @@ export class UsersController {
     description: 'Đánh dấu xóa mềm người dùng trong hệ thống',
     status: 204,
   })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.usersService.remove(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorId?: string,
+  ) {
+    await this.usersService.remove(id, actorId);
   }
 
   @Post(':id/roles')
@@ -116,8 +124,9 @@ export class UsersController {
   async assignRoles(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignRoleDto,
+    @CurrentUser('id') actorId?: string,
   ) {
-    const user = await this.usersService.assignRoles(id, dto);
+    const user = await this.usersService.assignRoles(id, dto, actorId);
     return new ApiResponse({
       statusCode: HttpStatus.OK,
       message: 'Gán vai trò cho người dùng thành công',

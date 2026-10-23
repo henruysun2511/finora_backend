@@ -8,8 +8,13 @@ import { UserMapper } from './mapper/user.mapper';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+
 @Module({
-  imports: [TypeOrmModule.forFeature([User, UserRole])],
+  imports: [
+    TypeOrmModule.forFeature([User, UserRole]),
+    AuditLogsModule,
+  ],
   controllers: [UsersController],
   providers: [UsersService, UserRepository, UserRoleRepository, UserMapper],
   exports: [UsersService],

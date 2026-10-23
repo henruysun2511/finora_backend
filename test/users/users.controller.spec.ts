@@ -60,7 +60,7 @@ describe('UsersController', () => {
 
       const result = await controller.create(dto);
 
-      expect(service.create).toHaveBeenCalledWith(dto);
+      expect(service.create).toHaveBeenCalledWith(dto, undefined);
       expect(result).toBeInstanceOf(ApiResponse);
       expect(result.statusCode).toBe(201);
       expect(result.data).toEqual(mockUserResponse);
@@ -100,7 +100,7 @@ describe('UsersController', () => {
 
       const result = await controller.update(mockUserId, dto);
 
-      expect(service.update).toHaveBeenCalledWith(mockUserId, dto);
+      expect(service.update).toHaveBeenCalledWith(mockUserId, dto, undefined);
       expect(result.statusCode).toBe(200);
       expect(result.data).toEqual(updatedResponse);
     });
@@ -112,7 +112,7 @@ describe('UsersController', () => {
 
       const result = await controller.remove(mockUserId);
 
-      expect(service.remove).toHaveBeenCalledWith(mockUserId);
+      expect(service.remove).toHaveBeenCalledWith(mockUserId, undefined);
       expect(result).toBeUndefined();
     });
   });
@@ -126,7 +126,7 @@ describe('UsersController', () => {
 
       const result = await controller.assignRoles(mockUserId, dto);
 
-      expect(service.assignRoles).toHaveBeenCalledWith(mockUserId, dto);
+      expect(service.assignRoles).toHaveBeenCalledWith(mockUserId, dto, undefined);
       expect(result.statusCode).toBe(200);
       expect(result.data).toEqual(mockUserResponse);
     });
