@@ -12,6 +12,7 @@ import {
   EntityExtractorService,
   ExtractedTransaction,
 } from './entity-extractor.service';
+import { ModelGatewayService } from './model-gateway.service';
 import { containsPhrase, normalizeForMatch } from '../utils/text.util';
 
 export type DraftResult =
@@ -23,9 +24,10 @@ export class TransactionDraftService {
   constructor(
     private readonly extractor: EntityExtractorService,
     private readonly categoryClassifier: CategoryClassifierService,
+    private readonly gateway: ModelGatewayService,
   ) {}
 
-  /** Nhánh add_transaction: text -> regex trích số tiền/ngày -> phân loại danh mục -> bản nháp (chưa lưu). */
+  /** Nhánh add_transaction: Ưu tiên AI Service (Gemini) bóc tách thông minh, câu siêu ngắn chạy Fast-Path (Regex). */
   async fromText(params: {
     text: string;
     source: string;
@@ -33,6 +35,54 @@ export class TransactionDraftService {
     categories: CategoryLite[];
     now?: Date;
   }): Promise<DraftResult> {
+    const rawText = (params.text || '').trim();
+    const words = rawText.split(/\s+/).filter(Boolean);
+    const nowDate = params.now ?? new Date();
+
+    // Fast-path: Với câu cực ngắn (<= 3 từ) khớp mẫu đơn giản (vd: "ăn sáng 50k", "xăng 100k")
+    // thì dùng Regex tức thì để siêu nhanh (0.1ms)
+    const isVerySimple =
+      words.length <= 3 &&
+      !rawText.includes('chia') &&
+      !rawText.includes('mỗi') &&
+      !rawText.includes('hết') &&
+      !rawText.includes('ở') &&
+      !rawText.includes('tại');
+
+    if (!isVerySimple && this.gateway.isAvailable()) {
+      try {
+        const todayStr = nowDate.toISOString().slice(0, 10);
+        const aiExtracted = await this.gateway.extractTransaction(
+          rawText,
+          todayStr,
+        );
+        if (
+          aiExtracted &&
+          aiExtracted.name &&
+          typeof aiExtracted.amount === 'number' &&
+          aiExtracted.amount > 0
+        ) {
+          const extracted: ExtractedTransaction = {
+            amount: aiExtracted.amount,
+            candidateCount: 1,
+            type:
+              aiExtracted.type === 'INCOME'
+                ? TransactionType.INCOME
+                : TransactionType.EXPENSE,
+            name: aiExtracted.name,
+            date: aiExtracted.date || todayStr,
+            dateExplicit: Boolean(aiExtracted.date),
+            merchant: aiExtracted.location,
+            locationName: aiExtracted.location,
+            note: aiExtracted.note,
+          };
+          return this.build(extracted, params);
+        }
+      } catch (err) {
+        // Fallback to regex below
+      }
+    }
+
     const extracted = this.extractor.extractTransaction(
       params.text,
       params.now,
@@ -111,7 +161,8 @@ export class TransactionDraftService {
         amount: extracted.amount,
         name,
         date: extracted.date,
-        note: null,
+        note: extracted.note ?? null,
+        locationName: extracted.locationName ?? extracted.merchant ?? null,
         accountId: account?.id ?? null,
         accountName: account?.name ?? null,
         categoryId: category.categoryId,

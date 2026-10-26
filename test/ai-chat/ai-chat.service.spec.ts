@@ -218,6 +218,18 @@ describe('AiChatService', () => {
       assertAllowed: jest.fn(),
     } as any;
 
+    const dashboardService = {
+      getExecutiveOverview: jest.fn().mockResolvedValue({
+        netWorth: 5000000,
+        monthlyCashflow: { expense: 2000000, income: 5000000 },
+        accountsSummary: [{ balance: 5000000 }],
+      }),
+      getBudgetHealth: jest.fn().mockResolvedValue({
+        totalBudgetLimit: 10000000,
+        totalSpent: 2000000,
+      }),
+    } as any;
+
     service = new AiChatService(
       chatMessageRepo,
       pendingActionRepo,
@@ -233,6 +245,7 @@ describe('AiChatService', () => {
       queryPlanner,
       cannedQueries,
       tone,
+      dashboardService,
       adviceService,
       stt,
       ocr,

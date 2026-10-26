@@ -85,4 +85,11 @@ export class CreateMascotDto {
   @IsOptional()
   @IsString()
   mascotAssetUrl?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Trạng thái kích hoạt linh vật (mặc định true)',
+  })
+  @IsOptional()
+  isActive?: boolean;
 }

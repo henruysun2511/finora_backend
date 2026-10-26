@@ -44,6 +44,7 @@ export interface TransactionDraftInput {
   name: string;
   date: string; // YYYY-MM-DD (giờ VN)
   note: string | null;
+  locationName?: string | null;
   accountId: string | null;
   accountName: string | null;
   categoryId: string | null;

@@ -5,6 +5,7 @@ import { MascotMapper } from './mapper/mascot.mapper';
 import { CreateMascotDto } from './dto/request/create-mascot.dto';
 import { UpdateMascotDto } from './dto/request/update-mascot.dto';
 import { MascotTierResponseDto } from './dto/response/mascot-tier-response.dto';
+import { MascotSimpleResponseDto } from './dto/response/mascot-simple-response.dto';
 import { CurrentMascotResponseDto } from './dto/response/current-mascot-response.dto';
 import { MascotEvolutionResponseDto } from './dto/response/mascot-evolution-response.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -14,6 +15,7 @@ import {
   MascotTierNameAlreadyExistsException,
   MascotInvalidNetWorthRangeException,
   MascotCannotDeleteException,
+  MascotCannotDeactivateException,
 } from './exceptions/mascot.exception';
 import { DEFAULT_FALLBACK_MASCOT_KEY } from './mascots.constant';
 import {
@@ -65,9 +67,17 @@ export class MascotsService {
   }
 
   /**
-   * Lấy danh sách toàn bộ linh vật (sắp xếp theo displayOrder ASC)
+   * Lấy danh sách linh vật đang hoạt động cho người dùng (chỉ lấy id, tierName, displayName, mascotAssetUrl)
    */
-  async findAll(): Promise<MascotTierResponseDto[]> {
+  async findAll(): Promise<MascotSimpleResponseDto[]> {
+    const list = await this.mascotRepo.findActiveOnly();
+    return list.map((item) => this.mascotMapper.toSimpleResponse(item));
+  }
+
+  /**
+   * Lấy danh sách toàn bộ linh vật cho Quản trị viên (đầy đủ các trường quản lý, bao gồm cả inactive)
+   */
+  async findAllForAdmin(): Promise<MascotTierResponseDto[]> {
     const list = await this.mascotRepo.findAll();
     return list.map((item) => this.mascotMapper.toResponse(item));
   }
@@ -81,6 +91,43 @@ export class MascotsService {
       throw new MascotNotFoundException(id);
     }
     return this.mascotMapper.toResponse(tier);
+  }
+
+  /**
+   * Kích hoạt hoặc Hủy kích hoạt linh vật
+   */
+  async updateStatus(
+    id: string,
+    isActive: boolean,
+  ): Promise<MascotTierResponseDto> {
+    const tier = await this.mascotRepo.findById(id);
+    if (!tier) {
+      throw new MascotNotFoundException(id);
+    }
+
+    if (!isActive) {
+      // 1. Không cho phép hủy kích hoạt linh vật mặc định hệ thống (nora)
+      if (tier.tierName === DEFAULT_FALLBACK_MASCOT_KEY) {
+        throw new MascotCannotDeactivateException(
+          `Không thể hủy kích hoạt linh vật mặc định '${DEFAULT_FALLBACK_MASCOT_KEY}'`,
+        );
+      }
+
+      // 2. Không cho phép hủy kích hoạt nếu chỉ còn 1 linh vật đang active
+      const activeCount = await this.mascotRepo.countActive();
+      if (activeCount <= 1 && tier.isActive) {
+        throw new MascotCannotDeactivateException(
+          'Hệ thống phải có ít nhất 1 linh vật đang kích hoạt',
+        );
+      }
+    }
+
+    tier.isActive = isActive;
+    const saved = await this.mascotRepo.save(tier);
+    this.logger.log(
+      `Đã ${isActive ? 'kích hoạt' : 'hủy kích hoạt'} mascot: ${saved.displayName} (${saved.tierName})`,
+    );
+    return this.mascotMapper.toResponse(saved);
   }
 
   /**
@@ -128,6 +175,14 @@ export class MascotsService {
     if (dto.quotes !== undefined) tier.quotes = dto.quotes;
     if (dto.mascotAssetUrl !== undefined)
       tier.mascotAssetUrl = dto.mascotAssetUrl;
+    if (dto.isActive !== undefined) {
+      if (!dto.isActive && tier.tierName === DEFAULT_FALLBACK_MASCOT_KEY) {
+        throw new MascotCannotDeactivateException(
+          `Không thể hủy kích hoạt linh vật mặc định '${DEFAULT_FALLBACK_MASCOT_KEY}'`,
+        );
+      }
+      tier.isActive = dto.isActive;
+    }
 
     const saved = await this.mascotRepo.save(tier);
     this.logger.log(

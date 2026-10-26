@@ -48,7 +48,8 @@ import { AiChatModule } from './modules/ai-chat/ai-chat.module';
     LoansModule,
     MascotsModule,
     SettingsModule,
-    AiChatModule
+    AiChatModule,
+    DashboardModule
   ],
 
   providers: [

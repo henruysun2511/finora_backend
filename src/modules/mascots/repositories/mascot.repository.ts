@@ -41,10 +41,18 @@ export class MascotRepository {
     });
   }
 
+  async findActiveOnly(): Promise<AssetTier[]> {
+    return this.repo.find({
+      where: { isActive: true },
+      order: { displayOrder: 'ASC' },
+    });
+  }
+
   async findTierByNetWorth(netWorth: number): Promise<AssetTier | null> {
     return this.repo
       .createQueryBuilder('tier')
-      .where('tier.minNetWorth <= :netWorth', { netWorth })
+      .where('tier.isActive = :isActive', { isActive: true })
+      .andWhere('tier.minNetWorth <= :netWorth', { netWorth })
       .andWhere('(tier.maxNetWorth > :netWorth OR tier.maxNetWorth IS NULL)', {
         netWorth,
       })
@@ -54,6 +62,10 @@ export class MascotRepository {
 
   async count(): Promise<number> {
     return this.repo.count();
+  }
+
+  async countActive(): Promise<number> {
+    return this.repo.count({ where: { isActive: true } });
   }
 
   async softDelete(id: string): Promise<void> {
@@ -71,7 +83,7 @@ export class MascotRepository {
       INNER JOIN wallets w ON a.wallet_id = w.id
       INNER JOIN wallet_members wm ON wm.wallet_id = w.id
       WHERE wm.user_id = $1 
-        AND wm.role = 'OWNER' 
+        AND LOWER(wm.role::text) = 'owner' 
         AND a.deleted_at IS NULL 
         AND w.deleted_at IS NULL
       `,
@@ -88,9 +100,9 @@ export class MascotRepository {
       `
       SELECT COALESCE(SUM(remaining_amount), 0) AS total_debt
       FROM loans
-      WHERE user_id = $1 
+      WHERE created_by = $1 
         AND type = 'BORROWED' 
-        AND status != 'PAID' 
+        AND status != 'SETTLED' 
         AND deleted_at IS NULL
       `,
       [userId],

@@ -40,3 +40,13 @@ export class MascotCannotDeleteException extends BadRequestException {
     });
   }
 }
+
+export class MascotCannotDeactivateException extends BadRequestException {
+  constructor(message: string) {
+    super({
+      code: MASCOT_ERROR_CODE.CANNOT_DEACTIVATE_DEFAULT,
+      message,
+    });
+  }
+}
+

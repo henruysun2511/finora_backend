@@ -86,6 +86,40 @@ export class ModelGatewayService {
     );
   }
 
+  /**
+   * Gọi AI Service (Gemini) bóc tách thông tin giao dịch phức tạp (tên, số tiền chia, ngày, địa điểm, note).
+   */
+  async extractTransaction(
+    text: string,
+    today?: string,
+  ): Promise<{
+    name?: string;
+    amount?: number;
+    type?: string;
+    date?: string;
+    location?: string;
+    note?: string;
+  } | null> {
+    if (!this.isAvailable()) return null;
+    try {
+      return await this.postJson<{
+        name?: string;
+        amount?: number;
+        type?: string;
+        date?: string;
+        location?: string;
+        note?: string;
+      }>(
+        '/extract-transaction',
+        { text, today },
+        { timeoutMs: 3500 },
+      );
+    } catch (err) {
+      this.logger.warn(`Lỗi AI extract-transaction: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   private async execute<T>(
     path: string,
     build: () => { headers: Record<string, string>; body: BodyInit },

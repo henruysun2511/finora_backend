@@ -20,8 +20,16 @@ describe('MascotsController', () => {
     quotes: ['Hello!'],
     systemPrompt: 'System prompt',
     htmlContent: '<div>Nora</div>',
+    isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+
+  const mockSimpleMascot = {
+    id: 'tier-1',
+    tierName: 'nora',
+    displayName: 'Huấn Luyện Viên Đời Sống',
+    mascotAssetUrl: '/assets/mascots/nora.svg',
   };
 
   const mockCurrentMascot: CurrentMascotResponseDto = {
@@ -36,10 +44,12 @@ describe('MascotsController', () => {
   };
 
   const mockMascotsService = {
-    findAll: jest.fn().mockResolvedValue([mockMascotTier]),
+    findAll: jest.fn().mockResolvedValue([mockSimpleMascot]),
+    findAllForAdmin: jest.fn().mockResolvedValue([mockMascotTier]),
     findOne: jest.fn().mockResolvedValue(mockMascotTier),
     create: jest.fn().mockResolvedValue(mockMascotTier),
     update: jest.fn().mockResolvedValue(mockMascotTier),
+    updateStatus: jest.fn().mockResolvedValue(mockMascotTier),
     remove: jest.fn().mockResolvedValue(undefined),
     getCurrentUserMascot: jest.fn().mockResolvedValue(mockCurrentMascot),
     checkMascotEvolution: jest.fn(),
@@ -65,10 +75,20 @@ describe('MascotsController', () => {
   });
 
   describe('getAllMascots', () => {
-    it('should return all mascots wrapped in ApiResponse', async () => {
+    it('should return all active simple mascots wrapped in ApiResponse', async () => {
       const response = await controller.getAllMascots();
 
       expect(mockMascotsService.findAll).toHaveBeenCalled();
+      expect(response.statusCode).toBe(HttpStatus.OK);
+      expect(response.data).toEqual([mockSimpleMascot]);
+    });
+  });
+
+  describe('getAdminMascots', () => {
+    it('should return all mascots with full fields for admin', async () => {
+      const response = await controller.getAdminMascots();
+
+      expect(mockMascotsService.findAllForAdmin).toHaveBeenCalled();
       expect(response.statusCode).toBe(HttpStatus.OK);
       expect(response.data).toEqual([mockMascotTier]);
     });
@@ -140,6 +160,17 @@ describe('MascotsController', () => {
       const response = await controller.updateMascot('tier-1', dto);
 
       expect(mockMascotsService.update).toHaveBeenCalledWith('tier-1', dto);
+      expect(response.statusCode).toBe(HttpStatus.OK);
+      expect(response.data).toEqual(mockMascotTier);
+    });
+  });
+
+  describe('updateMascotStatus', () => {
+    it('should update mascot status and return 200 OK', async () => {
+      const dto = { isActive: false };
+      const response = await controller.updateMascotStatus('tier-1', dto);
+
+      expect(mockMascotsService.updateStatus).toHaveBeenCalledWith('tier-1', false);
       expect(response.statusCode).toBe(HttpStatus.OK);
       expect(response.data).toEqual(mockMascotTier);
     });

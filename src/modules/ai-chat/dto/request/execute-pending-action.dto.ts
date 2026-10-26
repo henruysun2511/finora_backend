@@ -1,6 +1,7 @@
 // src/modules/ai-chat/dto/request/execute-pending-action.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -14,6 +15,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { TransactionType } from '../../../../common/enums/transaction-type.enum';
+import { TransactionVisibility } from '../../../../common/enums/transaction-visibility.enum';
 import { AI_CHAT_CONFIG } from '../../constants';
 
 export enum PendingActionDecision {
@@ -22,6 +25,16 @@ export enum PendingActionDecision {
 }
 
 export class EditTransactionDraftDto {
+  @ApiPropertyOptional({
+    enum: TransactionType,
+    example: TransactionType.EXPENSE,
+    description: 'Loại giao dịch: EXPENSE hoặc INCOME',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @IsEnum(TransactionType, { message: 'type phải là EXPENSE hoặc INCOME' })
+  type?: TransactionType;
+
   @ApiPropertyOptional({
     example: 'Phở bò tái nạm',
     description: 'Tên giao dịch',
@@ -72,6 +85,50 @@ export class EditTransactionDraftDto {
   @MaxLength(500)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   note?: string;
+
+  @ApiPropertyOptional({
+    example: 'Quán ăn Cô Ba',
+    description: 'Tên địa điểm diễn ra giao dịch',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  locationName?: string;
+
+  @ApiPropertyOptional({
+    enum: TransactionVisibility,
+    description: 'Quyền hiển thị trong ví chia sẻ: PRIVATE hoặc FRIENDS',
+    example: TransactionVisibility.PRIVATE,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @IsEnum(TransactionVisibility, { message: 'visibility không hợp lệ' })
+  visibility?: TransactionVisibility;
+
+  @ApiPropertyOptional({
+    description: 'Ẩn số tiền giao dịch với các thành viên khác trong ví chia sẻ',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'amountHidden phải là boolean' })
+  amountHidden?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Loại trừ giao dịch khỏi các báo cáo tổng hợp',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'excludeFromReport phải là boolean' })
+  excludeFromReport?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'URL ảnh hóa đơn hoặc hình ảnh đính kèm giao dịch',
+    example: 'https://res.cloudinary.com/finora/image/upload/v1234/receipt1.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  photoUrl?: string;
 }
 
 export class ExecutePendingActionDto {

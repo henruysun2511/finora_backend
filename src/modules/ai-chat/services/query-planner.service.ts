@@ -11,6 +11,11 @@ export enum CannedQueryFunction {
   GET_TOP_CATEGORIES = 'get_top_categories',
   COMPARE_PERIODS = 'compare_periods',
   GET_RECENT_TRANSACTIONS = 'get_recent_transactions',
+  GET_BUDGET_HEALTH = 'get_budget_health',
+  GET_RULE_50_30_20 = 'get_rule_50_30_20',
+  GET_SPENDING_HABITS = 'get_spending_habits',
+  GET_DEBT_SUMMARY = 'get_debt_summary',
+  GET_CASHFLOW_SAVINGS = 'get_cashflow_savings',
 }
 
 export interface CannedQueryPlan {
@@ -18,15 +23,94 @@ export interface CannedQueryPlan {
   params: { timeRange: TimeRange; categoryName?: string; limit?: number };
 }
 
+const BUDGET_HEALTH = [
+  'ngan sach',
+  'han muc',
+  'boi chi',
+  'vuot ngan sach',
+  'chua het thang',
+  'can tien',
+  'het tien',
+  'toc do tieu',
+  'moi ngay tieu bao nhieu',
+  'con lai bao nhieu ngan sach',
+  'budget',
+  'burn rate',
+  'chay ngan sach',
+  'tinh hinh ngan sach',
+];
+
+const RULE_50_30_20 = [
+  '50 30 20',
+  '50/30/20',
+  'quy tac 50',
+  'thiet yeu',
+  'huong thu',
+  'tich luy',
+  'can doi tai chinh',
+  'co cau chi tieu',
+  'needs wants',
+];
+
+const SPENDING_HABITS = [
+  'thoi quen',
+  'hay tieu vao',
+  'thu may',
+  'khung gio',
+  'buoi sang',
+  'buoi trua',
+  'buoi toi',
+  'ngay nao tieu nhieu',
+  'gio nao tieu',
+  'heatmap',
+  'bieu do nhiet',
+];
+
+const DEBT = [
+  'so no',
+  'con no',
+  'chu no',
+  'ai no',
+  'no ai',
+  'khoan vay',
+  'cho vay',
+  'di vay',
+  'tra no',
+  'thu hoi no',
+  'danh sach no',
+  'no nan',
+  'no xau',
+  'qua han',
+];
+
+const CASHFLOW = [
+  'dong tien',
+  'tiet kiem duoc',
+  'de danh',
+  'ty le tiet kiem',
+  'savings rate',
+  'thu nhap thang nay',
+  'du bao nhieu',
+  'thu nhap tru chi phi',
+  'thang nay du',
+];
+
 const BALANCE = [
   'so du',
   'con bao nhieu tien',
+  'con bao nhieu',
   'con lai bao nhieu',
   'tai khoan',
   'vi cua toi',
   'tong tai san',
   'dang co bao nhieu',
+  'kiem tra so du',
+  'tien trong vi',
+  'so du hien tai',
+  'tien con lai',
+  'xem so du',
 ];
+
 const COMPARE = [
   'so voi',
   'so sanh',
@@ -35,7 +119,14 @@ const COMPARE = [
   'nhieu hon',
   'it hon',
   'khac gi',
+  'doi chieu',
+  'bien dong',
+  'lech bao nhieu',
+  'tang giam',
+  'chenh lech',
+  'so sanh voi',
 ];
+
 const TOP = [
   'nhieu nhat',
   'top',
@@ -45,7 +136,13 @@ const TOP = [
   'khoan nao',
   'lon nhat',
   'cao nhat',
+  'tieu nhieu nhat',
+  'ton kem nhat',
+  'chi nhieu nhat',
+  'danh muc hang dau',
+  'khoan chi lon',
 ];
+
 const RECENT = [
   'gan day',
   'giao dich gan',
@@ -53,6 +150,15 @@ const RECENT = [
   'danh sach giao dich',
   'giao dich moi nhat',
   'lich su giao dich',
+  'vua chi',
+  'vua tieu',
+  'moi chi',
+  'giao dich vua qua',
+  'da tieu gi',
+  'tieu nhung gi',
+  'da chi nhung gi',
+  'cac khoan chi',
+  'xem giao dich',
 ];
 
 /**
@@ -74,7 +180,17 @@ export class QueryPlannerService {
     const h = (hint || '').toLowerCase();
 
     let fn: CannedQueryFunction | null;
-    if (has(COMPARE) || h.includes('compare'))
+    if (has(BUDGET_HEALTH) || h.includes('budget'))
+      fn = CannedQueryFunction.GET_BUDGET_HEALTH;
+    else if (has(RULE_50_30_20) || h.includes('50_30_20') || h.includes('rule'))
+      fn = CannedQueryFunction.GET_RULE_50_30_20;
+    else if (has(SPENDING_HABITS) || h.includes('habit'))
+      fn = CannedQueryFunction.GET_SPENDING_HABITS;
+    else if (has(DEBT) || h.includes('debt') || h.includes('loan'))
+      fn = CannedQueryFunction.GET_DEBT_SUMMARY;
+    else if (has(CASHFLOW) || h.includes('cashflow') || h.includes('savings'))
+      fn = CannedQueryFunction.GET_CASHFLOW_SAVINGS;
+    else if (has(COMPARE) || h.includes('compare'))
       fn = CannedQueryFunction.COMPARE_PERIODS;
     else if (has(BALANCE) || h.includes('balance'))
       fn = CannedQueryFunction.GET_WALLET_BALANCES;

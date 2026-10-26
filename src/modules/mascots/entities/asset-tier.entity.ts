@@ -45,4 +45,7 @@ export class AssetTier extends BaseEntity {
 
   @Column({ name: 'quotes', type: 'jsonb', default: '[]' })
   quotes?: string[];
+
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
 }

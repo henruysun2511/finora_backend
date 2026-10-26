@@ -29,8 +29,24 @@ async function bootstrap() {
 
   // ── CORS ─────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: AppConfig.CORS_ORIGINS,
+    origin: (origin, callback) => {
+      // Cho phép requests không có origin (mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+
+      // Trong môi trường dev, cho phép tất cả các cổng localhost / 127.0.0.1 (Web dev, Flutter Web, Vite, etc.)
+      if (AppConfig.IS_DEV && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      if (AppConfig.CORS_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+    },
     credentials: AppConfig.CORS_CREDENTIALS,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
   });
 
   // ── Global Validation Pipes ──────────────────────────────────────────────

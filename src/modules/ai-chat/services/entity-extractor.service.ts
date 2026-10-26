@@ -28,6 +28,8 @@ export interface ExtractedTransaction {
   date: string;
   dateExplicit: boolean;
   merchant?: string | null;
+  locationName?: string | null;
+  note?: string | null;
 }
 
 const STRONG_INCOME =
@@ -150,11 +152,16 @@ export class EntityExtractorService {
   /** Khoảng thời gian người dùng hỏi; mặc định THIS_MONTH. */
   extractTimeRange(text: string): TimeRange {
     const n = normalizeForMatch(text);
-    if (/\b(hom qua|bua qua)\b/.test(n)) return TimeRange.YESTERDAY;
-    if (/\b(hom nay|ngay hom nay|bua nay)\b/.test(n)) return TimeRange.TODAY;
-    if (/\btuan (truoc|roi|vua roi)\b/.test(n)) return TimeRange.LAST_WEEK;
-    if (/\b(tuan nay|tuan qua)\b/.test(n)) return TimeRange.THIS_WEEK;
-    if (/\bthang (truoc|roi|vua roi)\b/.test(n)) return TimeRange.LAST_MONTH;
+    if (/\b(hom qua|bua qua|ngay hom qua|hom kia)\b/.test(n))
+      return TimeRange.YESTERDAY;
+    if (/\b(hom nay|ngay hom nay|bua nay|trong ngay)\b/.test(n))
+      return TimeRange.TODAY;
+    if (/\btuan (truoc|roi|vua roi|truoc do)\b/.test(n))
+      return TimeRange.LAST_WEEK;
+    if (/\b(tuan nay|tuan qua|tuan vua qua|trong tuan)\b/.test(n))
+      return TimeRange.THIS_WEEK;
+    if (/\bthang (truoc|roi|vua roi|truoc do)\b/.test(n))
+      return TimeRange.LAST_MONTH;
     return TimeRange.THIS_MONTH;
   }
 

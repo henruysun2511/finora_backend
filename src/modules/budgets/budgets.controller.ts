@@ -25,16 +25,18 @@ import { UpdateBudgetDto } from './dto/request/update-budget.dto';
 import { BudgetResponseDto } from './dto/response/budget-response.dto';
 import { BudgetStatusResponseDto } from './dto/response/budget-status-response.dto';
 import { BudgetsService } from './budgets.service';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Budgets')
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
 export class BudgetsController {
-  constructor(private readonly budgetsService: BudgetsService) {}
+  constructor(private readonly budgetsService: BudgetsService) { }
 
+  @Public()
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Permissions(SYSTEM_PERMISSIONS.BUDGETS_CREATE)
+  // @Permissions(SYSTEM_PERMISSIONS.BUDGETS_CREATE)
   @SwaggerDoc({
     summary: 'Tạo ngân sách cho danh mục chi tiêu',
     bodyType: CreateBudgetDto,
@@ -52,8 +54,9 @@ export class BudgetsController {
     );
   }
 
+  @Public()
   @Get()
-  @Permissions(SYSTEM_PERMISSIONS.BUDGETS_READ)
+  // @Permissions(SYSTEM_PERMISSIONS.BUDGETS_READ)
   @SwaggerDoc({
     summary: 'Lấy danh sách ngân sách của các ví được truy cập',
     description: 'Trả về danh sách ngân sách có phân trang.',

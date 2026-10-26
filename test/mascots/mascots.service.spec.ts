@@ -28,6 +28,7 @@ describe('MascotsService', () => {
       quotes: ['Tiết kiệm đi!'],
       systemPrompt: 'Bạn là Ash...',
       htmlContent: '<div data-mascot="ash"></div>',
+      isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as AssetTier,
@@ -41,6 +42,7 @@ describe('MascotsService', () => {
       quotes: ['Khoản chi hợp lý!'],
       systemPrompt: 'Bạn là Nora...',
       htmlContent: '<div data-mascot="nora"></div>',
+      isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as AssetTier,
@@ -57,8 +59,10 @@ describe('MascotsService', () => {
     findById: jest.fn(),
     findByTierName: jest.fn(),
     findAll: jest.fn().mockResolvedValue(mockTiers),
+    findActiveOnly: jest.fn().mockResolvedValue(mockTiers),
     findTierByNetWorth: jest.fn(),
     count: jest.fn().mockResolvedValue(2),
+    countActive: jest.fn().mockResolvedValue(2),
     softDelete: jest.fn().mockResolvedValue(undefined),
     getUserTotalWalletBalance: jest.fn(),
     getUserTotalBorrowedDebt: jest.fn(),
@@ -154,14 +158,48 @@ describe('MascotsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all mascot tiers', async () => {
-      mockMascotRepo.findAll.mockResolvedValue(mockTiers);
+    it('should return active simple mascot lineup', async () => {
+      mockMascotRepo.findActiveOnly.mockResolvedValue(mockTiers);
 
       const result = await service.findAll();
+
+      expect(mockMascotRepo.findActiveOnly).toHaveBeenCalled();
+      expect(result).toHaveLength(2);
+      expect(result[0].tierName).toBe('ash');
+      expect(result[0]).not.toHaveProperty('htmlContent');
+      expect(result[0]).toHaveProperty('displayName', 'Kẻ Sinh Tồn');
+    });
+  });
+
+  describe('findAllForAdmin', () => {
+    it('should return all mascot tiers with full fields for admin', async () => {
+      mockMascotRepo.findAll.mockResolvedValue(mockTiers);
+
+      const result = await service.findAllForAdmin();
 
       expect(mockMascotRepo.findAll).toHaveBeenCalled();
       expect(result).toHaveLength(2);
       expect(result[0].tierName).toBe('ash');
+      expect(result[0]).toHaveProperty('htmlContent');
+      expect(result[0]).toHaveProperty('isActive', true);
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('should toggle status of mascot', async () => {
+      mockMascotRepo.findById.mockResolvedValue({ ...mockTiers[0], isActive: true });
+      mockMascotRepo.countActive.mockResolvedValue(2);
+
+      const result = await service.updateStatus('tier-1', false);
+
+      expect(result.isActive).toBe(false);
+      expect(mockMascotRepo.save).toHaveBeenCalled();
+    });
+
+    it('should throw when deactivating fallback default mascot (nora)', async () => {
+      mockMascotRepo.findById.mockResolvedValue({ ...mockTiers[1], tierName: 'nora', isActive: true });
+
+      await expect(service.updateStatus('tier-2', false)).rejects.toThrow();
     });
   });
 
@@ -281,6 +319,7 @@ describe('MascotsService', () => {
         quotes: ['...'],
         systemPrompt: 'Prompt for Nora',
         htmlContent: '<div></div>',
+        isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -356,6 +395,7 @@ describe('MascotsService', () => {
           quotes: ['...'],
           systemPrompt: 'Prompt for Nora',
           htmlContent: '<div></div>',
+          isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -385,6 +425,7 @@ describe('MascotsService', () => {
           quotes: ['...'],
           systemPrompt: 'Prompt for Nora',
           htmlContent: '<div></div>',
+          isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -415,6 +456,7 @@ describe('MascotsService', () => {
           quotes: ['...'],
           systemPrompt: 'Prompt for Nora',
           htmlContent: '<div></div>',
+          isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
         },

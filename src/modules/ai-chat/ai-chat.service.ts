@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { TransactionType } from '../../common/enums/transaction-type.enum';
+import { TransactionVisibility } from '../../common/enums/transaction-visibility.enum';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { TransactionSource } from '../transactions/enums/transaction-source.enum';
@@ -56,9 +57,10 @@ import {
   IntentClassifierService,
   IntentResult,
 } from './services/intent-classifier.service';
+import { DashboardService } from '../dashboards/dashboards.service';
 import { MascotAdviceService } from './services/mascot-advice.service';
 import { MascotContextService } from './services/mascot-context.service';
-import { MascotToneService } from './services/mascot-tone.service';
+import { FinancialContext, MascotToneService } from './services/mascot-tone.service';
 import { OcrService } from './services/ocr.service';
 import { QueryPlannerService } from './services/query-planner.service';
 import { SpeechToTextService } from './services/speech-to-text.service';
@@ -97,6 +99,7 @@ export class AiChatService {
     private readonly queryPlanner: QueryPlannerService,
     private readonly cannedQueries: CannedQueryRegistry,
     private readonly tone: MascotToneService,
+    private readonly dashboardService: DashboardService,
     private readonly adviceService: MascotAdviceService,
     private readonly stt: SpeechToTextService,
     private readonly ocr: OcrService,
@@ -214,7 +217,7 @@ export class AiChatService {
         userText: p.text,
         userPayload: p.userPayload,
       },
-      async (mascot) => {
+      async (mascot, systemPrompt) => {
         const intent: IntentResult = p.intentOverride
           ? { intent: p.intentOverride, confidence: 1, source: 'override' }
           : await this.intentClassifier.classify(p.text);
@@ -239,29 +242,66 @@ export class AiChatService {
               mascot,
               p.text,
               intent,
+              systemPrompt,
             );
-          case AiIntent.OUT_OF_SCOPE:
+          case AiIntent.OUT_OF_SCOPE: {
+            const [history, financialContext] = await Promise.all([
+              this.loadRecentHistory(p.userId, p.walletId),
+              this.loadFinancialContext(p.userId, p.walletId),
+            ]);
             return this.replyText(
               p.userId,
               p.walletId,
               mascot,
               AiIntent.OUT_OF_SCOPE,
-              await this.tone.sayGenerated(mascot, 'outOfScope', p.text),
+              await this.tone.sayGenerated(
+                mascot,
+                'outOfScope',
+                p.text,
+                systemPrompt,
+                history,
+                financialContext,
+              ),
             );
+          }
           case AiIntent.CHITCHAT: {
             const key = this.intentClassifier.isAdviceRequest(p.text)
               ? 'advice'
               : 'chitchat';
+            const [history, financialContext] = await Promise.all([
+              this.loadRecentHistory(p.userId, p.walletId),
+              this.loadFinancialContext(p.userId, p.walletId),
+            ]);
             return this.replyText(
               p.userId,
               p.walletId,
               mascot,
               AiIntent.CHITCHAT,
-              await this.tone.sayGenerated(mascot, key, p.text),
+              await this.tone.sayGenerated(
+                mascot,
+                key,
+                p.text,
+                systemPrompt,
+                history,
+                financialContext,
+              ),
             );
           }
-          default:
-            return this.handleUnclear(p.userId, p.walletId, mascot, p.text);
+          default: {
+            const [history, financialContext] = await Promise.all([
+              this.loadRecentHistory(p.userId, p.walletId),
+              this.loadFinancialContext(p.userId, p.walletId),
+            ]);
+            return this.handleUnclear(
+              p.userId,
+              p.walletId,
+              mascot,
+              p.text,
+              systemPrompt,
+              history,
+              financialContext,
+            );
+          }
         }
       },
     );
@@ -273,9 +313,13 @@ export class AiChatService {
    */
   private async runPipeline(
     p: PipelineParams,
-    work: (mascot: MascotCode) => Promise<ChatMessageResponseDto>,
+    work: (
+      mascot: MascotCode,
+      systemPrompt?: string,
+    ) => Promise<ChatMessageResponseDto>,
   ): Promise<ChatMessageResponseDto> {
-    const mascot = await this.mascotContext.resolve(p.userId);
+    const { code: mascot, systemPrompt } =
+      await this.mascotContext.resolveWithPrompt(p.userId);
 
     await this.chatMessageRepo.createAndSave({
       userId: p.userId,
@@ -287,7 +331,7 @@ export class AiChatService {
     });
 
     try {
-      return await work(mascot);
+      return await work(mascot, systemPrompt);
     } catch (err) {
       if (err instanceof HttpException) throw err;
       this.logger.error(
@@ -378,6 +422,7 @@ export class AiChatService {
       name: d.name,
       date: d.date,
       note: d.note,
+      locationName: d.locationName ?? null,
       accountId: d.accountId,
       accountName: d.accountName,
       categoryId: d.categoryId,
@@ -401,6 +446,7 @@ export class AiChatService {
       suggestedNewCategory: d.suggestedNewCategory,
       date: d.date,
       note: d.note,
+      locationName: d.locationName ?? null,
       source: d.source,
       missingFields: d.missingFields,
       warnings: d.warnings,
@@ -454,6 +500,7 @@ export class AiChatService {
     mascot: MascotCode,
     text: string,
     intent: IntentResult,
+    systemPrompt?: string,
   ): Promise<ChatMessageResponseDto> {
     const categories = (
       await this.loadWalletContext(userId, walletId).catch(() => ({
@@ -463,7 +510,14 @@ export class AiChatService {
     const plan = this.queryPlanner.plan(text, categories, intent.queryHint);
 
     const result = this.cannedQueries.isSupported(plan.functionName)
-      ? await this.cannedQueries.execute({ plan, userId, walletId, mascot })
+      ? await this.cannedQueries.execute({
+          plan,
+          userId,
+          walletId,
+          mascot,
+          userText: text,
+          systemPrompt,
+        })
       : this.cannedQueries.unsupported(mascot);
 
     const message = await this.chatMessageRepo.createAndSave({
@@ -485,32 +539,148 @@ export class AiChatService {
     walletId: string,
     mascot: MascotCode,
     text: string,
+    systemPrompt?: string,
+    history?: Array<{ role: string; content: string }>,
+    financialContext?: FinancialContext,
   ): Promise<ChatMessageResponseDto> {
     const actions = [
       { label: 'Ghi chép giao dịch mới', intent: AiIntent.ADD_TRANSACTION },
       {
-        label: 'Xem báo cáo chi tiêu tháng này',
+        label: 'Báo cáo chi tiêu tháng này',
         intent: AiIntent.QUERY_SPENDING,
         message: 'Chi tiêu tháng này của tôi',
       },
       {
-        label: 'Tra cứu số dư tài khoản',
+        label: 'Kiểm tra tiến độ ngân sách',
+        intent: AiIntent.QUERY_SPENDING,
+        message: 'Tình hình ngân sách tháng này thế nào',
+      },
+      {
+        label: 'Đánh giá quy tắc 50/30/20',
+        intent: AiIntent.QUERY_SPENDING,
+        message: 'Đánh giá chi tiêu theo quy tắc 50 30 20',
+      },
+      {
+        label: 'Tra cứu số dư ví',
         intent: AiIntent.QUERY_SPENDING,
         message: 'Số dư các tài khoản của tôi',
       },
       {
-        label: 'Xin lời khuyên tiết kiệm',
+        label: 'Thói quen chi tiêu theo ngày',
+        intent: AiIntent.QUERY_SPENDING,
+        message: 'Thói quen chi tiêu của tôi thế nào',
+      },
+      {
+        label: 'Sổ nợ & khoản cho vay',
+        intent: AiIntent.QUERY_SPENDING,
+        message: 'Sổ nợ và các khoản cho vay của tôi',
+      },
+      {
+        label: 'Xin lời khuyên từ Mascot',
         intent: AiIntent.CHITCHAT,
-        message: 'Cho tôi lời khuyên tiết kiệm tiền',
+        message: 'Cho tôi lời khuyên tài chính',
       },
     ];
-    return this.tone.sayGenerated(mascot, 'unclear', text).then((reply) =>
-      this.replyText(userId, walletId, mascot, AiIntent.INTENT_UNCLEAR, reply, {
-        clarifyOptions: actions.map((a) => a.label),
-        clarifyActions: actions,
-        originalMessage: text,
-      }),
-    );
+    return this.tone
+      .sayGenerated(
+        mascot,
+        'unclear',
+        text,
+        systemPrompt,
+        history,
+        financialContext,
+      )
+      .then((reply) =>
+        this.replyText(
+          userId,
+          walletId,
+          mascot,
+          AiIntent.INTENT_UNCLEAR,
+          reply,
+          {
+            clarifyOptions: actions.map((a) => a.label),
+            clarifyActions: actions,
+            originalMessage: text,
+          },
+        ),
+      );
+  }
+
+  /** Lấy lịch sử trò chuyện gần nhất (dạng chronological user/model) phục vụ multi-turn chat. */
+  private async loadRecentHistory(
+    userId: string,
+    walletId: string,
+    limit = 6,
+  ): Promise<Array<{ role: string; content: string }>> {
+    try {
+      const recent = await this.chatMessageRepo.findByWalletPaged(
+        walletId,
+        userId,
+        limit + 1,
+      );
+      if (!recent || recent.length <= 1) return [];
+      // Bỏ qua tin nhắn mới nhất vừa được lưu trong runPipeline (index 0), đảo ngược về thứ tự cũ -> mới
+      return recent
+        .slice(1)
+        .reverse()
+        .filter((m) => m.textContent && m.textContent.trim().length > 0)
+        .map((m) => ({
+          role: m.role === ChatRole.USER ? 'user' : 'model',
+          content: m.textContent.trim(),
+        }));
+    } catch (err) {
+      this.logger.warn(
+        `Không thể lấy lịch sử chat gần nhất: ${(err as Error)?.message}`,
+      );
+      return [];
+    }
+  }
+
+  /** Lấy nhanh bối cảnh tài chính (số dư ví, ngân sách tháng, tổng chi tiêu, tài sản ròng). */
+  private async loadFinancialContext(
+    userId: string,
+    walletId: string,
+  ): Promise<FinancialContext> {
+    try {
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const [overview, budgetHealth] = await Promise.all([
+        this.dashboardService
+          .getExecutiveOverview(userId, { walletId })
+          .catch(() => null),
+        this.dashboardService
+          .getBudgetHealth(userId, { walletId, month: currentMonth })
+          .catch(() => null),
+      ]);
+
+      const balance =
+        overview?.accountsSummary?.reduce(
+          (sum, a) => sum + (Number(a.balance) || 0),
+          0,
+        ) ?? overview?.netWorth;
+
+      return {
+        balance: balance !== undefined ? Number(balance) : undefined,
+        netWorth:
+          overview?.netWorth !== undefined
+            ? Number(overview.netWorth)
+            : undefined,
+        monthlyBudget:
+          budgetHealth?.totalBudgetLimit && budgetHealth.totalBudgetLimit > 0
+            ? Number(budgetHealth.totalBudgetLimit)
+            : undefined,
+        monthlySpent:
+          budgetHealth?.totalSpent !== undefined
+            ? Number(budgetHealth.totalSpent)
+            : overview?.monthlyCashflow?.expense !== undefined
+              ? Number(overview.monthlyCashflow.expense)
+              : undefined,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Không thể nạp bối cảnh tài chính: ${(err as Error)?.message}`,
+      );
+      return {};
+    }
   }
 
   private async replyText(
@@ -598,6 +768,11 @@ export class AiChatService {
               note: draft.note ?? undefined,
               transactionDate: isoToTransactionDate(draft.date),
               source: draft.source,
+              locationName: draft.locationName ?? undefined,
+              visibility: draft.visibility,
+              amountHidden: draft.amountHidden,
+              excludeFromReport: draft.excludeFromReport,
+              photoUrl: draft.photoUrl ?? undefined,
             } as any,
           );
           transactionId = created.id;
@@ -774,7 +949,7 @@ export class AiChatService {
     const input = action.toolInput || {};
     const edit = edited || {};
 
-    const rawType = String(input.type);
+    const rawType = edit.type !== undefined ? String(edit.type) : String(input.type);
     const type = (Object.values(TransactionType) as string[]).includes(rawType)
       ? (rawType as TransactionType)
       : TransactionType.EXPENSE;
@@ -834,6 +1009,25 @@ export class AiChatService {
       : TransactionSource.CHAT_TEXT;
 
     const note = edit.note !== undefined ? edit.note : (input.note ?? null);
+    const locationName =
+      edit.locationName !== undefined
+        ? edit.locationName
+          ? String(edit.locationName).trim()
+          : null
+        : (input.locationName ?? null);
+    const visibility =
+      edit.visibility ?? input.visibility ?? TransactionVisibility.PRIVATE;
+    const amountHidden =
+      edit.amountHidden !== undefined
+        ? Boolean(edit.amountHidden)
+        : Boolean(input.amountHidden ?? false);
+    const excludeFromReport =
+      edit.excludeFromReport !== undefined
+        ? Boolean(edit.excludeFromReport)
+        : Boolean(input.excludeFromReport ?? false);
+    const photoUrl =
+      edit.photoUrl !== undefined ? edit.photoUrl : (input.photoUrl ?? null);
+
     const categoryKey: string | null =
       category.id === input.categoryId && input.categoryKey
         ? String(input.categoryKey)
@@ -851,6 +1045,11 @@ export class AiChatService {
       categoryId: category.id,
       categoryName: category.name,
       categoryKey,
+      locationName,
+      visibility,
+      amountHidden,
+      excludeFromReport,
+      photoUrl,
     };
   }
 
@@ -930,4 +1129,9 @@ interface ValidatedDraft {
   categoryId: string;
   categoryName: string;
   categoryKey: string | null;
+  locationName: string | null;
+  visibility: TransactionVisibility;
+  amountHidden: boolean;
+  excludeFromReport: boolean;
+  photoUrl: string | null;
 }

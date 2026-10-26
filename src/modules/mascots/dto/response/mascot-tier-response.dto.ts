@@ -41,6 +41,9 @@ export class MascotTierResponseDto {
   @ApiPropertyOptional({ example: '/assets/mascots/nora.svg' })
   mascotAssetUrl?: string;
 
+  @ApiProperty({ example: true, description: 'Trạng thái kích hoạt linh vật' })
+  isActive: boolean;
+
   @ApiProperty({ example: '2026-10-19T23:00:00.000Z' })
   createdAt: Date;
 
