@@ -90,7 +90,7 @@ export class TransactionDraftService {
     return this.build(extracted, params);
   }
 
-  /** Nhánh hóa đơn: OCR text -> regex tổng tiền/tên cửa hàng -> phân loại danh mục. */
+  /** Nhánh hóa đơn: Ưu tiên AI Service (Gemini) bóc tách có cấu trúc, fallback sang Regex nội bộ. */
   async fromReceipt(params: {
     ocrText: string;
     source: string;
@@ -98,11 +98,70 @@ export class TransactionDraftService {
     categories: CategoryLite[];
     now?: Date;
   }): Promise<DraftResult> {
+    const rawOcr = (params.ocrText || '').trim();
+    const nowDate = params.now ?? new Date();
+    const todayStr = nowDate.toISOString().slice(0, 10);
+
+    if (this.gateway.isAvailable() && rawOcr.length > 5) {
+      try {
+        const aiReceipt = await this.gateway.extractReceipt(rawOcr, todayStr);
+        if (
+          aiReceipt &&
+          typeof aiReceipt.total_amount === 'number' &&
+          aiReceipt.total_amount > 0
+        ) {
+          const merchant = aiReceipt.merchant_name?.trim() || null;
+          const itemsList = Array.isArray(aiReceipt.items) ? aiReceipt.items : [];
+          const itemsSummary = itemsList.length
+            ? itemsList
+                .filter((it) => it && it.name)
+                .map((it) => `${it.name}${it.quantity ? ` x${it.quantity}` : ''}`)
+                .join(', ')
+            : null;
+
+          const extracted: ExtractedTransaction = {
+            amount: aiReceipt.total_amount,
+            candidateCount: 1,
+            type: TransactionType.EXPENSE,
+            name: merchant ? `Hóa đơn ${merchant}` : 'Hóa đơn',
+            date: aiReceipt.date || todayStr,
+            dateExplicit: Boolean(aiReceipt.date),
+            merchant,
+            locationName: merchant || aiReceipt.merchant_address || null,
+            note: itemsSummary ? `Chi tiết: ${itemsSummary}` : null,
+          };
+
+          return this.build(
+            extracted,
+            {
+              ...params,
+              text: `${merchant ?? ''} ${itemsSummary ?? ''} ${rawOcr.slice(0, 300)}`,
+            },
+            {
+              merchantName: merchant,
+              taxAmount: typeof aiReceipt.tax === 'number' ? aiReceipt.tax : null,
+              tipAmount: typeof aiReceipt.tip === 'number' ? aiReceipt.tip : null,
+              ocrRawData: aiReceipt,
+            },
+          );
+        }
+      } catch (err) {
+        // Fallback to regex below
+      }
+    }
+
     const extracted = this.extractor.extractReceipt(params.ocrText, params.now);
-    return this.build(extracted, {
-      ...params,
-      text: `${extracted.merchant ?? ''} ${params.ocrText.slice(0, 300)}`,
-    });
+    return this.build(
+      extracted,
+      {
+        ...params,
+        text: `${extracted.merchant ?? ''} ${params.ocrText.slice(0, 300)}`,
+      },
+      {
+        merchantName: extracted.merchant ?? null,
+        ocrRawData: { text: params.ocrText },
+      },
+    );
   }
 
   private async build(
@@ -113,6 +172,7 @@ export class TransactionDraftService {
       accounts: WalletAccountLite[];
       categories: CategoryLite[];
     },
+    extraFields?: Partial<TransactionDraftInput>,
   ): Promise<DraftResult> {
     if (extracted.amount === null || extracted.amount <= 0)
       return { ok: false, reason: 'no_amount' };
@@ -175,6 +235,7 @@ export class TransactionDraftService {
         source: p.source,
         missingFields,
         warnings,
+        ...extraFields,
       },
     };
   }

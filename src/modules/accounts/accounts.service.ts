@@ -39,6 +39,10 @@ import {
   EVENT_NET_WORTH_CHANGED,
   NetWorthChangedEvent,
 } from '../../common/events/net-worth-changed.event';
+import {
+  EVENT_WALLET_BALANCE_UPDATED,
+  WalletBalanceUpdatedEvent,
+} from '../wallets/events/wallet-balance-updated.event';
 
 type AccessMode = 'read' | 'write';
 
@@ -133,6 +137,20 @@ export class AccountsService {
         this.eventEmitter.emit(
           EVENT_NET_WORTH_CHANGED,
           new NetWorthChangedEvent(userId, 'account.create'),
+        );
+        this.eventEmitter.emit(
+          EVENT_WALLET_BALANCE_UPDATED,
+          new WalletBalanceUpdatedEvent(
+            result.walletId,
+            result.id,
+            result.id,
+            'initial_balance',
+            result.balance,
+            userId,
+            result.balance,
+            'Số dư ban đầu',
+            'Khởi tạo tài khoản',
+          ),
         );
       }
 
@@ -340,6 +358,21 @@ export class AccountsService {
         oldValue: { isArchived: !archive },
         newValue: { isArchived: archive },
       });
+      if (this.eventEmitter && result.balance > 0) {
+        this.eventEmitter.emit(
+          EVENT_WALLET_BALANCE_UPDATED,
+          new WalletBalanceUpdatedEvent(
+            walletId,
+            accountId,
+            accountId,
+            archive ? 'archive' : 'unarchive',
+            result.balance,
+            userId,
+            result.balance,
+            archive ? 'Lưu trữ tài khoản' : 'Khôi phục tài khoản',
+          ),
+        );
+      }
     }
 
     return result;
@@ -423,6 +456,22 @@ export class AccountsService {
         EVENT_NET_WORTH_CHANGED,
         new NetWorthChangedEvent(userId, 'account.adjust_balance'),
       );
+      if (walletId) {
+        this.eventEmitter.emit(
+          EVENT_WALLET_BALANCE_UPDATED,
+          new WalletBalanceUpdatedEvent(
+            walletId,
+            accountId,
+            result.id,
+            dto.direction === BalanceDirection.INCREASE ? 'income' : 'expense',
+            dto.amount,
+            userId,
+            result.balanceAfter,
+            'Điều chỉnh số dư',
+            dto.reason,
+          ),
+        );
+      }
     }
 
     return result;

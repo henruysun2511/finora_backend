@@ -135,6 +135,7 @@ describe('AiChatService', () => {
 
     mascotContext = {
       resolve: jest.fn().mockResolvedValue('nora'),
+      resolveWithPrompt: jest.fn().mockResolvedValue({ code: 'nora', systemPrompt: undefined }),
     } as any;
 
     intentClassifier = {
@@ -230,6 +231,21 @@ describe('AiChatService', () => {
       }),
     } as any;
 
+    const receiptRepo = {
+      findById: jest.fn(),
+      findByAccountId: jest.fn(),
+      createAndSave: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    } as any;
+
+    const cloudinaryService = {
+      uploadMedia: jest.fn().mockResolvedValue({
+        secureUrl: 'https://res.cloudinary.com/demo/receipt.jpg',
+      }),
+      deleteMedia: jest.fn().mockResolvedValue({ success: true }),
+    } as any;
+
     service = new AiChatService(
       chatMessageRepo,
       pendingActionRepo,
@@ -238,6 +254,8 @@ describe('AiChatService', () => {
       accountsService,
       categoriesService,
       transactionsService,
+      receiptRepo,
+      cloudinaryService,
       mascotContext,
       intentClassifier,
       draftService,
@@ -294,7 +312,14 @@ describe('AiChatService', () => {
       });
 
       expect(res.mascot).toBe('nora');
-      expect(tone.sayGenerated).toHaveBeenCalledWith('nora', 'chitchat', 'Chào bạn');
+      expect(tone.sayGenerated).toHaveBeenCalledWith(
+        'nora',
+        'chitchat',
+        'Chào bạn',
+        undefined,
+        expect.any(Array),
+        expect.any(Object),
+      );
     });
 
     it('khi người dùng hỏi chi tiêu tháng này -> trả về CHART_PIE', async () => {

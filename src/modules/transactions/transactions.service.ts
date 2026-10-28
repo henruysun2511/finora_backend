@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, EntityManager } from 'typeorm';
 import { TransactionRepository } from './repositories/transaction.repository';
+import { ReceiptRepository } from './repositories/receipt.repository';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction } from './entities/transaction.entity';
 import { CategoriesService } from '../categories/categories.service';
@@ -17,6 +18,7 @@ import { TransactionQueryDto } from './dto/request/transaction-query.dto';
 import { UpdateTransactionDto } from './dto/request/update-transaction.dto';
 import { DailyTransactionGridQueryDto } from './dto/request/daily-grid-query.dto';
 import { TransactionResponseDto } from './dto/response/transaction-response.dto';
+import { ReceiptResponseDto } from './dto/response/receipt-response.dto';
 import {
   DailyTransactionGridResponseDto,
   DailyTransactionGroupDto,
@@ -27,6 +29,7 @@ import { TransactionVisibility } from '../../common/enums/transaction-visibility
 import { TransactionStatus } from './enums/transaction-status.enum';
 import { TransactionSource } from './enums/transaction-source.enum';
 import {
+  ReceiptNotFoundException,
   TransactionAccessDeniedException,
   TransactionNotFoundException,
 } from './exceptions/transaction.exception';
@@ -47,6 +50,7 @@ export class TransactionsService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly transactionRepo: TransactionRepository,
+    private readonly receiptRepo: ReceiptRepository,
     private readonly accountsService: AccountsService,
     private readonly categoriesService: CategoriesService,
     private readonly mapper: TransactionMapper,
@@ -218,6 +222,46 @@ export class TransactionsService {
     }
 
     return this.mapper.toResponse(transaction);
+  }
+
+  /**
+   * Lấy chi tiết thông tin hóa đơn đã quét theo ID.
+   */
+  async getReceiptById(
+    userId: string,
+    id: string,
+  ): Promise<ReceiptResponseDto> {
+    const receipt = await this.receiptRepo.findById(id);
+    if (!receipt) throw new ReceiptNotFoundException(id);
+
+    const accessibleAccountIds =
+      await this.accountsService.getUserAccessibleAccountIds(userId);
+
+    if (!accessibleAccountIds.includes(receipt.accountId)) {
+      throw new TransactionAccessDeniedException(
+        'Bạn không có quyền truy cập hóa đơn này',
+      );
+    }
+
+    return {
+      id: receipt.id,
+      accountId: receipt.accountId,
+      imageUrl: receipt.imageUrl,
+      merchantName: receipt.merchantName ?? null,
+      totalAmount: Number(receipt.totalAmount) || 0,
+      taxAmount:
+        receipt.taxAmount !== undefined && receipt.taxAmount !== null
+          ? Number(receipt.taxAmount)
+          : null,
+      tipAmount:
+        receipt.tipAmount !== undefined && receipt.tipAmount !== null
+          ? Number(receipt.tipAmount)
+          : null,
+      ocrRawData: receipt.ocrRawData ?? null,
+      scannedAt: receipt.scannedAt,
+      createdAt: receipt.createdAt,
+      updatedAt: receipt.updatedAt,
+    };
   }
 
   /**
@@ -699,6 +743,27 @@ export class TransactionsService {
         EVENT_NET_WORTH_CHANGED,
         new NetWorthChangedEvent(params.userId, 'transaction.sync'),
       );
+      try {
+        const account = await this.accountsService.findById(params.accountId);
+        if (account) {
+          this.eventEmitter.emit(
+            EVENT_WALLET_BALANCE_UPDATED,
+            new WalletBalanceUpdatedEvent(
+              account.walletId,
+              params.accountId,
+              saved.id,
+              params.type,
+              params.amount,
+              params.userId,
+              account.balance,
+              params.name,
+              params.note,
+            ),
+          );
+        }
+      } catch {
+        // Safe fallback
+      }
     }
     return saved;
   }

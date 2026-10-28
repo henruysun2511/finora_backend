@@ -216,6 +216,7 @@ export class CannedQueryRegistry {
           mascot,
           userText,
           systemPrompt,
+          plan,
         );
       case CannedQueryFunction.GET_CASHFLOW_SAVINGS:
         return this.cashflowSavings(
@@ -892,6 +893,7 @@ Hãy bóc trần thói quen chi tiêu của người dùng, phân tích tâm lý
     mascot: MascotCode,
     userText?: string,
     systemPrompt?: string,
+    plan?: CannedQueryPlan,
   ): Promise<ExecuteCannedQueryResult> {
     const data = await this.dashboardService.getDebts(userId, { walletId });
     const base = {
@@ -901,18 +903,19 @@ Hãy bóc trần thói quen chi tiêu của người dùng, phân tích tâm lý
       netDebtPosition: data.netDebtPosition,
       debtToAssetRatio: data.debtToAssetRatio,
       overdueStats: data.overdueStats,
+      timeRange: plan?.params?.timeRange,
     };
 
     if (data.totalReceivables === 0 && data.totalPayables === 0) {
       return {
         messageType: ChatMessageType.TEXT,
         textContent:
-          'Bạn đang không có khoản nợ hay cho vay nào trong sổ nợ. Tình hình tài chính hoàn toàn tự do và trong sạch!',
+          'Bạn hiện không có khoản nợ phải trả nào (0 ₫) và cũng không có ai nợ bạn trong sổ nợ. Tình hình tài chính hoàn toàn tự do và trong sạch!',
         payloadJson: { ...base, empty: true },
       };
     }
 
-    const fallbackText = `Sổ nợ tài chính: Tổng tiền người khác nợ bạn là ${formatMoney(data.totalReceivables)}, tổng tiền bạn đang nợ là ${formatMoney(data.totalPayables)}. Vị thế nợ ròng: ${formatMoney(data.netDebtPosition)}.`;
+    const fallbackText = `Sổ nợ tài chính: Bạn hiện đang nợ ${formatMoney(data.totalPayables)} (cần trả) và có người khác đang nợ bạn ${formatMoney(data.totalReceivables)} (cần thu hồi). Vị thế nợ ròng: ${formatMoney(data.netDebtPosition)}.`;
 
     const topDebtorsStr = data.topDebtors
       .slice(0, 5)
@@ -922,14 +925,19 @@ Hãy bóc trần thói quen chi tiêu của người dùng, phân tích tâm lý
       )
       .join('; ');
 
+    const directQ = plan?.params?.directQuestion;
     const insightPrompt = `[BỐI CẢNH QUẢN LÝ SỔ NỢ & CHO VAY]:
-- Tổng tiền cho vay (cần thu hồi): ${formatMoney(data.totalReceivables)} (Có ${data.overdueStats.overdueReceivableCount} khoản quá hạn)
-- Tổng tiền đi vay / nợ phải trả: ${formatMoney(data.totalPayables)} (Có ${data.overdueStats.overduePayableCount} khoản quá hạn)
+- Tổng tiền nợ phải trả (bạn đang nợ): ${formatMoney(data.totalPayables)} (Có ${data.overdueStats.overduePayableCount} khoản quá hạn)
+- Tổng tiền cho vay (người khác nợ bạn): ${formatMoney(data.totalReceivables)} (Có ${data.overdueStats.overdueReceivableCount} khoản quá hạn)
 - Vị thế nợ ròng: ${formatMoney(data.netDebtPosition)}
 - Tỷ lệ nợ trên tổng tài sản: ${data.debtToAssetRatio}%
 - Các khoản nợ tiêu biểu: ${topDebtorsStr || 'Không có chi tiết'}
 - Câu hỏi người dùng: "${userText || ''}"
-Hãy đưa ra nhận xét sắc sảo về tình hình nợ/cho vay này và 1 lời khuyên quản trị rủi ro nợ nần theo đúng phong cách của bạn (khoảng 2-3 câu)!`;
+${directQ ? `- Trọng tâm câu hỏi cụ thể: "${directQ}"` : ''}
+
+YÊU CẦU TRẢ LỜI (RẤT QUAN TRỌNG):
+1. TRẢ LỜI TRỰC DIỆN CON SỐ MÀ NGƯỜI DÙNG HỎI NGAY CÂU ĐẦU TIÊN: Nêu rõ hiện tại tổng số nợ cần trả là bao nhiêu tiền, và tổng tiền người khác nợ mình là bao nhiêu.
+2. Đưa ra 1 nhận xét hoặc lời khuyên quản trị nợ nần sắc sảo theo đúng tính cách của bạn (khoảng 2 câu)!`;
 
     const textContent = await this.tone.sayChartInsight(
       mascot,

@@ -66,6 +66,14 @@ describe('TransactionsService', () => {
 
     mapper = new TransactionMapper();
 
+    const receiptRepo = {
+      findById: jest.fn(),
+      findByAccountId: jest.fn(),
+      createAndSave: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    } as any;
+
     const auditLogsService = {
       recordLog: jest.fn(),
     } as any;
@@ -73,6 +81,7 @@ describe('TransactionsService', () => {
     service = new TransactionsService(
       dataSource,
       transactionRepo,
+      receiptRepo,
       accountsService,
       categoriesService,
       mapper,

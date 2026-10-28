@@ -25,6 +25,7 @@ import { UpdateTransactionDto } from './dto/request/update-transaction.dto';
 import { TransactionQueryDto } from './dto/request/transaction-query.dto';
 import { DailyTransactionGridQueryDto } from './dto/request/daily-grid-query.dto';
 import { TransactionResponseDto } from './dto/response/transaction-response.dto';
+import { ReceiptResponseDto } from './dto/response/receipt-response.dto';
 import { DailyTransactionGridResponseDto } from './dto/response/daily-transaction-grid-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissions } from '../authorization/decorators/permissions.decorator';
@@ -97,6 +98,26 @@ export class TransactionsController {
   ): Promise<ApiResponse<DailyTransactionGridResponseDto>> {
     const data = await this.transactionsService.getDailyGrid(userId, query);
     return ApiResponse.success(data, 'Lấy danh sách giao dịch dạng lưới thành công');
+  }
+
+  @Get('receipts/:id')
+  @Permissions(SYSTEM_PERMISSIONS.TRANSACTIONS_READ)
+  @ApiOperation({
+    summary: 'Lấy chi tiết hóa đơn OCR đã quét',
+    description: 'Xem thông tin chi tiết hóa đơn (ảnh, tên cửa hàng, tổng tiền, thuế, tip, raw OCR) theo ID.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của hóa đơn' })
+  @SwaggerResponse({
+    status: 200,
+    description: 'Chi tiết hóa đơn',
+    type: ReceiptResponseDto,
+  })
+  async getReceiptById(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ApiResponse<ReceiptResponseDto>> {
+    const data = await this.transactionsService.getReceiptById(userId, id);
+    return ApiResponse.success(data);
   }
 
   @Get(':id')

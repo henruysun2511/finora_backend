@@ -30,6 +30,7 @@ import { OcrService } from './services/ocr.service';
 import { QueryPlannerService } from './services/query-planner.service';
 import { SpeechToTextService } from './services/speech-to-text.service';
 import { TransactionDraftService } from './services/transaction-draft.service';
+import { CloudinaryModule } from '../../infrastructures/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { TransactionDraftService } from './services/transaction-draft.service';
     DashboardModule,
     MascotsModule,
     SettingsModule,
+    CloudinaryModule,
   ],
   controllers: [AiChatController],
   providers: [
@@ -65,6 +67,6 @@ import { TransactionDraftService } from './services/transaction-draft.service';
     MascotAdviceService,
     ChatRateLimiter,
   ],
-  exports: [AiChatService, CannedQueryRegistry],
+  exports: [AiChatService, CannedQueryRegistry, ModelGatewayService],
 })
 export class AiChatModule {}

@@ -26,6 +26,10 @@ import {
   EVENT_NET_WORTH_CHANGED,
   NetWorthChangedEvent,
 } from '../../common/events/net-worth-changed.event';
+import {
+  EVENT_WALLET_BALANCE_UPDATED,
+  WalletBalanceUpdatedEvent,
+} from '../wallets/events/wallet-balance-updated.event';
 
 @Injectable()
 export class TransfersService {
@@ -132,6 +136,40 @@ export class TransfersService {
         EVENT_NET_WORTH_CHANGED,
         new NetWorthChangedEvent(userId, 'transfer.create'),
       );
+      try {
+        const fromAccUpdated = await this.accountsService.findById(dto.fromAccountId);
+        const toAccUpdated = await this.accountsService.findById(dto.toAccountId);
+        this.eventEmitter.emit(
+          EVENT_WALLET_BALANCE_UPDATED,
+          new WalletBalanceUpdatedEvent(
+            fromAccount.walletId,
+            dto.fromAccountId,
+            result.id,
+            'expense',
+            dto.amount,
+            userId,
+            fromAccUpdated?.balance ?? fromAccount.balance - dto.amount,
+            'Chuyển tiền',
+            dto.note ?? `Chuyển tiền đến ${toAccount.name}`,
+          ),
+        );
+        this.eventEmitter.emit(
+          EVENT_WALLET_BALANCE_UPDATED,
+          new WalletBalanceUpdatedEvent(
+            toAccount.walletId,
+            dto.toAccountId,
+            result.id,
+            'income',
+            toAmount,
+            userId,
+            toAccUpdated?.balance ?? toAccount.balance + toAmount,
+            'Chuyển tiền',
+            dto.note ?? `Nhận tiền từ ${fromAccount.name}`,
+          ),
+        );
+      } catch {
+        // Safe fallback
+      }
     }
 
     return result;

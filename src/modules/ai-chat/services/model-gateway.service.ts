@@ -120,6 +120,78 @@ export class ModelGatewayService {
     }
   }
 
+  /**
+   * Gọi AI Service (Gemini) bóc tách cấu trúc hóa đơn từ văn bản OCR (tên quán, tổng tiền, thuế, tip, ngày, món ăn).
+   */
+  async extractReceipt(
+    text: string,
+    today?: string,
+  ): Promise<{
+    merchant_name?: string | null;
+    merchant_address?: string | null;
+    customer_name?: string | null;
+    items?: Array<{
+      name?: string | null;
+      quantity?: number | null;
+      unit_price?: number | null;
+      total?: number | null;
+    }> | null;
+    subtotal?: number | null;
+    tax?: number | null;
+    tip?: number | null;
+    total_amount?: number | null;
+    currency?: string | null;
+    date?: string | null;
+  } | null> {
+    if (!this.isAvailable()) return null;
+    try {
+      return await this.postJson(
+        '/extract-receipt',
+        { text, today },
+        { timeoutMs: 12000 },
+      );
+    } catch (err) {
+      this.logger.warn(`Lỗi AI extract-receipt: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Gọi AI Service (Gemini Function Calling) lập kế hoạch truy vấn tài chính thông minh:
+   * Hiểu ngữ nghĩa tiếng Việt sâu sắc để chọn đúng 1 trong 10 hàm Canned Query + bóc tách tham số.
+   */
+  async planQuery(
+    text: string,
+    categories?: Array<{ id: string; name: string }>,
+    today?: string,
+  ): Promise<{
+    function_name: string;
+    time_range?: string;
+    category_name?: string | null;
+    limit?: number | null;
+    direct_question?: string | null;
+    confidence?: number;
+  } | null> {
+    if (!this.isAvailable()) return null;
+    try {
+      return await this.postJson<{
+        function_name: string;
+        time_range?: string;
+        category_name?: string | null;
+        limit?: number | null;
+        direct_question?: string | null;
+        confidence?: number;
+      }>(
+        '/plan-query',
+        { text, categories, today },
+        { timeoutMs: 4500 },
+      );
+    } catch (err) {
+      this.logger.warn(`Lỗi AI plan-query: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   private async execute<T>(
     path: string,
     build: () => { headers: Record<string, string>; body: BodyInit },

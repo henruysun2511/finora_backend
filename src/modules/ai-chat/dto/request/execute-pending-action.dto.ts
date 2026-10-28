@@ -129,6 +129,14 @@ export class EditTransactionDraftDto {
   @IsString()
   @MaxLength(500)
   photoUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'UUID của hóa đơn OCR đã quét',
+    example: '33333333-3333-3333-3333-333333333333',
+  })
+  @IsOptional()
+  @IsUUID(undefined, { message: 'receiptId phải là UUID hợp lệ' })
+  receiptId?: string;
 }
 
 export class ExecutePendingActionDto {

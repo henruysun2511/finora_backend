@@ -4,6 +4,7 @@ import { TransactionVisibility } from '../../../../common/enums/transaction-visi
 import { TransactionSource } from '../../enums/transaction-source.enum';
 import { TransactionStatus } from '../../enums/transaction-status.enum';
 import { PhotoType } from '../../enums/photo-type.enum';
+import { ReceiptResponseDto } from './receipt-response.dto';
 
 export class TransactionResponseDto {
   @ApiProperty({ example: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' })
@@ -11,6 +12,12 @@ export class TransactionResponseDto {
 
   @ApiProperty({ example: '3fa85f64-5717-4562-b3fc-2c963f66afa6' })
   accountId: string;
+
+  @ApiPropertyOptional({ example: 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e' })
+  receiptId?: string | null;
+
+  @ApiPropertyOptional({ type: () => ReceiptResponseDto })
+  receipt?: ReceiptResponseDto | null;
 
   @ApiPropertyOptional({ example: 'Tài khoản chính VCB' })
   accountName?: string;

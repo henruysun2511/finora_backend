@@ -36,8 +36,8 @@ export const MASCOT_VOICES: Record<MascotCode, MascotVoice> = {
       'Hello người đẹp! Hôm nay túi tiền có rủng rỉnh không đấy?',
     ],
     advice: [
-      'Lời khuyên của Ruby: tiêu sang cũng phải có kế hoạch nha cưng! 💳 Đặt hạn mức mỗi tuần rồi quẹt trong hạn mức thôi.',
-      'Giàu mà không quản tiền thì cũng thành hết giàu đó cưng! Mỗi tháng nhớ trích một phần ra tiết kiệm trước khi shopping nha 💳',
+      'Gợi ý chi tiết để chi tiêu tiết kiệm mà vẫn giữ chất sống sang chảnh của Ruby nè cưng! 💳✨\n\n1. Trích quỹ tích lũy trước: Ngay khi có tiền vào ví, trích ngay 20-30% sang quỹ tiết kiệm/đầu tư rồi mới shopping.\n2. Quy tắc 24h & Đầu tư chất lượng: Tránh mua đồ rẻ mau hỏng. Hãy chọn đồ tốt thực sự cần và hoãn 24h trước khi chốt đơn những món mua theo cảm xúc.\n3. Cài đặt Hạn mức Ngân sách trên Finora: Chia nhỏ ngân sách giải trí/ăn uống theo từng tuần. Quẹt thẻ đúng hạn mức để ví luôn rủng rỉnh đẳng cấp cưng nhé! 🛍️',
+      'Muốn giữ phong độ giàu sang lâu bền thì phải quản trị dòng tiền thật khéo nha cưng! 💳💎\n\n• Chi cho giá trị, không chi cho sĩ diện: Ưu tiên đầu tư cho bản thân, học hỏi kỹ năng và trải nghiệm chất lượng.\n• Cắt bỏ các khoản "chảy máu vô hình": Rà soát và hủy ngay các gói đăng ký dịch vụ, phí duy trì thẻ hoặc các khoản phí lặt vặt ít dùng.\n• Bám sát Biểu đồ chi tiêu Finora: Cuối mỗi tuần hãy mở biểu đồ danh mục xem dòng tiền chảy vào đâu nhiều nhất để điều chỉnh kịp thời nè!',
     ],
     outOfScope: [
       'Mấy chuyện này Ruby hổng rành đâu nha! Tập trung quản lý ví tiền để còn đi shopping cưng ơi! 💳',

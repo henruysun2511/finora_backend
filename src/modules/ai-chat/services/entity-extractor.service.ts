@@ -96,21 +96,57 @@ export class EntityExtractorService {
       .filter(Boolean);
 
     let amount: number | null = null;
-    const totalLines = lines.filter((l) =>
-      /\b(tong|thanh toan|thanh tien|total|amount due|grand total|phai tra)\b/.test(
-        stripDiacritics(l).toLowerCase(),
-      ),
-    );
-    for (const l of totalLines.reverse()) {
-      const found = parseAmounts(l);
-      if (found.length) {
-        amount = Math.max(...found.map((f) => f.value));
-        break;
+
+    const isMetadataLine = (l: string): boolean => {
+      const s = stripDiacritics(l).toLowerCase();
+      if (
+        /\b(dt|tel|hotline|dien thoai|sdt|fax|mst|ma so thue|tax|stt|banso|ban so|so ban|reg|mc|ca\s*\d|quay|nhan vien|thu ngan)\b/.test(
+          s,
+        )
+      )
+        return true;
+      if (/\d{6,11}\s*[-–]\s*\d{6,11}/.test(l)) return true;
+      if (/\d{1,2}[/-]\d{1,2}[/-]\d{4}/.test(l)) return true;
+      return false;
+    };
+
+    const isTotalKeyword = (l: string): boolean => {
+      const s = stripDiacritics(l).toLowerCase();
+      return /\b(tong|thanh toan|thanh tien|tien mat|tienmat|cong|t\.cong|phai tra|khach tra|da tra|total|grand total|amount due|subtotal|balance due|cash)\b/.test(
+        s,
+      );
+    };
+
+    // 1. Quét từ dưới lên các dòng có từ khóa tổng tiền / thanh toán / tiền mặt
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      if (isTotalKeyword(line)) {
+        const found = parseAmounts(line);
+        if (found.length) {
+          amount = Math.max(...found.map((f) => f.value));
+          break;
+        }
+        // Trường hợp nhãn ở dòng trên (vd: "TIEN MAT"), số tiền ở dòng dưới (vd: "537,000")
+        if (i + 1 < lines.length && !isMetadataLine(lines[i + 1])) {
+          const nextFound = parseAmounts(lines[i + 1]);
+          if (nextFound.length) {
+            amount = Math.max(...nextFound.map((f) => f.value));
+            break;
+          }
+        }
       }
     }
+
+    // 2. Fallback: loại bỏ toàn bộ dòng chứa số điện thoại / mã hóa đơn / số bàn trước khi tìm
     if (amount === null) {
-      const all = lines.flatMap((l) => parseAmounts(l).map((f) => f.value));
-      if (all.length) amount = Math.max(...all);
+      const cleanLines = lines.filter((l) => !isMetadataLine(l));
+      for (let i = cleanLines.length - 1; i >= 0; i--) {
+        const found = parseAmounts(cleanLines[i]);
+        if (found.length) {
+          amount = Math.max(...found.map((f) => f.value));
+          break;
+        }
+      }
     }
 
     const merchantLine = lines.find((l) => {

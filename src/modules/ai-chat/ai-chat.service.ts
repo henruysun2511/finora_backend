@@ -10,7 +10,11 @@ import { TransactionVisibility } from '../../common/enums/transaction-visibility
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { TransactionSource } from '../transactions/enums/transaction-source.enum';
+import { PhotoType } from '../transactions/enums/photo-type.enum';
 import { TransactionsService } from '../transactions/transactions.service';
+import { ReceiptRepository } from '../transactions/repositories/receipt.repository';
+import { CloudinaryService } from '../../infrastructures/cloudinary/cloudinary.service';
+import { CLOUDINARY_CONSTANTS } from '../../infrastructures/cloudinary/cloudinary.constant';
 import { WalletsService } from '../wallets/wallets.service';
 import { AI_CHAT_CONFIG } from './constants';
 import { ChatHistoryQueryDto } from './dto/request/chat-history-query.dto';
@@ -92,6 +96,8 @@ export class AiChatService {
     private readonly accountsService: AccountsService,
     private readonly categoriesService: CategoriesService,
     private readonly transactionsService: TransactionsService,
+    private readonly receiptRepo: ReceiptRepository,
+    private readonly cloudinaryService: CloudinaryService,
     private readonly mascotContext: MascotContextService,
     private readonly intentClassifier: IntentClassifierService,
     private readonly draftService: TransactionDraftService,
@@ -167,6 +173,19 @@ export class AiChatService {
     await this.walletsService.getWalletById(dto.walletId, userId);
 
     if (isAudio) {
+      let audioUrl: string | null = null;
+      try {
+        const uploadRes = await this.cloudinaryService.uploadMedia(
+          file,
+          CLOUDINARY_CONSTANTS.FOLDERS.AUDIO,
+        );
+        audioUrl = uploadRes.secureUrl;
+      } catch (uploadErr) {
+        this.logger.warn(
+          `Không thể tải tệp âm thanh lên Cloudinary: ${(uploadErr as Error)?.message}`,
+        );
+      }
+
       // STT thất bại -> 422 trước khi lưu bất cứ thứ gì
       const result = await this.stt.transcribe(file);
       return this.processText({
@@ -174,8 +193,25 @@ export class AiChatService {
         walletId: dto.walletId,
         text: result.text,
         source: TransactionSource.VOICE,
-        userPayload: { input: 'voice', sttConfidence: result.confidence },
+        userPayload: {
+          input: 'voice',
+          audioUrl,
+          sttConfidence: result.confidence,
+        },
       });
+    }
+
+    let imageUrl: string | null = null;
+    try {
+      const uploadRes = await this.cloudinaryService.uploadMedia(
+        file,
+        CLOUDINARY_CONSTANTS.FOLDERS.RECEIPTS,
+      );
+      imageUrl = uploadRes.secureUrl;
+    } catch (uploadErr) {
+      this.logger.warn(
+        `Không thể tải ảnh hóa đơn lên Cloudinary: ${(uploadErr as Error)?.message}`,
+      );
     }
 
     const ocr = await this.ocr.extractText(file);
@@ -186,6 +222,8 @@ export class AiChatService {
         userText: 'Ảnh hóa đơn',
         userPayload: {
           input: 'receipt',
+          imageUrl,
+          photoUrl: imageUrl,
           ocrConfidence: ocr.confidence,
           ocrTextPreview: truncate(ocr.text, 500),
         },
@@ -196,6 +234,7 @@ export class AiChatService {
           walletId: dto.walletId,
           mascot,
           source: TransactionSource.RECEIPT_SCAN,
+          imageUrl,
           input: { kind: 'receipt', ocrText: ocr.text },
         }),
     );
@@ -370,6 +409,7 @@ export class AiChatService {
     walletId: string;
     mascot: MascotCode;
     source: TransactionSource;
+    imageUrl?: string | null;
     input:
       { kind: 'text'; text: string } | { kind: 'receipt'; ocrText: string };
   }): Promise<ChatMessageResponseDto> {
@@ -411,6 +451,37 @@ export class AiChatService {
     }
 
     const d = result.draft;
+    let receiptId: string | null = null;
+
+    if (p.input.kind === 'receipt') {
+      try {
+        const targetAccountId = d.accountId || accounts[0]?.id;
+        if (targetAccountId) {
+          const receipt = await this.receiptRepo.createAndSave({
+            accountId: targetAccountId,
+            imageUrl: p.imageUrl || '',
+            merchantName: d.merchantName || d.name,
+            totalAmount: d.amount,
+            taxAmount: d.taxAmount ?? null,
+            tipAmount: d.tipAmount ?? null,
+            ocrRawData:
+              d.ocrRawData ?? (p.input.ocrText ? { text: p.input.ocrText } : null),
+            scannedAt: new Date(),
+          });
+          receiptId = receipt.id;
+          d.receiptId = receiptId;
+        }
+      } catch (receiptErr) {
+        this.logger.error(
+          `Không thể tạo bản ghi Receipt: ${(receiptErr as Error)?.message}`,
+        );
+      }
+    }
+
+    if (p.imageUrl) {
+      d.photoUrl = p.imageUrl;
+    }
+
     const expiresAt = new Date(
       Date.now() + AI_CHAT_CONFIG.PENDING_ACTION_TTL_MINUTES * 60 * 1000,
     );
@@ -429,6 +500,9 @@ export class AiChatService {
       categoryName: d.categoryName,
       categoryKey: d.categoryKey,
       source: d.source,
+      receiptId: d.receiptId ?? null,
+      photoUrl: d.photoUrl ?? null,
+      imageUrl: d.photoUrl ?? null,
     };
     const previewPayload = {
       title: 'Xác nhận ghi chép giao dịch',
@@ -448,6 +522,9 @@ export class AiChatService {
       note: d.note,
       locationName: d.locationName ?? null,
       source: d.source,
+      receiptId: d.receiptId ?? null,
+      photoUrl: d.photoUrl ?? null,
+      imageUrl: d.photoUrl ?? null,
       missingFields: d.missingFields,
       warnings: d.warnings,
       expiresAt: expiresAt.toISOString(),
@@ -507,7 +584,11 @@ export class AiChatService {
         categories: [] as CategoryLite[],
       }))
     ).categories;
-    const plan = this.queryPlanner.plan(text, categories, intent.queryHint);
+    const plan = await this.queryPlanner.plan(
+      text,
+      categories,
+      intent.queryHint,
+    );
 
     const result = this.cannedQueries.isSupported(plan.functionName)
       ? await this.cannedQueries.execute({
@@ -762,6 +843,7 @@ export class AiChatService {
             {
               accountId: draft.accountId,
               categoryId: draft.categoryId,
+              receiptId: draft.receiptId ?? undefined,
               type: draft.type,
               amount: draft.amount,
               name: draft.name,
@@ -773,6 +855,10 @@ export class AiChatService {
               amountHidden: draft.amountHidden,
               excludeFromReport: draft.excludeFromReport,
               photoUrl: draft.photoUrl ?? undefined,
+              photoType:
+                draft.receiptId || draft.photoUrl
+                  ? PhotoType.RECEIPT
+                  : undefined,
             } as any,
           );
           transactionId = created.id;
@@ -1027,6 +1113,8 @@ export class AiChatService {
         : Boolean(input.excludeFromReport ?? false);
     const photoUrl =
       edit.photoUrl !== undefined ? edit.photoUrl : (input.photoUrl ?? null);
+    const receiptId =
+      edit.receiptId !== undefined ? edit.receiptId : (input.receiptId ?? null);
 
     const categoryKey: string | null =
       category.id === input.categoryId && input.categoryKey
@@ -1050,6 +1138,7 @@ export class AiChatService {
       amountHidden,
       excludeFromReport,
       photoUrl,
+      receiptId,
     };
   }
 
@@ -1134,4 +1223,5 @@ interface ValidatedDraft {
   amountHidden: boolean;
   excludeFromReport: boolean;
   photoUrl: string | null;
+  receiptId?: string | null;
 }

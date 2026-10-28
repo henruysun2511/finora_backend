@@ -28,7 +28,6 @@ export class CloudinaryService {
     }
 
     const isAudio = file.mimetype.startsWith('audio/');
-    const resourceType = isAudio ? 'video' : 'image';
     const folder =
       customFolder ||
       (isAudio
@@ -39,7 +38,7 @@ export class CloudinaryService {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder,
-          resource_type: resourceType,
+          resource_type: 'auto',
         },
         (
           error: UploadApiErrorResponse | undefined,

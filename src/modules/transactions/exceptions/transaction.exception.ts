@@ -18,3 +18,13 @@ export class TransactionAccessDeniedException extends ForbiddenException {
     });
   }
 }
+
+export class ReceiptNotFoundException extends NotFoundException {
+  constructor(id: string) {
+    super({
+      code: 'RECEIPT_NOT_FOUND',
+      message: `Hóa đơn với ID '${id}' không tồn tại`,
+    });
+  }
+}
+

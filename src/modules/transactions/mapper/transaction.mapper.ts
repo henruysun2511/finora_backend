@@ -20,6 +20,7 @@ export class TransactionMapper {
       accountId: dto.accountId,
       createdBy,
       categoryId: dto.categoryId,
+      receiptId: dto.receiptId ?? null,
       recurringTransactionId: recurringTransactionId ?? null,
       type: dto.type,
       amount: dto.amount,
@@ -44,6 +45,26 @@ export class TransactionMapper {
     return {
       id: entity.id,
       accountId: entity.accountId,
+      receiptId: entity.receiptId ?? null,
+      receipt: entity.receipt
+        ? {
+            id: entity.receipt.id,
+            accountId: entity.receipt.accountId,
+            imageUrl: entity.receipt.imageUrl,
+            merchantName: entity.receipt.merchantName ?? null,
+            totalAmount: Number(entity.receipt.totalAmount) || 0,
+            taxAmount: entity.receipt.taxAmount !== undefined && entity.receipt.taxAmount !== null
+              ? Number(entity.receipt.taxAmount)
+              : null,
+            tipAmount: entity.receipt.tipAmount !== undefined && entity.receipt.tipAmount !== null
+              ? Number(entity.receipt.tipAmount)
+              : null,
+            ocrRawData: entity.receipt.ocrRawData ?? null,
+            scannedAt: entity.receipt.scannedAt,
+            createdAt: entity.receipt.createdAt,
+            updatedAt: entity.receipt.updatedAt,
+          }
+        : null,
       accountName: entity.account?.name,
       createdBy: entity.createdBy,
       categoryId: entity.categoryId,

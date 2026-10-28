@@ -25,6 +25,7 @@ import { MascotsModule } from './modules/mascots/mascots.module';
 import { DashboardModule } from './modules/dashboards/dashboards.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { AiChatModule } from './modules/ai-chat/ai-chat.module';
+import { FinancialInsightsModule } from './modules/financial-insights/financial-insights.module';
 @Module({
   imports: [
     InfrastructuresModule,
@@ -49,7 +50,8 @@ import { AiChatModule } from './modules/ai-chat/ai-chat.module';
     MascotsModule,
     SettingsModule,
     AiChatModule,
-    DashboardModule
+    DashboardModule,
+    FinancialInsightsModule,
   ],
 
   providers: [

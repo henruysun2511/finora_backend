@@ -8,6 +8,7 @@ import { CreateNotificationDto } from '../notifications/dto/request/create-notif
 import { NotificationType } from '../notifications/enums/notification-type.enum';
 import { NotificationsService } from '../notifications/notifications.service';
 import { WalletsService } from '../wallets/wallets.service';
+import { WalletGateway } from '../wallets/gateways/wallet.gateway';
 import { BudgetQueryDto } from './dto/request/budget-query.dto';
 import { CreateBudgetDto } from './dto/request/create-budget.dto';
 import { UpdateBudgetDto } from './dto/request/update-budget.dto';
@@ -69,6 +70,8 @@ export class BudgetsService {
     private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly exchangeRatesService?: ExchangeRatesService,
+    @Optional()
+    private readonly walletGateway?: WalletGateway,
   ) {}
 
   async createBudget(userId: string, dto: CreateBudgetDto) {
@@ -517,6 +520,22 @@ export class BudgetsService {
           this.notificationsService.createNotification({ ...dto, userId }),
         ),
       );
+
+      // Phát cảnh báo ngân sách realtime tới room socket của ví
+      if (this.walletGateway) {
+        this.walletGateway.broadcastBudgetAlert(alert.walletId, {
+          budgetId: alert.budgetId,
+          walletId: alert.walletId,
+          categoryName: alert.categoryName,
+          percentage: alert.percentage,
+          spentAmount: alert.spentAmount,
+          effectiveLimit: alert.effectiveLimit,
+          type: alert.type,
+          title: dto.title,
+          body: dto.body,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
   }
 

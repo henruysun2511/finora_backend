@@ -49,6 +49,10 @@ import {
   EVENT_NET_WORTH_CHANGED,
   NetWorthChangedEvent,
 } from '../../common/events/net-worth-changed.event';
+import {
+  EVENT_WALLET_BALANCE_UPDATED,
+  WalletBalanceUpdatedEvent,
+} from '../wallets/events/wallet-balance-updated.event';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -449,6 +453,29 @@ export class LoansService {
         EVENT_NET_WORTH_CHANGED,
         new NetWorthChangedEvent(userId, 'loan.delete'),
       );
+      if (loan.accountId && loan.affectsBalance !== false && loan.type !== LoanType.INSTALLMENT) {
+        try {
+          const account = await this.accountsService.findById(loan.accountId);
+          if (account) {
+            this.eventEmitter.emit(
+              EVENT_WALLET_BALANCE_UPDATED,
+              new WalletBalanceUpdatedEvent(
+                account.walletId,
+                loan.accountId,
+                loan.id,
+                loan.type === LoanType.LENT ? 'income' : 'expense',
+                loan.principalAmount,
+                userId,
+                account.balance,
+                'Hoàn tác khoản vay',
+                `Xóa khoản vay: ${loan.contactName}`,
+              ),
+            );
+          }
+        } catch {
+          // Safe fallback
+        }
+      }
     }
   }
 

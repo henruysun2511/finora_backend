@@ -16,6 +16,7 @@ import { PhotoType } from '../enums/photo-type.enum';
 import { Account } from '../../accounts/entities/account.entity';
 import { Category } from '../../categories/entities/category.entity';
 import { User } from '../../users/entities/user.entity';
+import { Receipt } from './receipt.entity';
 import { DecimalTransformer } from '../../../common/utils/decimal.transformer';
 
 
@@ -52,6 +53,13 @@ export class Transaction extends BaseEntity {
 
   @Column({ name: 'receipt_id', type: 'uuid', nullable: true })
   receiptId?: string | null;
+
+  @ManyToOne(() => Receipt, (receipt) => receipt.transactions, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'receipt_id' })
+  receipt?: Receipt | null;
 
   @Column({ name: 'chat_message_id', type: 'uuid', nullable: true })
   chatMessageId?: string | null;

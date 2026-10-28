@@ -24,7 +24,7 @@ export class TransactionRepository {
     const repository = manager ? manager.getRepository(Transaction) : this.repo;
     return repository.findOne({
       where: { id },
-      relations: ['account', 'category'],
+      relations: ['account', 'category', 'receipt'],
     });
   }
 

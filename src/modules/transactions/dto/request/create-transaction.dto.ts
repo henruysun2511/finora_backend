@@ -30,6 +30,14 @@ export class CreateTransactionDto {
   @IsUUID('4', { message: 'categoryId phải là định dạng UUID v4' })
   categoryId: string;
 
+  @ApiPropertyOptional({
+    description: 'UUID của hóa đơn OCR đã quét (nếu có)',
+    example: 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'receiptId phải là định dạng UUID v4' })
+  receiptId?: string;
+
   @ApiProperty({
     enum: TransactionType,
     description: 'Loại giao dịch: EXPENSE (Chi tiêu) hoặc INCOME (Thu nhập)',

@@ -1,9 +1,10 @@
 // src/modules/ai-chat/services/query-planner.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CategoryLite } from '../interfaces/ai-chat.types';
 import { TimeRange } from '../utils/date.util';
 import { containsPhrase, normalizeForMatch } from '../utils/text.util';
 import { EntityExtractorService } from './entity-extractor.service';
+import { ModelGatewayService } from './model-gateway.service';
 
 export enum CannedQueryFunction {
   GET_SPENDING_SUMMARY = 'get_spending_summary',
@@ -20,7 +21,13 @@ export enum CannedQueryFunction {
 
 export interface CannedQueryPlan {
   functionName: CannedQueryFunction | null;
-  params: { timeRange: TimeRange; categoryName?: string; limit?: number };
+  params: {
+    timeRange: TimeRange;
+    categoryName?: string;
+    limit?: number;
+    directQuestion?: string;
+  };
+  source?: 'llm_agent' | 'rule_fallback';
 }
 
 const BUDGET_HEALTH = [
@@ -67,11 +74,16 @@ const SPENDING_HABITS = [
 ];
 
 const DEBT = [
+  'no',
   'so no',
+  'khoan no',
+  'tien no',
   'con no',
   'chu no',
   'ai no',
   'no ai',
+  'dang no',
+  'tong no',
   'khoan vay',
   'cho vay',
   'di vay',
@@ -81,6 +93,14 @@ const DEBT = [
   'no nan',
   'no xau',
   'qua han',
+  'vay muon',
+  'muon no',
+  'muon tien',
+  'vay tien',
+  'vay no',
+  'no bao nhieu',
+  'so no bao nhieu',
+  'no thang',
 ];
 
 const CASHFLOW = [
@@ -162,14 +182,71 @@ const RECENT = [
 ];
 
 /**
- * "Function calling" xác định (deterministic): intent + thực thể -> 1 hàm trong danh mục canned query đã được phê duyệt.
- * Không để model tự sinh tên hàm/SQL nên không thể gọi nhầm hàm nguy hiểm.
+ * QueryPlannerService:
+ * Ưu tiên 1: Agentic LLM Function Calling (Gemini) để hiểu ngữ nghĩa sâu sắc của câu hỏi tự nhiên.
+ * Fallback 2: Rule-based xác định (deterministic) với bộ từ khóa phong phú khi LLM bận/offline.
  */
 @Injectable()
 export class QueryPlannerService {
-  constructor(private readonly extractor: EntityExtractorService) {}
+  private readonly logger = new Logger(QueryPlannerService.name);
 
-  plan(
+  constructor(
+    private readonly extractor: EntityExtractorService,
+    private readonly gateway: ModelGatewayService,
+  ) {}
+
+  /**
+   * Lập kế hoạch truy vấn tài chính:
+   * 1. Thử gọi LLM Function Calling từ AI Service để hiểu sâu ngữ cảnh (nhận diện chính xác 1 trong 10 hàm).
+   * 2. Nếu model không phản hồi hoặc timeout -> rơi về planByRules.
+   */
+  async plan(
+    text: string,
+    categories: CategoryLite[],
+    hint?: string | null,
+    today?: string,
+  ): Promise<CannedQueryPlan> {
+    // 1. Thử Agentic LLM Tool Calling trước
+    if (this.gateway.isAvailable()) {
+      try {
+        const aiPlan = await this.gateway.planQuery(
+          text,
+          categories.map((c) => ({ id: c.id, name: c.name })),
+          today,
+        );
+
+        if (aiPlan?.function_name && this.isValidFunction(aiPlan.function_name)) {
+          const fn = aiPlan.function_name as CannedQueryFunction;
+          const timeRange = this.parseTimeRange(aiPlan.time_range) ?? this.extractor.extractTimeRange(text);
+          
+          this.logger.log(
+            `[Agentic QueryPlanner] AI Tool Call thành công: fn=${fn}, timeRange=${timeRange}, cat=${aiPlan.category_name}, directQ="${aiPlan.direct_question}"`,
+          );
+
+          return {
+            functionName: fn,
+            params: {
+              timeRange,
+              categoryName: aiPlan.category_name ?? undefined,
+              limit: aiPlan.limit ? Math.min(20, Math.max(1, Number(aiPlan.limit))) : undefined,
+              directQuestion: aiPlan.direct_question ?? undefined,
+            },
+            source: 'llm_agent',
+          };
+        }
+      } catch (err) {
+        this.logger.warn(`Agentic QueryPlanner thất bại, rơi về rule-based: ${(err as Error).message}`);
+      }
+    }
+
+    // 2. Fallback Rule-based (được mở rộng đầy đủ từ khóa)
+    return this.planByRules(text, categories, hint);
+  }
+
+  /**
+   * Fallback Rule-based an toàn.
+   */
+  planByRules(
     text: string,
     categories: CategoryLite[],
     hint?: string | null,
@@ -180,14 +257,14 @@ export class QueryPlannerService {
     const h = (hint || '').toLowerCase();
 
     let fn: CannedQueryFunction | null;
-    if (has(BUDGET_HEALTH) || h.includes('budget'))
+    if (has(DEBT) || h.includes('debt') || h.includes('loan'))
+      fn = CannedQueryFunction.GET_DEBT_SUMMARY;
+    else if (has(BUDGET_HEALTH) || h.includes('budget'))
       fn = CannedQueryFunction.GET_BUDGET_HEALTH;
     else if (has(RULE_50_30_20) || h.includes('50_30_20') || h.includes('rule'))
       fn = CannedQueryFunction.GET_RULE_50_30_20;
     else if (has(SPENDING_HABITS) || h.includes('habit'))
       fn = CannedQueryFunction.GET_SPENDING_HABITS;
-    else if (has(DEBT) || h.includes('debt') || h.includes('loan'))
-      fn = CannedQueryFunction.GET_DEBT_SUMMARY;
     else if (has(CASHFLOW) || h.includes('cashflow') || h.includes('savings'))
       fn = CannedQueryFunction.GET_CASHFLOW_SAVINGS;
     else if (has(COMPARE) || h.includes('compare'))
@@ -212,6 +289,20 @@ export class QueryPlannerService {
 
     const n = /\btop\s+(\d{1,2})\b/.exec(norm);
     if (n) params.limit = Math.min(10, Math.max(1, Number(n[1])));
-    return { functionName: fn, params };
+
+    return { functionName: fn, params, source: 'rule_fallback' };
+  }
+
+  private isValidFunction(name: string): boolean {
+    return Object.values(CannedQueryFunction).includes(name as CannedQueryFunction);
+  }
+
+  private parseTimeRange(val?: string | null): TimeRange | null {
+    if (!val) return null;
+    const upper = val.toUpperCase().trim();
+    if (Object.values(TimeRange).includes(upper as TimeRange)) {
+      return upper as TimeRange;
+    }
+    return null;
   }
 }

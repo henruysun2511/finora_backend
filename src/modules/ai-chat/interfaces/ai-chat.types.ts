@@ -57,4 +57,11 @@ export interface TransactionDraftInput {
   source: string;
   missingFields: Array<'accountId' | 'categoryId'>;
   warnings: string[];
+  receiptId?: string | null;
+  photoUrl?: string | null;
+  merchantName?: string | null;
+  taxAmount?: number | null;
+  tipAmount?: number | null;
+  ocrRawData?: Record<string, any> | Record<string, any>[] | null;
 }
+
