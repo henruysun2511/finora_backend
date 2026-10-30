@@ -1,10 +1,11 @@
-name: Finora Backend CI
+name: Finora Backend CI/CD
 
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -39,3 +40,34 @@ jobs:
 
       - name: Production Build
         run: npm run build
+
+  deploy:
+    name: Deploy to android-n5 Server
+    needs: build-and-test
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            echo "🚀 [Deploy] Navigating to finora_backend directory..."
+            cd /home/ASUS/Finora/finora_backend
+
+            echo "📥 [Deploy] Fetching latest code from git..."
+            git fetch origin ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+
+            echo "🐳 [Deploy] Rebuilding and restarting Docker container..."
+            docker compose build backend --pull
+            docker compose up -d --remove-orphans
+
+            echo "✅ [Deploy] Verifying container status..."
+            docker ps -f name=finora-backend
