@@ -38,6 +38,7 @@
     "class-validator": "^0.14.1",
     "cloudinary": "^2.11.0",
     "dotenv": "^16.4.5",
+    "google-auth-library": "^11.3.2",
     "ioredis": "^5.11.1",
     "nodemailer": "^10.1.2",
     "passport": "^0.7.0",

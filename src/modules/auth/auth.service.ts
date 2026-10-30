@@ -13,6 +13,8 @@ import { ChangePasswordDto } from './dto/request/change-password.dto';
 import { AuthResponseDto } from './dto/response/auth-response.dto';
 import { AuthTokensDto } from './dto/response/auth-tokens.dto';
 import { GoogleProfileDto } from './strategies/google.strategy';
+import { OAuth2Client } from 'google-auth-library';
+import { GoogleConfig } from '../../config/google.config';
 import {
   InvalidCredentialsException,
   InvalidTokenException,
@@ -175,6 +177,42 @@ export class AuthService {
       ...tokens,
       user: this.usersService.toResponseDto(fullUser),
     };
+  }
+
+  // ── 3.1. Đăng nhập qua Google ID Token (Mobile: Android / iOS) ────────────
+  async loginWithGoogleIdToken(
+    idToken: string,
+    userAgent?: string,
+    ipAddress?: string,
+  ): Promise<AuthResponseDto> {
+    const client = new OAuth2Client(GoogleConfig.CLIENT_ID || undefined);
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: GoogleConfig.CLIENT_ID ? [GoogleConfig.CLIENT_ID] : undefined,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        throw new InvalidTokenException('Google ID Token không hợp lệ');
+      }
+
+      const profile: GoogleProfileDto = {
+        googleId: payload.sub,
+        email: payload.email,
+        fullName: payload.name ?? 'Google User',
+        avatar: payload.picture,
+      };
+
+      return this.loginWithGoogle(profile, userAgent, ipAddress);
+    } catch (error) {
+      if (error instanceof AccountInactiveException) throw error;
+      throw new InvalidTokenException(
+        error instanceof Error
+          ? error.message
+          : 'Google ID Token không hợp lệ hoặc đã hết hạn',
+      );
+    }
   }
 
   // ── 4. Cấp lại Token từ Refresh Token ──────────────────────────────────────

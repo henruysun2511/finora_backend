@@ -18,6 +18,7 @@ import { RegisterDto } from './dto/request/register.dto';
 import { LoginDto } from './dto/request/login.dto';
 import { RefreshTokenDto } from './dto/request/refresh-token.dto';
 import { ChangePasswordDto } from './dto/request/change-password.dto';
+import { GoogleMobileAuthDto } from './dto/request/google-mobile-auth.dto';
 import { AuthResponseDto } from './dto/response/auth-response.dto';
 import { AuthTokensDto } from './dto/response/auth-tokens.dto';
 import { UserResponseDto } from '../users/dto/response/user.dto';
@@ -101,6 +102,30 @@ export class AuthController {
     const googleProfile = (req as unknown as { user: GoogleProfileDto }).user;
     const data = await this.authService.loginWithGoogle(
       googleProfile,
+      userAgent,
+      ipAddress,
+    );
+    return ApiResponse.success(data, 'Đăng nhập Google thành công');
+  }
+
+  @Public()
+  @Post('google/mobile')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerDoc({
+    summary: 'Đăng nhập Google từ Mobile App (Android / iOS)',
+    description:
+      'Xác thực Google ID Token nhận được từ Google Sign-In SDK và cấp cặp Token đăng nhập',
+    bodyType: GoogleMobileAuthDto,
+    responseType: AuthResponseDto,
+    status: 200,
+  })
+  async googleMobileAuth(
+    @Body() dto: GoogleMobileAuthDto,
+    @Headers('user-agent') userAgent?: string,
+    @Ip() ipAddress?: string,
+  ) {
+    const data = await this.authService.loginWithGoogleIdToken(
+      dto.idToken,
       userAgent,
       ipAddress,
     );
