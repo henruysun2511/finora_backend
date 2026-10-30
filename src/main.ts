@@ -33,8 +33,11 @@ async function bootstrap() {
       // Cho phép requests không có origin (mobile apps, Postman, curl)
       if (!origin) return callback(null, true);
 
-      // Trong môi trường dev, cho phép tất cả các cổng localhost / 127.0.0.1 (Web dev, Flutter Web, Vite, etc.)
-      if (AppConfig.IS_DEV && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      // Trong môi trường dev, cho phép tất cả các cổng localhost / 127.0.0.1 / nip.io (Web dev, Flutter Web, Vite, etc.)
+      if (
+        AppConfig.IS_DEV &&
+        /^https?:\/\/(localhost|127\.0\.0\.1|34\.21\.234\.192|.*\.nip\.io)(:\d+)?$/.test(origin)
+      ) {
         return callback(null, true);
       }
 
