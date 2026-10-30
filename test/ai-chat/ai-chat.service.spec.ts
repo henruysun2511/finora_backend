@@ -173,7 +173,7 @@ describe('AiChatService', () => {
     } as any;
 
     queryPlanner = {
-      plan: jest.fn().mockReturnValue({
+      plan: jest.fn().mockResolvedValue({
         functionName: CannedQueryFunction.GET_SPENDING_SUMMARY,
         params: { timeRange: TimeRange.THIS_MONTH },
       }),
@@ -328,7 +328,7 @@ describe('AiChatService', () => {
         confidence: 1,
         source: 'rule',
       });
-      queryPlanner.plan.mockReturnValue({
+      queryPlanner.plan.mockResolvedValue({
         functionName: CannedQueryFunction.GET_SPENDING_SUMMARY,
         params: { timeRange: TimeRange.THIS_MONTH },
       });
@@ -356,7 +356,7 @@ describe('AiChatService', () => {
         confidence: 1,
         source: 'rule',
       });
-      queryPlanner.plan.mockReturnValue({
+      queryPlanner.plan.mockResolvedValue({
         functionName: CannedQueryFunction.GET_WALLET_BALANCES,
         params: { timeRange: TimeRange.THIS_MONTH },
       });
@@ -382,7 +382,7 @@ describe('AiChatService', () => {
         confidence: 1,
         source: 'rule',
       });
-      queryPlanner.plan.mockReturnValue({
+      queryPlanner.plan.mockResolvedValue({
         functionName: CannedQueryFunction.GET_TOP_CATEGORIES,
         params: { timeRange: TimeRange.THIS_MONTH, limit: 5 },
       });
@@ -409,7 +409,7 @@ describe('AiChatService', () => {
         confidence: 1,
         source: 'rule',
       });
-      queryPlanner.plan.mockReturnValue({
+      queryPlanner.plan.mockResolvedValue({
         functionName: 'get_crypto_prices' as any,
         params: { timeRange: TimeRange.THIS_MONTH },
       });
