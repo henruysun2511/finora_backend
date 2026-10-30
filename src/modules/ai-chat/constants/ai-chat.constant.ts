@@ -37,7 +37,9 @@ export const AI_CHAT_CONFIG = {
     'audio/wav',
     'audio/x-wav',
     'audio/webm',
+    'video/webm', // Trình duyệt Chromium (Chrome/Edge) gán video/webm cho audio WebM
     'audio/ogg',
+    'video/ogg',
     'audio/flac',
   ],
   ALLOWED_IMAGE_MIME: [

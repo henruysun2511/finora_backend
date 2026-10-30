@@ -5,7 +5,14 @@ module.exports = {
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
-  collectCoverageFrom: ['src/**/*.ts', '!**/node_modules/**'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!**/node_modules/**',
+    '!src/main.ts',
+    '!src/database/migrations/**',
+    '!src/database/seeds/**',
+    '!src/database/scripts/**',
+  ],
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
     '^modules/(.*)$': '<rootDir>/src/modules/$1',

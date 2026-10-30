@@ -147,7 +147,8 @@ export class AiChatService {
     if (!file || !file.buffer || !file.buffer.length)
       throw new AiMediaRequiredException();
 
-    const mime = (file.mimetype || '').toLowerCase();
+    const rawMime = (file.mimetype || '').toLowerCase();
+    const mime = rawMime.split(';')[0].trim();
     const isAudio = (
       AI_CHAT_CONFIG.ALLOWED_AUDIO_MIME as readonly string[]
     ).includes(mime);

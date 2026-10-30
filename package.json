@@ -19,7 +19,7 @@
     "seed:admin": "ts-node src/database/seeds/admin-domain-data.seed.ts",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage --forceExit"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",
