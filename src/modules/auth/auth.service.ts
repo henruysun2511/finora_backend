@@ -179,40 +179,72 @@ export class AuthService {
     };
   }
 
-  // ── 3.1. Đăng nhập qua Google ID Token (Mobile: Android / iOS) ────────────
+  // ── 3.1. Đăng nhập qua Google Token (Mobile ID Token / Web Access Token) ──
   async loginWithGoogleIdToken(
-    idToken: string,
+    token: string,
     userAgent?: string,
     ipAddress?: string,
   ): Promise<AuthResponseDto> {
     const client = new OAuth2Client(GoogleConfig.CLIENT_ID || undefined);
-    try {
-      const ticket = await client.verifyIdToken({
-        idToken,
-        audience: GoogleConfig.CLIENT_ID ? [GoogleConfig.CLIENT_ID] : undefined,
-      });
 
-      const payload = ticket.getPayload();
-      if (!payload || !payload.email) {
-        throw new InvalidTokenException('Google ID Token không hợp lệ');
+    // 1. Thử xác thực theo ID Token (chuỗi JWT 3 đoạn dành cho Android / iOS)
+    if (token.split('.').length === 3) {
+      try {
+        const ticket = await client.verifyIdToken({
+          idToken: token,
+          audience: GoogleConfig.CLIENT_ID ? [GoogleConfig.CLIENT_ID] : undefined,
+        });
+
+        const payload = ticket.getPayload();
+        if (payload && payload.email) {
+          const profile: GoogleProfileDto = {
+            googleId: payload.sub,
+            email: payload.email,
+            fullName: payload.name ?? 'Google User',
+            avatar: payload.picture,
+          };
+          return this.loginWithGoogle(profile, userAgent, ipAddress);
+        }
+      } catch (err) {
+        if (err instanceof AccountInactiveException) throw err;
+        // Nếu verifyIdToken lỗi, tiếp tục thử kiểm tra access token bên dưới
       }
-
-      const profile: GoogleProfileDto = {
-        googleId: payload.sub,
-        email: payload.email,
-        fullName: payload.name ?? 'Google User',
-        avatar: payload.picture,
-      };
-
-      return this.loginWithGoogle(profile, userAgent, ipAddress);
-    } catch (error) {
-      if (error instanceof AccountInactiveException) throw error;
-      throw new InvalidTokenException(
-        error instanceof Error
-          ? error.message
-          : 'Google ID Token không hợp lệ hoặc đã hết hạn',
-      );
     }
+
+    // 2. Thử xác thực theo Access Token (dành cho Web GIS popup flow)
+    try {
+      const response = await fetch(
+        'https://www.googleapis.com/oauth2/v3/userinfo',
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (response.ok) {
+        const userInfo = (await response.json()) as {
+          sub: string;
+          email: string;
+          name?: string;
+          picture?: string;
+        };
+
+        if (userInfo.email) {
+          const profile: GoogleProfileDto = {
+            googleId: userInfo.sub,
+            email: userInfo.email,
+            fullName: userInfo.name ?? userInfo.email.split('@')[0],
+            avatar: userInfo.picture,
+          };
+          return this.loginWithGoogle(profile, userAgent, ipAddress);
+        }
+      }
+    } catch (err) {
+      if (err instanceof AccountInactiveException) throw err;
+    }
+
+    throw new InvalidTokenException(
+      'Mã xác thực Google không hợp lệ hoặc đã hết hạn',
+    );
   }
 
   // ── 4. Cấp lại Token từ Refresh Token ──────────────────────────────────────
