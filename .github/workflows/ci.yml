@@ -65,9 +65,10 @@ jobs:
             git fetch origin ${{ github.ref_name }}
             git reset --hard origin/${{ github.ref_name }}
 
-            echo "🐳 [Deploy] Rebuilding and restarting Docker container..."
+            echo "🐳 [Deploy] Rebuilding and restarting Backend container..."
+            cd /home/ASUS/Finora
             docker compose build backend --pull
-            docker compose up -d --remove-orphans
+            docker compose up -d --no-deps backend
 
             echo "✅ [Deploy] Verifying container status..."
             docker ps -f name=finora-backend
