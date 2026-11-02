@@ -21,6 +21,7 @@ module.exports = {
     '^config$': '<rootDir>/src/config',
     '^shared/(.*)$': '<rootDir>/src/shared/$1',
     '^database/(.*)$': '<rootDir>/src/database/$1',
+    '^infrastructures/(.*)$': '<rootDir>/src/infrastructures/$1',
   },
   testEnvironment: 'node',
   forceExit: true,
