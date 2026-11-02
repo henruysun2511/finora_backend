@@ -88,6 +88,7 @@ export class MailerService {
     to: string,
     userName: string,
     otpCode: string,
+    expiresInSeconds = 30,
   ): Promise<boolean> {
     const subject = 'FINORA — Mã xác nhận đặt lại mật khẩu';
     const html = `
@@ -98,7 +99,7 @@ export class MailerService {
         <div style="text-align: center; margin: 28px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #1F2937; background: #F3F4F6; padding: 10px 24px; border-radius: 8px; border: 1px dashed #D1D5DB;">${otpCode}</span>
         </div>
-        <p style="color: #666; font-size: 14px;">Mã xác nhận này sẽ hết hạn trong vòng <strong>10 phút</strong>. Nếu bạn không yêu cầu hành động này, vui lòng bỏ qua email và bảo mật tài khoản.</p>
+        <p style="color: #666; font-size: 14px;">Mã xác nhận này sẽ hết hạn trong vòng <strong>${expiresInSeconds} giây</strong>. Nếu bạn không yêu cầu hành động này, vui lòng bỏ qua email và bảo mật tài khoản.</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
         <p style="color: #999; font-size: 12px; text-align: center;">Finora Financial Platform Team</p>
       </div>

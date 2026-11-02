@@ -25,6 +25,8 @@ import { LoginDto } from 'modules/auth/dto/request/login.dto';
 import { ChangePasswordDto } from 'modules/auth/dto/request/change-password.dto';
 
 import { AuditLogsService } from 'modules/audit-logs/audit-logs.service';
+import { MailerService } from 'infrastructures/mailer/mailer.service';
+import { RedisService } from 'infrastructures/redis/redis.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -33,6 +35,9 @@ describe('AuthService', () => {
   let tokenRepo: jest.Mocked<Partial<TokenRepository>>;
   let jwtService: jest.Mocked<Partial<JwtService>>;
   let auditLogsService: jest.Mocked<Partial<AuditLogsService>>;
+  let mailerService: jest.Mocked<Partial<MailerService>>;
+  let redisService: jest.Mocked<Partial<RedisService>>;
+
 
   const mockDate = new Date('2026-01-01T00:00:00.000Z');
   const mockUserId = '11111111-1111-1111-1111-111111111111';
@@ -109,6 +114,16 @@ describe('AuthService', () => {
       recordLog: jest.fn(),
     };
 
+    mailerService = {
+      sendPasswordResetEmail: jest.fn().mockResolvedValue(true),
+    };
+
+    redisService = {
+      get: jest.fn(),
+      set: jest.fn().mockResolvedValue(true),
+      del: jest.fn().mockResolvedValue(1),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -117,11 +132,14 @@ describe('AuthService', () => {
         { provide: TokenRepository, useValue: tokenRepo },
         { provide: JwtService, useValue: jwtService },
         { provide: AuditLogsService, useValue: auditLogsService },
+        { provide: MailerService, useValue: mailerService },
+        { provide: RedisService, useValue: redisService },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
   });
+
 
   // ── Register ──────────────────────────────────────────────────────────────
   describe('register', () => {
@@ -384,4 +402,127 @@ describe('AuthService', () => {
       ).rejects.toThrow(InvalidCredentialsException);
     });
   });
+
+  // ── Forgot Password (OTP 30s) ──────────────────────────────────────────────
+  describe('forgotPassword', () => {
+    it('should generate 6-digit OTP, save to redis with 30s TTL, and send email', async () => {
+      usersService.findByEmail!.mockResolvedValue(mockUserEntity);
+
+      const result = await service.forgotPassword({ email: mockUserEntity.email });
+
+      expect(usersService.findByEmail).toHaveBeenCalledWith(mockUserEntity.email);
+      expect(redisService.set).toHaveBeenCalledWith(
+        `otp:pwd-reset:${mockUserEntity.email}`,
+        expect.objectContaining({
+          code: expect.stringMatching(/^\d{6}$/),
+          userId: mockUserEntity.id,
+        }),
+        30,
+      );
+      expect(mailerService.sendPasswordResetEmail).toHaveBeenCalledWith(
+        mockUserEntity.email,
+        mockUserEntity.fullName,
+        expect.stringMatching(/^\d{6}$/),
+        30,
+      );
+      expect(result.expiresIn).toBe(30);
+      expect(result.email).toContain('@finora.com');
+    });
+
+    it('should throw UserNotFoundException if email does not exist', async () => {
+      usersService.findByEmail!.mockResolvedValue(null);
+
+      await expect(
+        service.forgotPassword({ email: 'nonexistent@finora.com' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ── Verify OTP (30s window) ────────────────────────────────────────────────
+  describe('verifyForgotPasswordOtp', () => {
+    it('should verify OTP and return a resetToken if valid', async () => {
+      redisService.get!.mockResolvedValue({
+        code: '123456',
+        attempts: 0,
+        userId: mockUserId,
+      });
+
+      const result = await service.verifyForgotPasswordOtp({
+        email: 'user@finora.com',
+        otp: '123456',
+      });
+
+      expect(redisService.del).toHaveBeenCalledWith('otp:pwd-reset:user@finora.com');
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('pwd-reset:token:rst_'),
+        expect.objectContaining({ userId: mockUserId, email: 'user@finora.com' }),
+        300,
+      );
+      expect(result.resetToken).toMatch(/^rst_/);
+      expect(result.expiresIn).toBe(300);
+    });
+
+    it('should throw OtpExpiredException if OTP has expired', async () => {
+      redisService.get!.mockResolvedValue(null);
+
+      await expect(
+        service.verifyForgotPasswordOtp({
+          email: 'user@finora.com',
+          otp: '123456',
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('should throw InvalidOtpException if OTP code does not match', async () => {
+      redisService.get!.mockResolvedValue({
+        code: '123456',
+        attempts: 0,
+        userId: mockUserId,
+      });
+
+      await expect(
+        service.verifyForgotPasswordOtp({
+          email: 'user@finora.com',
+          otp: '999999',
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ── Reset Password ─────────────────────────────────────────────────────────
+  describe('resetPassword', () => {
+    it('should update password and revoke all tokens if resetToken is valid', async () => {
+      redisService.get!.mockResolvedValue({
+        userId: mockUserId,
+        email: 'user@finora.com',
+      });
+      usersService.updateAuthUser!.mockResolvedValue(mockUserEntity);
+      tokenRepo.revokeAllUserTokens!.mockResolvedValue(undefined);
+
+      const result = await service.resetPassword({
+        resetToken: 'rst_test_token_123',
+        newPassword: 'BrandNewPassword123!',
+      });
+
+      expect(usersService.updateAuthUser).toHaveBeenCalledWith(
+        mockUserId,
+        expect.objectContaining({ password: expect.any(String) }),
+      );
+      expect(redisService.del).toHaveBeenCalledWith('pwd-reset:token:rst_test_token_123');
+      expect(tokenRepo.revokeAllUserTokens).toHaveBeenCalledWith(mockUserId);
+      expect(result.message).toContain('thành công');
+    });
+
+    it('should throw InvalidResetTokenException if token is not found or expired', async () => {
+      redisService.get!.mockResolvedValue(null);
+
+      await expect(
+        service.resetPassword({
+          resetToken: 'invalid_token',
+          newPassword: 'BrandNewPassword123!',
+        }),
+      ).rejects.toThrow();
+    });
+  });
 });
+

@@ -19,7 +19,11 @@ import { LoginDto } from './dto/request/login.dto';
 import { RefreshTokenDto } from './dto/request/refresh-token.dto';
 import { ChangePasswordDto } from './dto/request/change-password.dto';
 import { GoogleMobileAuthDto } from './dto/request/google-mobile-auth.dto';
+import { ForgotPasswordDto } from './dto/request/forgot-password.dto';
+import { VerifyOtpDto } from './dto/request/verify-otp.dto';
+import { ResetPasswordDto } from './dto/request/reset-password.dto';
 import { AuthResponseDto } from './dto/response/auth-response.dto';
+
 import { AuthTokensDto } from './dto/response/auth-tokens.dto';
 import { UserResponseDto } from '../users/dto/response/user.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -193,4 +197,56 @@ export class AuthController {
       'Đổi mật khẩu thành công, vui lòng đăng nhập lại',
     );
   }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerDoc({
+    summary: 'Yêu cầu mã xác thực OTP quên mật khẩu (Email / Gmail)',
+    description:
+      'Gửi mã xác thực 6 số về Gmail của người dùng. Mã có hiệu lực trong vòng 30 giây.',
+    bodyType: ForgotPasswordDto,
+    status: 200,
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    const data = await this.authService.forgotPassword(dto);
+    return ApiResponse.success(
+      data,
+      'Mã xác thực 6 số đã được gửi tới email của bạn. Vui lòng nhập trong vòng 30 giây.',
+    );
+  }
+
+  @Public()
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerDoc({
+    summary: 'Xác thực mã OTP 6 số trong vòng 30 giây',
+    description:
+      'Kiểm tra mã OTP 6 số người dùng nhập từ email. Nếu chính xác và trong 30s, trả về resetToken.',
+    bodyType: VerifyOtpDto,
+    status: 200,
+  })
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    const data = await this.authService.verifyForgotPasswordOtp(dto);
+    return ApiResponse.success(data, 'Xác thực mã OTP thành công');
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerDoc({
+    summary: 'Đặt lại mật khẩu mới bằng resetToken',
+    description:
+      'Dùng resetToken nhận được sau khi verify OTP thành công để thiết lập mật khẩu mới.',
+    bodyType: ResetPasswordDto,
+    status: 200,
+  })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    const data = await this.authService.resetPassword(dto);
+    return ApiResponse.success(
+      data,
+      'Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới.',
+    );
+  }
 }
+

@@ -15,14 +15,25 @@ import { AuthTokensDto } from './dto/response/auth-tokens.dto';
 import { GoogleProfileDto } from './strategies/google.strategy';
 import { OAuth2Client } from 'google-auth-library';
 import { GoogleConfig } from '../../config/google.config';
+import * as crypto from 'crypto';
+import { MailerService } from '../../infrastructures/mailer/mailer.service';
+import { RedisService } from '../../infrastructures/redis/redis.service';
+import { ForgotPasswordDto } from './dto/request/forgot-password.dto';
+import { VerifyOtpDto } from './dto/request/verify-otp.dto';
+import { ResetPasswordDto } from './dto/request/reset-password.dto';
 import {
   InvalidCredentialsException,
   InvalidTokenException,
   AccountInactiveException,
+  OtpExpiredException,
+  InvalidOtpException,
+  TooManyOtpAttemptsException,
+  InvalidResetTokenException,
 } from './exceptions/auth.exception';
 import {
   EmailAlreadyExistsException,
   UsernameAlreadyExistsException,
+  UserNotFoundException,
 } from '../users/exceptions/user.exception';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -39,6 +50,8 @@ export class AuthService {
     private readonly tokenRepository: TokenRepository,
     private readonly jwtService: JwtService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly mailerService: MailerService,
+    private readonly redisService: RedisService,
   ) {}
 
   // ── 1. Đăng ký tài khoản mới ──────────────────────────────────────────────
@@ -342,6 +355,138 @@ export class AuthService {
       entityType: AUDIT_LOG_ENTITY_TYPE.AUTH,
       entityId: userId,
     });
+  }
+
+  // ── 7. Quên mật khẩu: Gửi mã xác thực OTP 6 số qua Email (30 giây) ────────
+  async forgotPassword(
+    dto: ForgotPasswordDto,
+  ): Promise<{ email: string; expiresIn: number }> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedEmail);
+    if (!user) {
+      throw new UserNotFoundException(dto.email);
+    }
+
+    if (!user.isActive) {
+      throw new AccountInactiveException();
+    }
+
+    // Sinh ngẫu nhiên mã OTP 6 chữ số
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const expiresInSeconds = 30; // 30 giây hiệu lực theo yêu cầu
+    const otpKey = `otp:pwd-reset:${normalizedEmail}`;
+
+    // Lưu mã OTP vào Redis (kèm fallback bộ nhớ) với thời hạn 30 giây
+    await this.redisService.set(
+      otpKey,
+      { code: otp, attempts: 0, userId: user.id },
+      expiresInSeconds,
+    );
+
+    // Gửi email chứa mã OTP xác nhận
+    await this.mailerService.sendPasswordResetEmail(
+      user.email,
+      user.fullName || 'Người dùng',
+      otp,
+      expiresInSeconds,
+    );
+
+    // Mask email trước khi trả về client để bảo mật (ví dụ: hu***1@gmail.com)
+    const [localPart, domain] = user.email.split('@');
+    const maskedLocal =
+      localPart.length > 2
+        ? `${localPart.slice(0, 2)}***${localPart.slice(-1)}`
+        : `${localPart[0]}***`;
+    const maskedEmail = `${maskedLocal}@${domain}`;
+
+    return {
+      email: maskedEmail,
+      expiresIn: expiresInSeconds,
+    };
+  }
+
+  // ── 8. Xác thực mã OTP trong vòng 30 giây ─────────────────────────────────
+  async verifyForgotPasswordOtp(
+    dto: VerifyOtpDto,
+  ): Promise<{ resetToken: string; expiresIn: number }> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const otpKey = `otp:pwd-reset:${normalizedEmail}`;
+
+    const record = await this.redisService.get<{
+      code: string;
+      attempts: number;
+      userId: string;
+    }>(otpKey);
+
+    if (!record) {
+      throw new OtpExpiredException();
+    }
+
+    if (record.code !== dto.otp.trim()) {
+      record.attempts = (record.attempts || 0) + 1;
+      if (record.attempts >= 3) {
+        await this.redisService.del(otpKey);
+        throw new TooManyOtpAttemptsException();
+      }
+      // Cập nhật lại số lần đã thử với TTL còn lại 30s
+      await this.redisService.set(otpKey, record, 30);
+      throw new InvalidOtpException(
+        `Mã OTP không chính xác. Bạn còn ${3 - record.attempts} lần thử.`,
+      );
+    }
+
+    // OTP chính xác -> Xóa mã OTP ngay để chống tái sử dụng (Single-use)
+    await this.redisService.del(otpKey);
+
+    // Sinh resetToken bảo mật có thời hạn 5 phút (300s) để cho phép đặt mật khẩu mới
+    const resetToken = `rst_${crypto.randomBytes(32).toString('hex')}`;
+    const tokenKey = `pwd-reset:token:${resetToken}`;
+    await this.redisService.set(
+      tokenKey,
+      { userId: record.userId, email: normalizedEmail },
+      300,
+    );
+
+    return {
+      resetToken,
+      expiresIn: 300,
+    };
+  }
+
+  // ── 9. Đặt lại mật khẩu mới bằng Reset Token ──────────────────────────────
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const tokenKey = `pwd-reset:token:${dto.resetToken.trim()}`;
+    const session = await this.redisService.get<{
+      userId: string;
+      email: string;
+    }>(tokenKey);
+
+    if (!session || !session.userId) {
+      throw new InvalidResetTokenException();
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
+    await this.usersService.updateAuthUser(session.userId, {
+      password: hashedPassword,
+    });
+
+    // Hủy resetToken ngay sau khi dùng xong
+    await this.redisService.del(tokenKey);
+
+    // Thu hồi toàn bộ session đăng nhập cũ của người dùng
+    await this.tokenRepository.revokeAllUserTokens(session.userId);
+
+    this.auditLogsService.recordLog({
+      userId: session.userId,
+      action: AUDIT_LOG_ACTION.PASSWORD_CHANGE,
+      entityType: AUDIT_LOG_ENTITY_TYPE.AUTH,
+      entityId: session.userId,
+      newValue: { reason: 'FORGOT_PASSWORD_RESET' },
+    });
+
+    return {
+      message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.',
+    };
   }
 
   // ── Helper: Tạo cặp Access Token & Refresh Token ──────────────────────────
