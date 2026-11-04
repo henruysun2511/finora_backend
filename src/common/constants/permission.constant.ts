@@ -118,4 +118,18 @@ export const ADMIN_EXCLUSIVE_PERMISSIONS: readonly string[] = [
   SYSTEM_PERMISSIONS.MASCOTS_CREATE,
   SYSTEM_PERMISSIONS.MASCOTS_UPDATE,
   SYSTEM_PERMISSIONS.MASCOTS_DELETE,
+
+  // System management
+  SYSTEM_PERMISSIONS.SYSTEM_CONFIG_READ,
+  SYSTEM_PERMISSIONS.SYSTEM_CONFIG_UPDATE,
+  SYSTEM_PERMISSIONS.SYSTEM_AUDIT_VIEW,
 ];
+
+/**
+ * Danh sách toàn bộ quyền hạn mặc định gán cho người dùng thông thường (Role 'USER').
+ * Gồm toàn bộ quyền thao tác tài chính, ví, giao dịch, ngân sách, chia tiền, tin nhắn cá nhân và nhóm.
+ */
+export const USER_DEFAULT_PERMISSIONS: readonly string[] = (
+  Object.values(SYSTEM_PERMISSIONS) as string[]
+).filter((perm) => !ADMIN_EXCLUSIVE_PERMISSIONS.includes(perm));
+
