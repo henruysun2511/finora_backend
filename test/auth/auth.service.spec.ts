@@ -403,9 +403,9 @@ describe('AuthService', () => {
     });
   });
 
-  // ── Forgot Password (OTP 30s) ──────────────────────────────────────────────
+  // ── Forgot Password (OTP 180s) ─────────────────────────────────────────────
   describe('forgotPassword', () => {
-    it('should generate 6-digit OTP, save to redis with 30s TTL, and send email', async () => {
+    it('should generate 6-digit OTP, save to redis with 180s TTL, and send email', async () => {
       usersService.findByEmail!.mockResolvedValue(mockUserEntity);
 
       const result = await service.forgotPassword({ email: mockUserEntity.email });
@@ -417,15 +417,15 @@ describe('AuthService', () => {
           code: expect.stringMatching(/^\d{6}$/),
           userId: mockUserEntity.id,
         }),
-        30,
+        180,
       );
       expect(mailerService.sendPasswordResetEmail).toHaveBeenCalledWith(
         mockUserEntity.email,
         mockUserEntity.fullName,
         expect.stringMatching(/^\d{6}$/),
-        30,
+        180,
       );
-      expect(result.expiresIn).toBe(30);
+      expect(result.expiresIn).toBe(180);
       expect(result.email).toContain('@finora.com');
     });
 

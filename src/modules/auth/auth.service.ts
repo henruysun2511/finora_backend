@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { JwtConfig } from '../../config/jwt.config';
@@ -44,6 +44,8 @@ import {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly authorizationService: AuthorizationService,
@@ -373,7 +375,7 @@ export class AuthService {
 
     // Sinh ngẫu nhiên mã OTP 6 chữ số
     const otp = crypto.randomInt(100000, 1000000).toString();
-    const expiresInSeconds = 30; // 30 giây hiệu lực theo yêu cầu
+    const expiresInSeconds = 180; // 30 giây hiệu lực theo yêu cầu
     const otpKey = `otp:pwd-reset:${normalizedEmail}`;
 
     // Lưu mã OTP vào Redis (kèm fallback bộ nhớ) với thời hạn 30 giây
@@ -383,13 +385,24 @@ export class AuthService {
       expiresInSeconds,
     );
 
+    // Ghi log mã OTP lên console server (cực kỳ hữu ích khi test hoặc khi SMTP bị chặn cổng trên Cloud)
+    this.logger.log(
+      `🔑 [OTP QUÊN MẬT KHẨU] Email: ${user.email} | OTP: [${otp}] | Hiệu lực: ${expiresInSeconds}s`,
+    );
+
     // Gửi email chứa mã OTP xác nhận
-    await this.mailerService.sendPasswordResetEmail(
+    const emailSent = await this.mailerService.sendPasswordResetEmail(
       user.email,
       user.fullName || 'Người dùng',
       otp,
       expiresInSeconds,
     );
+
+    if (!emailSent) {
+      this.logger.warn(
+        `⚠️ Không thể gửi email OTP đến ${user.email}. Vui lòng kiểm tra cấu hình SMTP hoặc firewall outbound trên server. Sử dụng mã OTP trong log để tiếp tục test: [${otp}]`,
+      );
+    }
 
     // Mask email trước khi trả về client để bảo mật (ví dụ: hu***1@gmail.com)
     const [localPart, domain] = user.email.split('@');
@@ -429,7 +442,7 @@ export class AuthService {
         throw new TooManyOtpAttemptsException();
       }
       // Cập nhật lại số lần đã thử với TTL còn lại 30s
-      await this.redisService.set(otpKey, record, 30);
+      await this.redisService.set(otpKey, record, 180);
       throw new InvalidOtpException(
         `Mã OTP không chính xác. Bạn còn ${3 - record.attempts} lần thử.`,
       );

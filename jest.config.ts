@@ -24,5 +24,6 @@ module.exports = {
     '^infrastructures/(.*)$': '<rootDir>/src/infrastructures/$1',
   },
   testEnvironment: 'node',
+  maxWorkers: process.env.CI ? 2 : '50%',
   forceExit: true,
 };
