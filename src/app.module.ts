@@ -1,6 +1,7 @@
 import { Module, ClassSerializerInterceptor } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { InfrastructuresModule } from './infrastructures/infrastructures.module';
+import { CloudinaryModule } from './infrastructures/cloudinary/cloudinary.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -29,6 +30,7 @@ import { FinancialInsightsModule } from './modules/financial-insights/financial-
 @Module({
   imports: [
     InfrastructuresModule,
+    CloudinaryModule,
     UsersModule,
     AuthorizationModule,
     AuthModule,

@@ -29,6 +29,20 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   /**
+   * Helper kiểm tra user có quyền Admin hệ thống hay không
+   */
+  private checkIsAdmin(user: any): boolean {
+    if (!user) return false;
+    if (user.isSysAdmin) return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some((r: any) =>
+        typeof r === 'string' ? r === 'ADMIN' : r?.code === 'ADMIN',
+      );
+    }
+    return false;
+  }
+
+  /**
    * POST /api/v1/categories
    * Tạo danh mục tài chính mới.
    */
@@ -43,10 +57,11 @@ export class CategoriesController {
     bearerAuth: true,
   })
   async create(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: any,
     @Body() dto: CreateCategoryDto,
   ) {
-    const data = await this.categoriesService.createCategory(userId, dto);
+    const isAdmin = this.checkIsAdmin(user);
+    const data = await this.categoriesService.createCategory(user?.id, dto, isAdmin);
 
     return ApiResponse.created(data, 'Tạo danh mục mới thành công');
   }
@@ -102,17 +117,18 @@ export class CategoriesController {
   @SwaggerDoc({
     summary: 'Cập nhật danh mục',
     description:
-      'Chỉ chủ sở hữu danh mục mới được cập nhật. Danh mục mặc định của hệ thống không thể chỉnh sửa.',
+      'Chủ sở hữu hoặc quản trị viên có thể cập nhật danh mục.',
     bodyType: UpdateCategoryDto,
     responseType: CategoryResponseDto,
     bearerAuth: true,
   })
   async update(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCategoryDto,
   ) {
-    const data = await this.categoriesService.updateCategory(id, userId, dto);
+    const isAdmin = this.checkIsAdmin(user);
+    const data = await this.categoriesService.updateCategory(id, user?.id, dto, isAdmin);
 
     return ApiResponse.success(data, 'Cập nhật danh mục thành công');
   }
@@ -125,14 +141,15 @@ export class CategoriesController {
   @SwaggerDoc({
     summary: 'Xóa danh mục',
     description:
-      'Xóa danh mục do người dùng tạo. Chặn xóa nếu là danh mục hệ thống, hoặc danh mục đã phát sinh giao dịch, liên kết ngân sách, hay đang có danh mục con.',
+      'Xóa danh mục. Quản trị viên có quyền xóa danh mục hệ thống.',
     bearerAuth: true,
   })
   async remove(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.categoriesService.deleteCategory(id, userId);
+    const isAdmin = this.checkIsAdmin(user);
+    await this.categoriesService.deleteCategory(id, user?.id, isAdmin);
 
     return ApiResponse.noContent('Xóa danh mục thành công');
   }

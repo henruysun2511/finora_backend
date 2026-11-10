@@ -66,7 +66,12 @@ export class CategoryRepository {
       });
     }
 
-    query.orderBy('category.name', 'ASC');
+    const sortField = ['name', 'createdAt', 'type'].includes(queryDto.sortBy || '')
+      ? `category.${queryDto.sortBy}`
+      : 'category.name';
+    const sortDirection = queryDto.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+    query.orderBy(sortField, sortDirection);
 
     return query.getMany();
   }

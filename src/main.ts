@@ -49,7 +49,15 @@ async function bootstrap() {
     },
     credentials: AppConfig.CORS_CREDENTIALS,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: [
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'X-Requested-With',
+      'Origin',
+      'Access-Control-Request-Method',
+      'Access-Control-Request-Headers',
+    ],
   });
 
   // ── Global Validation Pipes ──────────────────────────────────────────────

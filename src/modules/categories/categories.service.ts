@@ -27,7 +27,7 @@ export class CategoriesService {
   ) {}
 
   // TASK-CAT01: POST /api/v1/categories
-  async createCategory(userId: string, dto: CreateCategoryDto) {
+  async createCategory(userId: string, dto: CreateCategoryDto, isAdmin: boolean = false) {
     const cleanName = dto.name.trim();
 
     // BR4: Kiểm tra trùng tên trong cùng phạm vi sở hữu & loại danh mục
@@ -42,7 +42,7 @@ export class CategoriesService {
       if (!parent) {
         throw new CategoryInvalidParentException('Danh mục cha không tồn tại');
       }
-      if (parent.userId && parent.userId !== userId && !parent.isDefault) {
+      if (!isAdmin && parent.userId && parent.userId !== userId && !parent.isDefault) {
         throw new CategoryInvalidParentException('Danh mục cha không thuộc quyền truy cập của bạn');
       }
       if (parent.type !== dto.type) {
@@ -50,7 +50,13 @@ export class CategoriesService {
       }
     }
 
-    const entity = this.categoryRepo.create(this.categoryMapper.toEntity({ ...dto, name: cleanName }, userId));
+    // Mặc định là danh mục hệ thống nếu là admin hoặc nếu dto.isDefault được chỉ định là true
+    const isDefault = dto.isDefault !== undefined ? dto.isDefault : isAdmin;
+    const entity = this.categoryRepo.create({
+      ...this.categoryMapper.toEntity({ ...dto, name: cleanName }, userId),
+      isDefault,
+      userId: isDefault ? null : userId,
+    });
     const saved = await this.categoryRepo.save(entity);
     return this.categoryMapper.toResponse(saved);
   }
@@ -80,17 +86,17 @@ export class CategoriesService {
   }
 
   // TASK-CAT03: PATCH /api/v1/categories/{categoryId}
-  async updateCategory(id: string, userId: string, dto: UpdateCategoryDto) {
+  async updateCategory(id: string, userId: string, dto: UpdateCategoryDto, isAdmin: boolean = false) {
     const category = await this.categoryRepo.findById(id);
     if (!category) throw new CategoryNotFoundException(id);
 
-    // BR4: Chặn sửa danh mục hệ thống
-    if (category.isDefault) {
+    // BR4: Chặn sửa danh mục hệ thống nếu không phải admin
+    if (category.isDefault && !isAdmin) {
       throw new CategorySystemProtectedException();
     }
 
-    // Kiểm tra quyền sở hữu
-    if (category.userId && category.userId !== userId) {
+    // Kiểm tra quyền sở hữu nếu không phải admin
+    if (!isAdmin && category.userId && category.userId !== userId) {
       throw new CategoryNotFoundException(id);
     }
 
@@ -117,7 +123,7 @@ export class CategoriesService {
       if (!parent) {
         throw new CategoryInvalidParentException('Danh mục cha không tồn tại');
       }
-      if (parent.userId && parent.userId !== userId && !parent.isDefault) {
+      if (!isAdmin && parent.userId && parent.userId !== userId && !parent.isDefault) {
         throw new CategoryInvalidParentException('Danh mục cha không thuộc quyền truy cập của bạn');
       }
       if (parent.type !== targetType) {
@@ -147,25 +153,29 @@ export class CategoriesService {
     }
 
     Object.assign(category, dto);
-    category.userId = userId;
-    category.isDefault = false;
+    if (isAdmin && dto.isDefault !== undefined) {
+      category.isDefault = dto.isDefault;
+      if (category.isDefault) {
+        category.userId = null as any;
+      }
+    }
 
     const updated = await this.categoryRepo.save(category);
     return this.categoryMapper.toResponse(updated);
   }
 
   // TASK-CAT04: DELETE /api/v1/categories/{categoryId}
-  async deleteCategory(id: string, userId: string) {
+  async deleteCategory(id: string, userId: string, isAdmin: boolean = false) {
     const category = await this.categoryRepo.findById(id);
     if (!category) throw new CategoryNotFoundException(id);
 
-    // BR2: Chặn xóa danh mục hệ thống
-    if (category.isDefault) {
+    // BR2: Chặn xóa danh mục hệ thống nếu không phải ADMIN
+    if (category.isDefault && !isAdmin) {
       throw new CategorySystemProtectedException();
     }
 
-    // BR1: Kiểm tra quyền sở hữu
-    if (category.userId && category.userId !== userId) {
+    // BR1: Kiểm tra quyền sở hữu nếu không phải ADMIN
+    if (!isAdmin && category.userId && category.userId !== userId) {
       throw new CategoryNotFoundException(id);
     }
 
