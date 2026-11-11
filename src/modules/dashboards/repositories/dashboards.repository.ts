@@ -361,7 +361,7 @@ export class DashboardRepository {
   async getCalendarData(userId: string, walletId: string | undefined, month: string) {
     const transactionQuery = this.dataSource
       .createQueryBuilder()
-      .select("DATE_TRUNC('day', tx.transaction_date)::date", 'date')
+      .select("TO_CHAR(tx.transaction_date, 'YYYY-MM-DD')", 'date')
       .addSelect("SUM(CASE WHEN tx.type = 'INCOME' THEN tx.amount ELSE 0 END)", 'totalIncome')
       .addSelect("SUM(CASE WHEN tx.type = 'EXPENSE' THEN tx.amount ELSE 0 END)", 'totalExpense')
       .addSelect('COUNT(tx.id)', 'transactionCount')
@@ -373,7 +373,7 @@ export class DashboardRepository {
       .andWhere('tx.exclude_from_report = false')
       .andWhere('tx.deleted_at IS NULL')
       .andWhere("TO_CHAR(tx.transaction_date, 'YYYY-MM') = :month", { month })
-      .groupBy('date')
+      .groupBy("TO_CHAR(tx.transaction_date, 'YYYY-MM-DD')")
       .orderBy('date', 'ASC')
       .getRawMany();
 
