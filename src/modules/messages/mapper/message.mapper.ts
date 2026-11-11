@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DirectMessage } from '../entities/direct-message.entity';
 import { TransactionVisibility } from '../../../common/enums/transaction-visibility.enum';
+import { TransactionType } from '../../../common/enums/transaction-type.enum';
 import {
   MessageResponseDto,
   ReplySnippetDto,
@@ -30,6 +31,8 @@ export class MessageMapper {
             id: message.relatedTransaction.id,
             name: message.relatedTransaction.name,
             photoUrl: message.relatedTransaction.photoUrl ?? null,
+            amount: message.relatedTransaction.amountHidden ? null : Number(message.relatedTransaction.amount),
+            isExpense: message.relatedTransaction.type === TransactionType.EXPENSE,
             transactionDate: message.relatedTransaction.transactionDate,
           }
         : null;
