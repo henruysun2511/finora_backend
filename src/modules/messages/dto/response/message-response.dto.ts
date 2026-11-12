@@ -30,6 +30,12 @@ export class RelatedTransactionDto {
   @ApiPropertyOptional({ example: 'https://...' })
   photoUrl?: string | null;
 
+  @ApiPropertyOptional({ example: 65000 })
+  amount?: number | null;
+
+  @ApiPropertyOptional({ example: true })
+  isExpense?: boolean;
+
   @ApiProperty({ example: '2026-10-19T10:00:00.000Z' })
   transactionDate: Date;
 }
