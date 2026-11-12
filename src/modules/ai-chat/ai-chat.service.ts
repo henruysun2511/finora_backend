@@ -62,6 +62,7 @@ import {
   IntentResult,
 } from './services/intent-classifier.service';
 import { DashboardService } from '../dashboards/dashboards.service';
+import { SettingsService } from '../settings/settings.service';
 import { MascotAdviceService } from './services/mascot-advice.service';
 import { MascotContextService } from './services/mascot-context.service';
 import { FinancialContext, MascotToneService } from './services/mascot-tone.service';
@@ -110,6 +111,7 @@ export class AiChatService {
     private readonly stt: SpeechToTextService,
     private readonly ocr: OcrService,
     private readonly rateLimiter: ChatRateLimiter,
+    private readonly settingsService: SettingsService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -285,9 +287,10 @@ export class AiChatService {
               systemPrompt,
             );
           case AiIntent.OUT_OF_SCOPE: {
-            const [history, financialContext] = await Promise.all([
+            const [history, financialContext, aiConfig] = await Promise.all([
               this.loadRecentHistory(p.userId, p.walletId),
               this.loadFinancialContext(p.userId, p.walletId),
+              this.settingsService.getEffectiveAiConfig(p.userId),
             ]);
             return this.replyText(
               p.userId,
@@ -301,6 +304,7 @@ export class AiChatService {
                 systemPrompt,
                 history,
                 financialContext,
+                aiConfig,
               ),
             );
           }
@@ -308,9 +312,10 @@ export class AiChatService {
             const key = this.intentClassifier.isAdviceRequest(p.text)
               ? 'advice'
               : 'chitchat';
-            const [history, financialContext] = await Promise.all([
+            const [history, financialContext, aiConfig] = await Promise.all([
               this.loadRecentHistory(p.userId, p.walletId),
               this.loadFinancialContext(p.userId, p.walletId),
+              this.settingsService.getEffectiveAiConfig(p.userId),
             ]);
             return this.replyText(
               p.userId,
@@ -324,6 +329,7 @@ export class AiChatService {
                 systemPrompt,
                 history,
                 financialContext,
+                aiConfig,
               ),
             );
           }
@@ -616,7 +622,7 @@ export class AiChatService {
   }
 
   /** Nhánh 5: hỏi lại người dùng + gợi ý tuỳ chọn (client gửi lại kèm intentOverride). */
-  private handleUnclear(
+  private async handleUnclear(
     userId: string,
     walletId: string,
     mascot: MascotCode,
@@ -663,29 +669,28 @@ export class AiChatService {
         message: 'Cho tôi lời khuyên tài chính',
       },
     ];
-    return this.tone
-      .sayGenerated(
-        mascot,
-        'unclear',
-        text,
-        systemPrompt,
-        history,
-        financialContext,
-      )
-      .then((reply) =>
-        this.replyText(
-          userId,
-          walletId,
-          mascot,
-          AiIntent.INTENT_UNCLEAR,
-          reply,
-          {
-            clarifyOptions: actions.map((a) => a.label),
-            clarifyActions: actions,
-            originalMessage: text,
-          },
-        ),
-      );
+    const aiConfig = await this.settingsService.getEffectiveAiConfig(userId);
+    const reply = await this.tone.sayGenerated(
+      mascot,
+      'unclear',
+      text,
+      systemPrompt,
+      history,
+      financialContext,
+      aiConfig,
+    );
+    return this.replyText(
+      userId,
+      walletId,
+      mascot,
+      AiIntent.INTENT_UNCLEAR,
+      reply,
+      {
+        clarifyOptions: actions.map((a) => a.label),
+        clarifyActions: actions,
+        originalMessage: text,
+      },
+    );
   }
 
   /** Lấy lịch sử trò chuyện gần nhất (dạng chronological user/model) phục vụ multi-turn chat. */

@@ -5,6 +5,7 @@ import { MASCOT_VOICES, MascotVoice } from '../constants/mascot-templates.consta
 import { MascotCode } from '../interfaces/ai-chat.types';
 import { fillTemplate, pickRandom } from '../utils/text.util';
 import { ModelGatewayService } from './model-gateway.service';
+import { GeminiService } from './gemini.service';
 
 type Vars = Record<string, string | number | null | undefined>;
 
@@ -30,12 +31,21 @@ export interface FinancialContext {
  * - Với chitchat/advice/outOfScope/unclear: nếu bật AI_TEXT_GEN_ENABLED thì thử model sinh văn bản,
  *   kiểm tra chất lượng, lỗi/không đạt -> rơi về template.
  */
+export interface EffectiveAiConfig {
+  apiKey?: string;
+  model?: string;
+  isCustomKey?: boolean;
+}
+
 @Injectable()
 export class MascotToneService {
   private readonly logger = new Logger(MascotToneService.name);
   private readonly lastIndex = new Map<string, number>();
 
-  constructor(private readonly gateway: ModelGatewayService) {}
+  constructor(
+    private readonly gateway: ModelGatewayService,
+    private readonly gemini: GeminiService,
+  ) {}
 
   /** Lấy câu từ template pool (tránh lặp lại câu vừa dùng liền trước). */
   say(mascot: MascotCode, key: keyof MascotVoice, vars: Vars = {}): string {
@@ -47,7 +57,7 @@ export class MascotToneService {
     return fillTemplate(value, vars);
   }
 
-  /** Trả lời cho nhóm câu "mềm" (có thể do model sinh) với fallback template bắt buộc. */
+  /** Trả lời cho nhóm câu "mềm" (ưu tiên gọi Google Gemini với key riêng hoặc key hệ thống, fallback template). */
   async sayGenerated(
     mascot: MascotCode,
     key: keyof MascotVoice,
@@ -55,7 +65,46 @@ export class MascotToneService {
     systemPrompt?: string,
     history?: Array<{ role: string; content: string }>,
     financialContext?: FinancialContext,
+    aiConfig?: EffectiveAiConfig,
   ): Promise<string> {
+    // 1. Ưu tiên gọi Google Gemini nếu có apiKey (BYOK của user hoặc Key hệ thống)
+    if (aiConfig?.apiKey && aiConfig.apiKey.trim().length > 0) {
+      try {
+        const geminiHistory = (history ?? []).map((h) => ({
+          role: (h.role === 'user' ? 'user' : 'model') as 'user' | 'model',
+          content: h.content,
+        }));
+
+        let contextualUserPrompt = userText;
+        if (financialContext) {
+          const parts: string[] = [];
+          if (financialContext.balance !== undefined) parts.push(`Số dư ví hiện tại: ${financialContext.balance.toLocaleString('vi-VN')}đ`);
+          if (financialContext.monthlyBudget !== undefined) parts.push(`Ngân sách tháng: ${financialContext.monthlyBudget.toLocaleString('vi-VN')}đ`);
+          if (financialContext.monthlySpent !== undefined) parts.push(`Đã chi tiêu tháng này: ${financialContext.monthlySpent.toLocaleString('vi-VN')}đ`);
+          if (financialContext.totalDebt !== undefined) parts.push(`Tổng nợ cần trả: ${financialContext.totalDebt.toLocaleString('vi-VN')}đ`);
+          if (parts.length > 0) {
+            contextualUserPrompt = `[Dữ liệu tài chính người dùng: ${parts.join(', ')}]\n${userText}`;
+          }
+        }
+
+        const generated = await this.gemini.generateText({
+          apiKey: aiConfig.apiKey,
+          model: aiConfig.model || 'gemini-1.5-flash',
+          systemPrompt: systemPrompt || 'Bạn là Nora - linh vật trợ lý tài chính thông minh, tích cực, ngắn gọn, đồng hành cùng người dùng Finora.',
+          userPrompt: contextualUserPrompt,
+          history: geminiHistory,
+        });
+
+        if (generated && this.isQualityOk(generated)) {
+          this.logger.debug(`Gemini sinh phản hồi thành công (${aiConfig.isCustomKey ? 'Key cá nhân' : 'Key hệ thống'})`);
+          return generated;
+        }
+      } catch (err) {
+        this.logger.warn(`Lỗi khi gọi Gemini: ${(err as Error)?.message}, thử fallback.`);
+      }
+    }
+
+    // 2. Dự phòng: gọi Gateway model nội bộ nếu khả dụng
     const cfg = getAiModelConfig();
     if (
       cfg.textGenEnabled &&

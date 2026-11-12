@@ -246,6 +246,15 @@ describe('AiChatService', () => {
       deleteMedia: jest.fn().mockResolvedValue({ success: true }),
     } as any;
 
+    const settingsService = {
+      getEffectiveAiConfig: jest.fn().mockResolvedValue({
+        provider: 'GEMINI',
+        model: 'gemini-1.5-flash',
+        apiKey: '',
+        isCustomKey: false,
+      }),
+    } as any;
+
     service = new AiChatService(
       chatMessageRepo,
       pendingActionRepo,
@@ -268,6 +277,7 @@ describe('AiChatService', () => {
       stt,
       ocr,
       rateLimiter,
+      settingsService,
     );
   });
 
@@ -318,6 +328,7 @@ describe('AiChatService', () => {
         'Chào bạn',
         undefined,
         expect.any(Array),
+        expect.any(Object),
         expect.any(Object),
       );
     });

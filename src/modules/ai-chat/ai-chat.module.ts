@@ -26,6 +26,7 @@ import { MascotAdviceService } from './services/mascot-advice.service';
 import { MascotContextService } from './services/mascot-context.service';
 import { MascotToneService } from './services/mascot-tone.service';
 import { ModelGatewayService } from './services/model-gateway.service';
+import { GeminiService } from './services/gemini.service';
 import { OcrService } from './services/ocr.service';
 import { QueryPlannerService } from './services/query-planner.service';
 import { SpeechToTextService } from './services/speech-to-text.service';
@@ -66,7 +67,8 @@ import { CloudinaryModule } from '../../infrastructures/cloudinary/cloudinary.mo
     MascotToneService,
     MascotAdviceService,
     ChatRateLimiter,
+    GeminiService,
   ],
-  exports: [AiChatService, CannedQueryRegistry, ModelGatewayService],
+  exports: [AiChatService, CannedQueryRegistry, ModelGatewayService, GeminiService],
 })
 export class AiChatModule {}
