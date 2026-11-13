@@ -39,6 +39,9 @@ export class InviteWalletMemberDto {
     description: 'Vai trò ban đầu được gán cho thành viên (editor hoặc viewer)',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsIn([WalletMemberRole.EDITOR, WalletMemberRole.VIEWER], {
     message: 'Vai trò ban đầu chỉ có thể là editor hoặc viewer',
   })
