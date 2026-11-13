@@ -45,7 +45,7 @@ export class MascotToneService {
   constructor(
     private readonly gateway: ModelGatewayService,
     private readonly gemini: GeminiService,
-  ) {}
+  ) { }
 
   /** Lấy câu từ template pool (tránh lặp lại câu vừa dùng liền trước). */
   say(mascot: MascotCode, key: keyof MascotVoice, vars: Vars = {}): string {
