@@ -173,11 +173,15 @@ export class DashboardRepository {
     endDate: string,
     datePart: string,
   ) {
+    const validDateParts = ['day', 'week', 'month', 'year'];
+    const safeDatePart = validDateParts.includes(datePart) ? datePart : 'week';
+    const dateExpr = `DATE_TRUNC('${safeDatePart}', tx.transaction_date)`;
+
     const timelineQuery = this.dataSource
       .createQueryBuilder()
-      .select(`DATE_TRUNC(:datePart, tx.transaction_date)`, 'date')
-      .addSelect("SUM(CASE WHEN tx.type = 'INCOME' THEN tx.amount ELSE 0 END)", 'income')
-      .addSelect("SUM(CASE WHEN tx.type = 'EXPENSE' THEN tx.amount ELSE 0 END)", 'expense')
+      .select(dateExpr, 'date')
+      .addSelect("COALESCE(SUM(CASE WHEN tx.type = 'INCOME' THEN tx.amount ELSE 0 END), 0)", 'income')
+      .addSelect("COALESCE(SUM(CASE WHEN tx.type = 'EXPENSE' THEN tx.amount ELSE 0 END), 0)", 'expense')
       .from('transactions', 'tx');
 
     this.applyUserWalletFilter(timelineQuery, userId, walletId);
@@ -190,35 +194,37 @@ export class DashboardRepository {
         .andWhere('tx.transaction_date < :endDate', { endDate });
 
     const timeline = await baseFilters(timelineQuery)
-      .setParameter('datePart', datePart)
-      .groupBy('date')
-      .orderBy('date', 'ASC')
+      .groupBy(dateExpr)
+      .orderBy(dateExpr, 'ASC')
       .getRawMany();
 
+    const dayOfWeekExpr = 'EXTRACT(ISODOW FROM tx.transaction_date)';
     const heatmapQuery = this.dataSource
       .createQueryBuilder()
-      .select('EXTRACT(ISODOW FROM tx.transaction_date)', 'dayOfWeek')
+      .select(dayOfWeekExpr, 'dayOfWeek')
       .addSelect(
-        'SUM(tx.amount) / NULLIF(COUNT(DISTINCT DATE(tx.transaction_date)), 0)',
+        'COALESCE(SUM(tx.amount) / NULLIF(COUNT(DISTINCT DATE(tx.transaction_date)), 0), 0)',
         'averageExpense',
       )
       .from('transactions', 'tx');
     this.applyUserWalletFilter(heatmapQuery, userId, walletId);
     const dayOfWeekHeatmap = await baseFilters(heatmapQuery)
       .andWhere("tx.type = 'EXPENSE'")
-      .groupBy('dayOfWeek')
-      .orderBy('dayOfWeek', 'ASC')
+      .groupBy(dayOfWeekExpr)
+      .orderBy(dayOfWeekExpr, 'ASC')
       .getRawMany();
 
+    const distributionCase =
+      "CASE WHEN EXTRACT(HOUR FROM tx.transaction_date) >= 6 AND EXTRACT(HOUR FROM tx.transaction_date) < 11 THEN 'morning' WHEN EXTRACT(HOUR FROM tx.transaction_date) >= 11 AND EXTRACT(HOUR FROM tx.transaction_date) < 14 THEN 'lunch' WHEN EXTRACT(HOUR FROM tx.transaction_date) >= 14 AND EXTRACT(HOUR FROM tx.transaction_date) < 18 THEN 'afternoon' ELSE 'evening' END";
     const distributionQuery = this.dataSource
       .createQueryBuilder()
-      .select("CASE WHEN EXTRACT(HOUR FROM tx.transaction_date) >= 6 AND EXTRACT(HOUR FROM tx.transaction_date) < 11 THEN 'morning' WHEN EXTRACT(HOUR FROM tx.transaction_date) >= 11 AND EXTRACT(HOUR FROM tx.transaction_date) < 14 THEN 'lunch' WHEN EXTRACT(HOUR FROM tx.transaction_date) >= 14 AND EXTRACT(HOUR FROM tx.transaction_date) < 18 THEN 'afternoon' ELSE 'evening' END", 'period')
-      .addSelect('SUM(tx.amount)', 'amount')
+      .select(distributionCase, 'period')
+      .addSelect('COALESCE(SUM(tx.amount), 0)', 'amount')
       .from('transactions', 'tx');
     this.applyUserWalletFilter(distributionQuery, userId, walletId);
     const timeOfDayDistribution = await baseFilters(distributionQuery)
       .andWhere("tx.type = 'EXPENSE'")
-      .groupBy('period')
+      .groupBy(distributionCase)
       .getRawMany();
 
     return { timeline, dayOfWeekHeatmap, timeOfDayDistribution };

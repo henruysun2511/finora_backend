@@ -128,11 +128,12 @@ export class DashboardService {
     const timeline = details.timeline.map((row: any, index: number) => {
       const income = Number(row.income || 0);
       const expense = Number(row.expense || 0);
-      const date = new Date(row.date);
+      const date = row.date ? new Date(row.date) : new Date();
+      const isValidDate = !isNaN(date.getTime());
       return {
         dateLabel: datePart === 'week'
           ? `Tuần ${index + 1}`
-          : date.toISOString().slice(0, datePart === 'day' ? 10 : 7),
+          : (isValidDate ? date.toISOString().slice(0, datePart === 'day' ? 10 : 7) : `Kỳ ${index + 1}`),
         income,
         expense,
         net: income - expense,
@@ -152,13 +153,22 @@ export class DashboardService {
       totalExpense,
       netSavings: totalIncome - totalExpense,
       timeline,
-      dayOfWeekHeatmap: details.dayOfWeekHeatmap.map((row: any) => ({
-        dayOfWeek: dayNames[Number(row.dayOfWeek) - 1] ?? `Thứ ${row.dayOfWeek}`,
-        averageExpense: Number(row.averageExpense || 0),
-      })),
+      dayOfWeekHeatmap: details.dayOfWeekHeatmap.map((row: any) => {
+        const rawDow = row.dayOfWeek ?? row.dayofweek;
+        const dowNum = Number(rawDow);
+        const dayLabel = !isNaN(dowNum) && dowNum >= 1 && dowNum <= 7
+          ? dayNames[dowNum - 1]
+          : `Thứ ${rawDow ?? 'N/A'}`;
+        return {
+          dayOfWeek: dayLabel,
+          averageExpense: Number(row.averageExpense ?? row.averageexpense ?? 0),
+        };
+      }),
       timeOfDayDistribution: Object.fromEntries(
         ['morning', 'lunch', 'afternoon', 'evening'].map((period) => {
-          const row = details.timeOfDayDistribution.find((item: any) => item.period === period);
+          const row = details.timeOfDayDistribution.find(
+            (item: any) => (item.period ?? '').toLowerCase() === period,
+          );
           const amount = Number(row?.amount || 0);
           const labels: Record<string, string> = {
             morning: 'Sáng (06h - 11h)',
