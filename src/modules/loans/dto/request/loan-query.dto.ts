@@ -47,6 +47,24 @@ export class LoanQueryDto {
   search?: string;
 
   @ApiPropertyOptional({
+    description: 'Trường sắp xếp (dueDate, createdAt, amount, remainingAmount)',
+    example: 'dueDate',
+    default: 'dueDate',
+  })
+  @IsOptional()
+  @IsString()
+  sortBy?: string = 'dueDate';
+
+  @ApiPropertyOptional({
+    description: 'Thứ tự sắp xếp (ASC hoặc DESC)',
+    example: 'ASC',
+    default: 'ASC',
+  })
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'ASC' | 'DESC' | 'asc' | 'desc' = 'ASC';
+
+  @ApiPropertyOptional({
     description: 'Số trang (bắt đầu từ 1)',
     default: 1,
   })

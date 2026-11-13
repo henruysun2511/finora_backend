@@ -121,6 +121,8 @@ export class LoansService {
       type: query.type,
       status: query.status,
       search: query.search,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
       page,
       limit,
     });

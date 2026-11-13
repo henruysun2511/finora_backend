@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 
 import { Wallet } from '../entities/wallet.entity';
 import { Account } from '../../accounts/entities/account.entity';
@@ -124,21 +124,13 @@ export class WalletRepository {
       return map;
     }
 
-    const raw = await this.repo.manager
-      .createQueryBuilder()
-      .select('t.account_id', 'accountId')
-      .addSelect(
-        `COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE -t.amount END), 0)`,
-        'balance',
-      )
-      .from('transactions', 't')
-      .where('t.account_id IN (:...accountIds)', { accountIds })
-      .andWhere('t.deleted_at IS NULL')
-      .groupBy('t.account_id')
-      .getRawMany();
+    const accounts = await this.accountRepo.find({
+      where: { id: In(accountIds) },
+      select: ['id', 'balance'],
+    });
 
-    for (const r of raw) {
-      map.set(r.accountId, parseFloat(r.balance) || 0);
+    for (const a of accounts) {
+      map.set(a.id, Number(a.balance) || 0);
     }
     return map;
   }

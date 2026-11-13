@@ -90,6 +90,8 @@ export class LoanRepository {
       type?: LoanType;
       status?: LoanStatus;
       search?: string;
+      sortBy?: string;
+      sortOrder?: 'ASC' | 'DESC' | 'asc' | 'desc';
       page: number;
       limit: number;
     },
@@ -113,15 +115,27 @@ export class LoanRepository {
       });
     }
 
-    // Ưu tiên OVERDUE lên đầu, sau đó createdAt DESC
+    // Ưu tiên OVERDUE lên đầu
     qb.addSelect(
       `CASE WHEN loan.status = '${LoanStatus.OVERDUE}' THEN 1 ELSE 2 END`,
       'priority_status',
     );
-    qb.orderBy('priority_status', 'ASC')
-      .addOrderBy('loan.createdAt', 'DESC')
-      .skip((query.page - 1) * query.limit)
-      .take(query.limit);
+    qb.orderBy('priority_status', 'ASC');
+
+    const sortOrderUpper =
+      query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+    if (query.sortBy === 'dueDate') {
+      qb.addOrderBy('loan.dueDate', sortOrderUpper, 'NULLS LAST');
+    } else if (query.sortBy === 'amount') {
+      qb.addOrderBy('loan.amount', sortOrderUpper);
+    } else if (query.sortBy === 'remainingAmount') {
+      qb.addOrderBy('loan.remainingAmount', sortOrderUpper);
+    } else {
+      qb.addOrderBy('loan.createdAt', sortOrderUpper);
+    }
+
+    qb.skip((query.page - 1) * query.limit).take(query.limit);
 
     return qb.getManyAndCount();
   }
