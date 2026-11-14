@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -20,6 +20,9 @@ export class CreateSplitDto {
     example: SplitType.EQUAL,
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   @IsEnum(SplitType, { message: 'splitType phải là equal, custom hoặc percentage' })
   splitType?: SplitType = SplitType.EQUAL;
 

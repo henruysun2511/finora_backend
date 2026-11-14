@@ -36,7 +36,7 @@ export class NotificationMapper {
         return `/loans/${entityId}`;
       case 'EXPENSE_SPLIT':
       case 'SPLIT':
-        return `/splits/${entityId}`;
+        return `/split-expenses/${entityId}`;
       case 'GOAL':
       case 'SAVINGS_GOAL':
         return `/goals/${entityId}`;
