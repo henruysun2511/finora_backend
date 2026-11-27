@@ -35,7 +35,7 @@ describe('NotificationMapper', () => {
       '/loans/loan-1',
     );
     expect(mapper.toResponse({ relatedEntityType: 'EXPENSE_SPLIT', relatedEntityId: 'split-1' } as any).actionUrl).toBe(
-      '/splits/split-1',
+      '/split-expenses/split-1',
     );
     expect(mapper.toResponse({ relatedEntityType: 'FRIEND_REQUEST', relatedEntityId: 'fr-1' } as any).actionUrl).toBe(
       '/friends/requests',
