@@ -147,7 +147,7 @@ export class ModelGatewayService {
           location?: string;
           note?: string;
         }>;
-      }>('/extract-transactions', { text, today }, { timeoutMs: 8000 });
+      }>('/extract-transactions', { text, today }, { timeoutMs: 12000 });
       if (res && Array.isArray(res.transactions) && res.transactions.length > 0) {
         return res.transactions;
       }

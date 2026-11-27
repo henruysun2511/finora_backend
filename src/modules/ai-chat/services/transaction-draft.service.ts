@@ -154,9 +154,9 @@ export class TransactionDraftService {
       }
     }
 
-    // Fallback local: thử tách theo dấu câu / từ nối nếu có nhiều mệnh đề
+    // Fallback local: chỉ tách ở dấu câu kết thúc (không tách dấu chấm trong 50.000) hoặc từ nối
     const clauses = rawText
-      .split(/(?:[.!;]+|\b(?:sau đó|rồi|tiếp theo|tiếp đó)\b)/i)
+      .split(/(?:[!;]+|\.(?=\s|$)|\b(?:sau đó|rồi|tiếp theo|tiếp đó)\b)/i)
       .map((c) => c.trim())
       .filter((c) => c.length > 1);
 

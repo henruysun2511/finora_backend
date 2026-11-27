@@ -21,12 +21,15 @@ const UNIT_MULT: Record<string, number> = {
   vnd: 1,
   dong: 1,
   d: 1,
+  us: 25400,
+  usd: 25400,
+  dola: 25400,
 };
-const CURRENCY_UNITS = new Set(['vnd', 'dong', 'd']);
+const CURRENCY_UNITS = new Set(['vnd', 'dong', 'd', 'us', 'usd', 'dola']);
 
-// Số (có thể có dấu phân cách) + đơn vị tuỳ chọn (k, nghìn, tr, triệu, củ, tỷ, đ...) + "rưỡi" hoặc số lẻ viết liền (1tr5)
+// Số (có thể có dấu phân cách) + đơn vị tuỳ chọn (k, nghìn, tr, triệu, củ, tỷ, đ, usd...) + "rưỡi" hoặc số lẻ viết liền (1tr5)
 const AMOUNT_RE =
-  /(?<![a-z0-9])(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)(?:\s?(trieu|nghin|ngan|vnd|dong|tr|cu|ty|ti|k|d)(?:\s?(ruoi)(?![a-z])|(\d{1,3})(?!\d)|(?=[^a-z0-9]|$)))?(?![a-z0-9])/g;
+  /(?<![a-z0-9])(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)(?:\s?(trieu|nghin|ngan|vnd|dong|dola|usd|tr|cu|ty|ti|us|k|d)(?:\s?(ruoi)(?![a-z])|(\d{1,3})(?!\d)|(?=[^a-z0-9]|$)))?(?![a-z0-9])/g;
 
 const NOISE_PATTERNS: RegExp[] = [
   /\b\d{1,2}\s?[/-]\s?\d{1,2}(?:\s?[/-]\s?\d{2,4})?\b/g, // ngày 15/10, 15-10-2026
@@ -48,7 +51,11 @@ function toNumber(raw: string, hasUnit: boolean): number {
 /** Tìm mọi số tiền hợp lệ trong câu (vị trí tính trên chuỗi NFC gốc). */
 export function parseAmounts(text: string): ParsedAmount[] {
   const original = (text ?? '').normalize('NFC');
-  let working = stripDiacritics(original).toLowerCase();
+  // Giữ nguyên độ dài chuỗi 1-1 khi chuẩn hóa "đô la" (5 ký tự -> "usd  ") và "đô" (2 ký tự -> "us") để spans khớp với original
+  const usdNormalized = original
+    .replace(/(\d\s*)đô\s*la(?![\p{L}])/giu, '$1usd  ')
+    .replace(/(\d\s*)đô(?![\p{L}])/giu, '$1us');
+  let working = stripDiacritics(usdNormalized).toLowerCase();
 
   // che các mẫu ngày/giờ/năm... để không nhầm thành số tiền
   const noise: Array<[number, number]> = [];
