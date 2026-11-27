@@ -38,9 +38,11 @@ const WEAK_INCOME = /\b(nhan|thu|ban duoc|ban)\b/;
 const EXPENSE_VERBS = /\b(mua|tra|chi|tieu|an|uong|dong|nap|mat|het|gui|dat)\b/;
 
 const DATE_WORDS_RE = /\b(hom nay|hom qua|hom kia|hom bua|bua qua)\b/g;
-const FILLER_RE = /\b(vua|moi|toi|minh|em|da|vua moi|nhe|nha|nhi|a|ha)\b/g;
+const FILLER_RE = /\b(vua|moi|toi|minh|em|da|vua moi|nhe|nha|nhi|a|ha|nua|het|mat|ton|khoang|tam)\b/g;
 const PAY_PHRASE_RE =
   /\b(tra|thanh toan|quet|dung|chuyen khoan|ck)\s+(bang|qua)\s+(the\s+|vi\s+|tai khoan\s+|tk\s+)?[a-z0-9]+(\s+[a-z0-9]+)?/g;
+const LEADING_ACTION_FILLER_RE =
+  /^(?:sau do|roi|tiep theo|tiep do|di|lai|cung)\s+/i;
 
 /** Trích xuất thực thể bằng regex/rule (số tiền, ngày, loại, tên giao dịch, khoảng thời gian truy vấn). */
 @Injectable()
@@ -70,6 +72,16 @@ export class EntityExtractorService {
       /^[\s,.\-:;]+|[\s,.\-:;]+$/g,
       '',
     );
+    // Loại bỏ từ nối/động từ dẫn thừa ở đầu mệnh đề (vd: "đi ăn bún cá" -> "ăn bún cá", "sau đó đi đổ xăng" -> "đổ xăng")
+    let prev = '';
+    while (name !== prev) {
+      prev = name;
+      const strippedName = stripDiacritics(name).toLowerCase();
+      const m = strippedName.match(LEADING_ACTION_FILLER_RE);
+      if (m) {
+        name = name.slice(m[0].length).trim();
+      }
+    }
     name = truncate(
       capitalizeFirst(name),
       AI_CHAT_CONFIG.MAX_TRANSACTION_NAME_LENGTH,
