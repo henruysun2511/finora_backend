@@ -48,6 +48,7 @@ import {
 import {
   CategoryLite,
   MascotCode,
+  TransactionDraftInput,
   UploadedMedia,
   WalletAccountLite,
 } from './interfaces/ai-chat.types';
@@ -426,155 +427,202 @@ export class AiChatService {
       walletId,
     );
 
-    const result =
-      p.input.kind === 'text'
-        ? await this.draftService.fromText({
-            text: p.input.text,
-            source: p.source,
-            accounts,
-            categories,
-          })
-        : await this.draftService.fromReceipt({
-            ocrText: p.input.ocrText,
-            source: p.source,
-            accounts,
-            categories,
-          });
+    let drafts: TransactionDraftInput[] = [];
 
-    if (!result.ok) {
-      const reason = 'reason' in result ? result.reason : 'no_amount';
-      const key = reason === 'no_amount' ? 'needAmount' : 'amountTooLarge';
-      return this.replyText(
-        userId,
-        walletId,
-        mascot,
-        AiIntent.ADD_TRANSACTION,
-        this.tone.say(mascot, key),
-        {
-          reason,
-          requireManualInput: true,
-        },
-      );
+    if (p.input.kind === 'text') {
+      const multiRes =
+        typeof this.draftService.fromTextMany === 'function'
+          ? await this.draftService.fromTextMany({
+              text: p.input.text,
+              source: p.source,
+              accounts,
+              categories,
+            })
+          : await this.draftService
+              .fromText({
+                text: p.input.text,
+                source: p.source,
+                accounts,
+                categories,
+              })
+              .then((r) =>
+                r.ok
+                  ? { ok: true as const, drafts: [r.draft] }
+                  : {
+                      ok: false as const,
+                      reason: 'reason' in r ? r.reason : ('no_amount' as const),
+                    },
+              );
+      if (!multiRes.ok) {
+        const reason = 'reason' in multiRes ? multiRes.reason : 'no_amount';
+        const key = reason === 'no_amount' ? 'needAmount' : 'amountTooLarge';
+        return this.replyText(
+          userId,
+          walletId,
+          mascot,
+          AiIntent.ADD_TRANSACTION,
+          this.tone.say(mascot, key),
+          {
+            reason,
+            requireManualInput: true,
+          },
+        );
+      }
+      drafts = multiRes.drafts;
+    } else {
+      const receiptRes = await this.draftService.fromReceipt({
+        ocrText: p.input.ocrText,
+        source: p.source,
+        accounts,
+        categories,
+      });
+      if (!receiptRes.ok) {
+        const reason = 'reason' in receiptRes ? receiptRes.reason : 'no_amount';
+        const key = reason === 'no_amount' ? 'needAmount' : 'amountTooLarge';
+        return this.replyText(
+          userId,
+          walletId,
+          mascot,
+          AiIntent.ADD_TRANSACTION,
+          this.tone.say(mascot, key),
+          {
+            reason,
+            requireManualInput: true,
+          },
+        );
+      }
+      drafts = [receiptRes.draft];
     }
 
-    const d = result.draft;
-    let receiptId: string | null = null;
+    const totalDrafts = drafts.length;
+    let lastResponse: ChatMessageResponseDto | null = null;
 
-    if (p.input.kind === 'receipt') {
-      try {
-        const targetAccountId = d.accountId || accounts[0]?.id;
-        if (targetAccountId) {
-          const receipt = await this.receiptRepo.createAndSave({
-            accountId: targetAccountId,
-            imageUrl: p.imageUrl || '',
-            merchantName: d.merchantName || d.name,
-            totalAmount: d.amount,
-            taxAmount: d.taxAmount ?? null,
-            tipAmount: d.tipAmount ?? null,
-            ocrRawData:
-              d.ocrRawData ?? (p.input.ocrText ? { text: p.input.ocrText } : null),
-            scannedAt: new Date(),
-          });
-          receiptId = receipt.id;
-          d.receiptId = receiptId;
+    for (let idx = 0; idx < totalDrafts; idx++) {
+      const d = drafts[idx];
+      let receiptId: string | null = null;
+
+      if (p.input.kind === 'receipt' && idx === 0) {
+        try {
+          const targetAccountId = d.accountId || accounts[0]?.id;
+          if (targetAccountId) {
+            const receipt = await this.receiptRepo.createAndSave({
+              accountId: targetAccountId,
+              imageUrl: p.imageUrl || '',
+              merchantName: d.merchantName || d.name,
+              totalAmount: d.amount,
+              taxAmount: d.taxAmount ?? null,
+              tipAmount: d.tipAmount ?? null,
+              ocrRawData:
+                d.ocrRawData ?? (p.input.ocrText ? { text: p.input.ocrText } : null),
+              scannedAt: new Date(),
+            });
+            receiptId = receipt.id;
+            d.receiptId = receiptId;
+          }
+        } catch (receiptErr) {
+          this.logger.error(
+            `Không thể tạo bản ghi Receipt: ${(receiptErr as Error)?.message}`,
+          );
         }
-      } catch (receiptErr) {
-        this.logger.error(
-          `Không thể tạo bản ghi Receipt: ${(receiptErr as Error)?.message}`,
-        );
+      }
+
+      if (p.imageUrl) {
+        d.photoUrl = p.imageUrl;
+      }
+
+      const expiresAt = new Date(
+        Date.now() + AI_CHAT_CONFIG.PENDING_ACTION_TTL_MINUTES * 60 * 1000,
+      );
+      const amountFormatted = formatMoney(d.amount, d.currency);
+
+      const toolInput = {
+        type: d.type,
+        amount: d.amount,
+        name: d.name,
+        date: d.date,
+        note: d.note,
+        locationName: d.locationName ?? null,
+        accountId: d.accountId,
+        accountName: d.accountName,
+        categoryId: d.categoryId,
+        categoryName: d.categoryName,
+        categoryKey: d.categoryKey,
+        source: d.source,
+        receiptId: d.receiptId ?? null,
+        photoUrl: d.photoUrl ?? null,
+        imageUrl: d.photoUrl ?? null,
+      };
+      const previewPayload = {
+        title:
+          totalDrafts > 1
+            ? `Xác nhận giao dịch (${idx + 1}/${totalDrafts})`
+            : 'Xác nhận ghi chép giao dịch',
+        type: d.type,
+        name: d.name,
+        amount: d.amount,
+        amountFormatted,
+        currency: d.currency,
+        accountId: d.accountId,
+        accountName: d.accountName,
+        categoryId: d.categoryId,
+        categoryName: d.categoryName,
+        categorySource: d.categorySource,
+        categoryConfidence: d.categoryConfidence,
+        suggestedNewCategory: d.suggestedNewCategory,
+        date: d.date,
+        note: d.note,
+        locationName: d.locationName ?? null,
+        source: d.source,
+        receiptId: d.receiptId ?? null,
+        photoUrl: d.photoUrl ?? null,
+        imageUrl: d.photoUrl ?? null,
+        missingFields: d.missingFields,
+        warnings: d.warnings,
+        expiresAt: expiresAt.toISOString(),
+      };
+
+      const pending = await this.pendingActionRepo.createAndSave({
+        userId,
+        walletId,
+        toolName: 'draft_transaction',
+        toolInput,
+        previewPayload,
+        expiresAt,
+      });
+
+      try {
+        const message = await this.chatMessageRepo.createAndSave({
+          userId,
+          walletId,
+          role: ChatRole.ASSISTANT,
+          messageType: ChatMessageType.CONFIRMATION_PROMPT,
+          textContent: this.tone.say(mascot, 'confirm', {
+            name: d.name,
+            amount: amountFormatted,
+            category: d.categoryName ?? 'chưa phân loại',
+          }),
+          intent: AiIntent.ADD_TRANSACTION,
+          mascot,
+          payloadJson: {
+            pendingActionId: pending.id,
+            preview: previewPayload,
+            toolInput,
+            ...(totalDrafts > 1 ? { multiCount: totalDrafts, multiIndex: idx + 1 } : {}),
+          },
+        });
+        await this.pendingActionRepo.attachChatMessage(pending.id, message.id);
+        pending.chatMessageId = message.id;
+        lastResponse = this.mapper.toMessageResponse(message, pending);
+      } catch (err) {
+        // Không để lại hành động chờ "mồ côi" không gắn với tin nhắn nào
+        await this.pendingActionRepo
+          .markStatus(pending.id, PendingActionStatus.REJECTED)
+          .catch(() => undefined);
+        throw err;
       }
     }
 
-    if (p.imageUrl) {
-      d.photoUrl = p.imageUrl;
-    }
-
-    const expiresAt = new Date(
-      Date.now() + AI_CHAT_CONFIG.PENDING_ACTION_TTL_MINUTES * 60 * 1000,
-    );
-    const amountFormatted = formatMoney(d.amount, d.currency);
-
-    const toolInput = {
-      type: d.type,
-      amount: d.amount,
-      name: d.name,
-      date: d.date,
-      note: d.note,
-      locationName: d.locationName ?? null,
-      accountId: d.accountId,
-      accountName: d.accountName,
-      categoryId: d.categoryId,
-      categoryName: d.categoryName,
-      categoryKey: d.categoryKey,
-      source: d.source,
-      receiptId: d.receiptId ?? null,
-      photoUrl: d.photoUrl ?? null,
-      imageUrl: d.photoUrl ?? null,
-    };
-    const previewPayload = {
-      title: 'Xác nhận ghi chép giao dịch',
-      type: d.type,
-      name: d.name,
-      amount: d.amount,
-      amountFormatted,
-      currency: d.currency,
-      accountId: d.accountId,
-      accountName: d.accountName,
-      categoryId: d.categoryId,
-      categoryName: d.categoryName,
-      categorySource: d.categorySource,
-      categoryConfidence: d.categoryConfidence,
-      suggestedNewCategory: d.suggestedNewCategory,
-      date: d.date,
-      note: d.note,
-      locationName: d.locationName ?? null,
-      source: d.source,
-      receiptId: d.receiptId ?? null,
-      photoUrl: d.photoUrl ?? null,
-      imageUrl: d.photoUrl ?? null,
-      missingFields: d.missingFields,
-      warnings: d.warnings,
-      expiresAt: expiresAt.toISOString(),
-    };
-
-    const pending = await this.pendingActionRepo.createAndSave({
-      userId,
-      walletId,
-      toolName: 'draft_transaction',
-      toolInput,
-      previewPayload,
-      expiresAt,
-    });
-
-    try {
-      const message = await this.chatMessageRepo.createAndSave({
-        userId,
-        walletId,
-        role: ChatRole.ASSISTANT,
-        messageType: ChatMessageType.CONFIRMATION_PROMPT,
-        textContent: this.tone.say(mascot, 'confirm', {
-          name: d.name,
-          amount: amountFormatted,
-          category: d.categoryName ?? 'chưa phân loại',
-        }),
-        intent: AiIntent.ADD_TRANSACTION,
-        mascot,
-        payloadJson: {
-          pendingActionId: pending.id,
-          preview: previewPayload,
-          toolInput,
-        },
-      });
-      await this.pendingActionRepo.attachChatMessage(pending.id, message.id);
-      pending.chatMessageId = message.id;
-      return this.mapper.toMessageResponse(message, pending);
-    } catch (err) {
-      // Không để lại hành động chờ "mồ côi" không gắn với tin nhắn nào
-      await this.pendingActionRepo
-        .markStatus(pending.id, PendingActionStatus.REJECTED)
-        .catch(() => undefined);
-      throw err;
-    }
+    return lastResponse!;
   }
 
   /** Nhánh 2: intent -> hàm canned query được phê duyệt -> dữ liệu thật -> biểu đồ + diễn giải theo mascot. */

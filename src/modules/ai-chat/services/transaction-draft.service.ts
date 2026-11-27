@@ -19,6 +19,10 @@ export type DraftResult =
   | { ok: true; draft: TransactionDraftInput }
   | { ok: false; reason: 'no_amount' | 'amount_too_large' };
 
+export type MultiDraftResult =
+  | { ok: true; drafts: TransactionDraftInput[] }
+  | { ok: false; reason: 'no_amount' | 'amount_too_large' };
+
 @Injectable()
 export class TransactionDraftService {
   constructor(
@@ -88,6 +92,96 @@ export class TransactionDraftService {
       params.now,
     );
     return this.build(extracted, params);
+  }
+
+  /** Bóc tách một hoặc nhiều giao dịch từ cùng một câu nói/tin nhắn văn bản. */
+  async fromTextMany(params: {
+    text: string;
+    source: string;
+    accounts: WalletAccountLite[];
+    categories: CategoryLite[];
+    now?: Date;
+  }): Promise<MultiDraftResult> {
+    const rawText = (params.text || '').trim();
+    const words = rawText.split(/\s+/).filter(Boolean);
+    const nowDate = params.now ?? new Date();
+    const todayStr = nowDate.toISOString().slice(0, 10);
+
+    const isVerySimple =
+      words.length <= 3 &&
+      !rawText.includes('chia') &&
+      !rawText.includes('mỗi') &&
+      !rawText.includes('hết') &&
+      !rawText.includes('ở') &&
+      !rawText.includes('tại');
+
+    if (!isVerySimple && this.gateway.isAvailable()) {
+      try {
+        const aiItems = await this.gateway.extractTransactions(rawText, todayStr);
+        if (aiItems && aiItems.length > 0) {
+          const drafts: TransactionDraftInput[] = [];
+          for (const item of aiItems) {
+            if (!item?.name || typeof item.amount !== 'number' || item.amount <= 0) {
+              continue;
+            }
+            const built = await this.build(
+              {
+                amount: item.amount,
+                candidateCount: 1,
+                type:
+                  item.type === 'INCOME'
+                    ? TransactionType.INCOME
+                    : TransactionType.EXPENSE,
+                name: item.name,
+                date: item.date || todayStr,
+                dateExplicit: Boolean(item.date),
+                merchant: item.location,
+                locationName: item.location,
+                note: item.note,
+              },
+              { ...params, text: item.name },
+            );
+            if (built.ok) {
+              drafts.push(built.draft);
+            }
+          }
+          if (drafts.length > 0) {
+            return { ok: true, drafts };
+          }
+        }
+      } catch {
+        // Fallback bên dưới
+      }
+    }
+
+    // Fallback local: thử tách theo dấu câu / từ nối nếu có nhiều mệnh đề
+    const clauses = rawText
+      .split(/(?:[.!;]+|\b(?:sau đó|rồi|tiếp theo|tiếp đó)\b)/i)
+      .map((c) => c.trim())
+      .filter((c) => c.length > 1);
+
+    if (clauses.length > 1) {
+      const drafts: TransactionDraftInput[] = [];
+      for (const clause of clauses) {
+        const extracted = this.extractor.extractTransaction(clause, params.now);
+        const built = await this.build(extracted, { ...params, text: clause });
+        if (built.ok) {
+          drafts.push(built.draft);
+        }
+      }
+      if (drafts.length > 0) {
+        return { ok: true, drafts };
+      }
+    }
+
+    const single = await this.fromText(params);
+    if (!single.ok) {
+      return {
+        ok: false,
+        reason: 'reason' in single ? single.reason : 'no_amount',
+      };
+    }
+    return { ok: true, drafts: [single.draft] };
   }
 
   /** Nhánh hóa đơn: Ưu tiên AI Service (Gemini) bóc tách có cấu trúc, fallback sang Regex nội bộ. */

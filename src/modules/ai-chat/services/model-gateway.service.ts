@@ -121,6 +121,44 @@ export class ModelGatewayService {
   }
 
   /**
+   * Gọi AI Service (Gemini) bóc tách nhiều giao dịch từ 1 câu nói hoặc tin nhắn dài.
+   */
+  async extractTransactions(
+    text: string,
+    today?: string,
+  ): Promise<
+    Array<{
+      name?: string;
+      amount?: number;
+      type?: string;
+      date?: string;
+      location?: string;
+      note?: string;
+    }> | null
+  > {
+    if (!this.isAvailable()) return null;
+    try {
+      const res = await this.postJson<{
+        transactions?: Array<{
+          name?: string;
+          amount?: number;
+          type?: string;
+          date?: string;
+          location?: string;
+          note?: string;
+        }>;
+      }>('/extract-transactions', { text, today }, { timeoutMs: 8000 });
+      if (res && Array.isArray(res.transactions) && res.transactions.length > 0) {
+        return res.transactions;
+      }
+      return null;
+    } catch (err) {
+      this.logger.warn(`Lỗi AI extract-transactions: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
    * Gọi AI Service (Gemini) bóc tách cấu trúc hóa đơn từ văn bản OCR (tên quán, tổng tiền, thuế, tip, ngày, món ăn).
    */
   async extractReceipt(
