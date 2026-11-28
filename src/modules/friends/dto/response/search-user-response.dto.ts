@@ -5,6 +5,9 @@ export class SearchUserResultDto {
   @ApiProperty({ example: 'uuid-nguoi-dung' })
   id: string;
 
+  @ApiPropertyOptional({ example: 'nguyenvana' })
+  username?: string;
+
   @ApiProperty({ example: 'Nguyễn Văn A' })
   fullName: string;
 
@@ -20,4 +23,7 @@ export class SearchUserResultDto {
     description: 'Trạng thái quan hệ với người dùng đang đăng nhập',
   })
   relationStatus: FriendRelationStatus;
+
+  @ApiPropertyOptional({ example: 'uuid-ban-ghi-friendship' })
+  friendshipId?: string | null;
 }

@@ -4,6 +4,9 @@ export class UserSummaryDto {
   @ApiProperty({ example: 'uuid-nguoi-dung' })
   id: string;
 
+  @ApiPropertyOptional({ example: 'nguyenvana' })
+  username?: string;
+
   @ApiProperty({ example: 'Nguyễn Văn A' })
   fullName: string;
 

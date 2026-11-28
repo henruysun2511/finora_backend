@@ -4,6 +4,9 @@ export class FriendResponseDto {
   @ApiProperty({ example: 'uuid-cua-ban-be' })
   id: string;
 
+  @ApiPropertyOptional({ example: 'nguyenvana' })
+  username?: string;
+
   @ApiProperty({ example: 'Nguyễn Văn A' })
   fullName: string;
 
@@ -15,4 +18,7 @@ export class FriendResponseDto {
 
   @ApiProperty({ example: '2026-10-19T00:00:00.000Z' })
   connectedAt: Date;
+
+  @ApiPropertyOptional({ example: 'uuid-cua-ban-ghi-friendship' })
+  friendshipId?: string;
 }

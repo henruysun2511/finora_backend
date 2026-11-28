@@ -57,6 +57,7 @@ export class FriendsService {
       where: [
         { fullName: ILike(keyword), id: Not(currentUserId) },
         { email: ILike(keyword), id: Not(currentUserId) },
+        { username: ILike(keyword), id: Not(currentUserId) },
       ],
       take: 20,
     });
@@ -97,10 +98,12 @@ export class FriendsService {
 
       return {
         id: user.id,
+        username: user.username,
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar ?? null,
         relationStatus,
+        friendshipId: relation?.id ?? null,
       };
     });
   }
@@ -152,6 +155,24 @@ export class FriendsService {
 
           return saved;
         }
+      }
+      if (existing.status === FriendshipStatus.REJECTED) {
+        existing.status = FriendshipStatus.PENDING;
+        existing.requesterId = requesterId;
+        existing.addresseeId = addresseeId;
+        existing.respondedAt = undefined;
+        const saved = await this.friendshipRepo.save(existing);
+
+        await this.sendNotificationSafe({
+          userId: addresseeId,
+          type: NotificationType.FRIEND_REQUEST,
+          title: `${requesterFullName} vừa gửi cho bạn một lời mời kết bạn`,
+          body: 'Nhấn để xem và phản hồi lời mời kết bạn',
+          relatedEntityType: 'FRIENDSHIP',
+          relatedEntityId: saved.id,
+        });
+
+        return saved;
       }
     }
 

@@ -11,10 +11,12 @@ export class FriendMapper {
 
     return {
       id: friendUser?.id ?? '',
+      username: friendUser?.username,
       fullName: friendUser?.fullName ?? '',
       email: friendUser?.email ?? '',
       avatar: friendUser?.avatar ?? null,
       connectedAt: friendship.respondedAt ?? friendship.updatedAt,
+      friendshipId: friendship.id,
     };
   }
 
@@ -29,6 +31,7 @@ export class FriendMapper {
       id: friendship.id,
       user: {
         id: targetUser?.id ?? '',
+        username: targetUser?.username,
         fullName: targetUser?.fullName ?? '',
         email: targetUser?.email ?? '',
         avatar: targetUser?.avatar ?? null,
