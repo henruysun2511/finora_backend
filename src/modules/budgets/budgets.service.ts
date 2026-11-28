@@ -117,6 +117,56 @@ export class BudgetsService {
           0,
           manager,
         );
+        const existingExpenses: Array<{
+          amount: string | number;
+          currency: string | null;
+          walletCurrency: string | null;
+        }> = await manager.query(
+          `SELECT t.amount, t.currency, w.default_currency AS "walletCurrency"
+           FROM transactions t
+           INNER JOIN accounts a ON a.id = t.account_id
+           INNER JOIN wallets w ON w.id = a.wallet_id
+           WHERE a.wallet_id = $1
+             AND t.category_id = $2
+             AND t.type = $3
+             AND t.deleted_at IS NULL
+             AND a.deleted_at IS NULL
+             AND t.transaction_date >= $4
+             AND t.transaction_date < $5`,
+          [
+            dto.walletId,
+            dto.categoryId,
+            TransactionType.EXPENSE,
+            `${firstPeriod.startDate}T00:00:00.000Z`,
+            `${this.nextDay(firstPeriod.endDate)}T00:00:00.000Z`,
+          ],
+        );
+        if (existingExpenses.length > 0) {
+          let initialSpent = 0;
+          for (const row of existingExpenses) {
+            let amt = Number(row.amount) || 0;
+            const txCurr = row.currency?.trim().toUpperCase();
+            const walletCurr = row.walletCurrency?.trim().toUpperCase();
+            if (
+              txCurr &&
+              walletCurr &&
+              txCurr !== walletCurr &&
+              this.exchangeRatesService
+            ) {
+              const fx = await this.exchangeRatesService.convert(
+                amt,
+                txCurr,
+                walletCurr,
+              );
+              amt = fx.convertedAmount;
+            }
+            initialSpent += amt;
+          }
+          if (initialSpent > 0) {
+            firstPeriod.spentAmount = round2(initialSpent);
+            await this.periodRepo.save(firstPeriod, manager);
+          }
+        }
         return this.mapper.toResponse(budget, firstPeriod);
       });
 
