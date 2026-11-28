@@ -57,36 +57,29 @@ export class TransactionsService {
     private readonly budgetsService: BudgetsService,
     private readonly auditLogsService: AuditLogsService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
-  ) {}
+  ) { }
 
-  /**
-   * Tạo giao dịch thu nhập (INCOME) hoặc chi tiêu (EXPENSE).
-   * Cập nhật số dư tài khoản theo cơ chế Pessimistic Lock trong 1 DB transaction ACID.
-   *
-   * @param userId - UUID của người dùng thực hiện
-   * @param dto - Thông tin giao dịch
-   * @returns TransactionResponseDto kèm số dư sau giao dịch
-   */
+
   async createTransaction(
     userId: string,
     dto: CreateTransactionDto,
     manager?: EntityManager,
     recurringTransactionId?: string,
   ): Promise<TransactionResponseDto> {
-    // 1. Xác thực tài khoản: tồn tại, chưa lưu trữ và user có quyền ghi (OWNER / EDITOR)
+    // Xác thực tài khoản: tồn tại, chưa lưu trữ và user có quyền ghi 
     const account = await this.accountsService.validateAccountForTransaction(
       userId,
       dto.accountId,
     );
 
-    // 2. Xác thực danh mục: tồn tại, thuộc quyền truy cập và khớp loại thu/chi
+    // Xác thực danh mục: tồn tại, thuộc quyền truy cập và khớp loại thu/chi
     const category = await this.categoriesService.validateCategoryForTransaction(
       dto.categoryId,
       dto.type,
       userId,
     );
 
-    // 3. Xác định tên đại diện mặc định nếu không truyền name
+    // Xác định tên đại diện mặc định nếu không truyền name
     const fallbackName =
       (dto.note && dto.note.trim())
         ? dto.note.trim().slice(0, 100)
