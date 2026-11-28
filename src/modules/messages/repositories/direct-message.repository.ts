@@ -156,7 +156,8 @@ export class DirectMessageRepository {
         )`,
       )
       .setParameter('userId', userId)
-      .orderBy('last_msg.created_at', 'DESC');
+      .orderBy('last_msg.created_at', 'DESC')
+      .addOrderBy('last_msg.id', 'DESC');
 
     if (search) {
       qb.andWhere(
@@ -167,7 +168,15 @@ export class DirectMessageRepository {
 
     const raw = await qb.getRawMany();
 
-    return raw.map((r) => ({
+    // Đảm bảo mỗi bạn chat chỉ xuất hiện 1 lần ngay cả khi có nhiều tin nhắn trùng created_at
+    const seenFriends = new Set<string>();
+    const uniqueRaw = raw.filter((r) => {
+      if (seenFriends.has(r.friendId)) return false;
+      seenFriends.add(r.friendId);
+      return true;
+    });
+
+    return uniqueRaw.map((r) => ({
       friendId: r.friendId,
       friendFullName: r.friendFullName,
       friendAvatar: r.friendAvatar ?? null,
